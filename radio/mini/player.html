@@ -1,0 +1,241 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	
+	<title>Shutdown Radio</title>
+
+	<style>
+	  body {
+		  font: 12px Verdana,Helvetica,Arial;
+	  }
+	  div, iframe {
+		  margin: 20px 20px 20px 20px;
+	  }
+	  input {
+		  width: 250px;
+		  margin: 4px 4px 4px 4px;
+	  }
+	  button {
+		  width: 75px;
+		  margin: 4px 4px 4px 4px;
+	  }
+	</style>
+
+	<script
+	  src="https://code.jquery.com/jquery-3.6.0.js"
+	  integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+	  crossorigin="anonymous">
+	</script>
+
+	<script
+	  src="https://cdn.jsdelivr.net/npm/js-cookie@rc/dist/js.cookie.min.js"
+	  crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript">
+
+	  var startNextDelayed = true;
+	  var channelName;
+	  var who;
+	  var player;
+
+	  // show all videos in the channel
+	  function refreshPlaylist() {
+		  var url = "/playlist?channel=" + escape(channelName) + "&rand=" + Math.random();
+
+		  $.ajax(url, {
+			  success: function(data, status, xhr) {
+				  var html = "";
+				  
+				  if (data.Videos) {
+					  html += "<h2>All Videos in Channel</h2>";
+
+					  for (i = data.Videos.length - 1; i >= 0; --i) {
+						  html += "<a target='_blank' href='https://www.youtube.com/watch?v=" +
+							  data.Videos[i].Id + "' title='Added by " + htmlEscape(data.Videos[i].AddedBy) +
+							  "'>" + htmlEscape(data.Videos[i].Title) + "</a><br/>";
+					  }
+				  }
+				  else {
+					  html = "No videos in channel. Add one!";
+				  }
+				  
+				  $("#playlist").html(html);
+			  }
+		  });
+	  }
+	  
+	  // add a video to the current playlist
+	  function addVideo(videoId) {
+		  var url =
+			  "/addVideo?channel=" + escape(channelName) +
+			  "&video=" + escape(videoId) +
+			  "&who=" + escape(who) +
+			  "&rand=" + Math.random();
+
+		  $.ajax(url, {
+			  success: function(data, status, xhr) {
+				  if (player.getPlayerState() != 1) startNextVideo();
+				  $("#videoId").val("");
+				  refreshPlaylist();
+			  },
+			  error: function(xhr, status, error) {
+				  alert("Failed adding video");
+			  }
+		  });
+	  }
+	  
+	  // start playing a new video
+	  function startNextVideo() {
+		  var url = "/channel?channel=" + escape(channelName) + "&rand=" + Math.random();
+
+		  $.ajax(url, {
+			  success: function(data, status, xhr) {
+				  if (data.CurrentVideo) {
+					  var videoId = data.CurrentVideo.Id;
+					  var start = 0;
+					  
+					  if (startNextDelayed) {
+
+						  // try to start things in sync with others
+						  start += (Math.round(new Date().getTime() / 1000) -
+									data.CurrentVideoStarted.seconds);
+						  
+						  startNextDelayed = false;
+					  }
+
+					  player.loadVideoById(videoId, start);
+				  }
+			  },
+			  error: function(xhr, status, error) {
+				  if (confirm("Request for video failed; try again?")) {
+					  setTimeout(startNextVideo, 1000);
+				  }
+			  }
+		  });
+	  }
+
+	  // fired when registered events hit
+	  // https://developers.google.com/youtube/iframe_api_reference#Events
+	  function onPlayerStateChange(event) {
+
+		  switch (event.data) {
+			  
+		      case YT.PlayerState.ENDED:
+		          startNextVideo();
+			      break;
+			  
+		      case YT.PlayerState.PAUSED:
+			      startNextDelayed = true;
+			      break;
+		  }
+	  }
+
+	  // fired when player is ready to receive commands
+	  function onPlayerReady(event) {
+		  startNextVideo();
+	  }
+
+	  // instantiates the player as a global; 
+	  // iframe replaces the specified div tag
+	  function onYouTubeIframeAPIReady() {
+		  player = new YT.Player("player", {
+			  "height": "390",
+			  "width": "640",
+			  "events": {
+				  "onReady": onPlayerReady,
+				  "onStateChange": onPlayerStateChange
+			  }
+		  });
+	  }
+	  
+	  // loads the youtube stuff async;
+	  // calls "onYouTubeIframeAPIReady" when ready
+	  function addYouTubeScript() {
+		  var ytScriptTag = document.createElement("script");
+		  ytScriptTag.src = "https://www.youtube.com/iframe_api";
+		  
+		  var firstScriptTag = document.getElementsByTagName("script")[0];
+		  firstScriptTag.parentNode.insertBefore(ytScriptTag, firstScriptTag);
+	  }
+
+	  $(document).ready(function() {
+
+		  $("#channelName").val(Cookies.get("channelName"));
+		  $("#who").val(Cookies.get("who"));
+			  
+		  $("#setChannel").click(function() {
+			  channelName = $("#channelName").val();
+			  who = $("#who").val();
+			  if (channelName && who) {
+				  
+				  addYouTubeScript();
+
+				  $("#channelNameHeader").text("Playing: " + channelName);
+				  $("#preSet").hide();
+				  $("#postSet").show();
+
+				  refreshPlaylist();
+				  
+				  Cookies.set("channelName", channelName, { expires: 90 });
+				  Cookies.set("who", who, { expires: 90 });
+			  }
+		  });
+		  
+		  $("#addVideo").click(function() {
+			  var videoId = $("#videoId").val();
+			  if (videoId && who) {
+				  addVideo(videoId);
+			  }
+		  });
+
+	  });
+
+	  function htmlEscape(input) {
+		  return($("<div/>").text(input).html());
+	  }
+
+	</script>
+
+  </head>
+  <body>
+
+	<div id="header">
+	  <h1>Shutdown Radio</h1>
+	</div>
+
+	<div id="preSet">
+	  <form>
+		<table>
+		  <tr>
+			<td>Channel Name:</td>
+			<td><input type="text" id="channelName" /></td>
+		  </tr><tr>
+			<td>Your Name:</td>
+			<td><input type="text" id="who" /></td>
+		  </tr><tr>
+			<td>&nbsp;</td>
+			<td><button id="setChannel" type="button">Set</button></td>
+		  </tr>
+		</table>
+	  </form>
+	</div>
+
+	<div id="postSet" style="display:none">
+
+	  <form>
+		<h2 id="channelNameHeader"></h2>
+		Add Video (URL or ID):
+		<input type="text" id="videoId" />
+		<button id="addVideo" type="button">Add</button>
+	  </form>
+
+	  <div id="player"></div>
+
+	  <div id="playlist">
+	  </div>
+	
+	</div>
+
+  </body>
+</html>
