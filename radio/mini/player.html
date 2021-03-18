@@ -34,7 +34,8 @@
 
 	<script type="text/javascript">
 
-	  var startNextDelayed = true;
+	  var catchupThreshold = 20;
+	  var firstVideo = true;
 	  var channelName;
 	  var who;
 	  var player;
@@ -92,19 +93,20 @@
 		  $.ajax(url, {
 			  success: function(data, status, xhr) {
 				  if (data.CurrentVideo) {
-					  var videoId = data.CurrentVideo.Id;
-					  var start = 0;
-					  
-					  if (startNextDelayed) {
 
-						  // try to start things in sync with others
-						  start += (Math.round(new Date().getTime() / 1000) -
-									data.CurrentVideoStarted.seconds);
-						  
-						  startNextDelayed = false;
+					  var videoId = data.CurrentVideo.Id;
+					  
+					  var currentSecs =
+						  (Math.round(new Date().getTime() / 1000) -
+						   data.CurrentVideoStarted.seconds);
+
+					  var startSecs = 0;
+					  if (firstVideo || currentSecs > catchupThreshold) {
+						  startSecs = currentSecs;
+						  firstVideo = false;
 					  }
 
-					  player.loadVideoById(videoId, start);
+					  player.loadVideoById(videoId, startSecs);
 				  }
 			  },
 			  error: function(xhr, status, error) {
@@ -118,16 +120,8 @@
 	  // fired when registered events hit
 	  // https://developers.google.com/youtube/iframe_api_reference#Events
 	  function onPlayerStateChange(event) {
-
-		  switch (event.data) {
-			  
-		      case YT.PlayerState.ENDED:
-		          startNextVideo();
-			      break;
-			  
-		      case YT.PlayerState.PAUSED:
-			      startNextDelayed = true;
-			      break;
+		  if (event.data == YT.PlayerState.ENDED) {
+		      startNextVideo();
 		  }
 	  }
 
