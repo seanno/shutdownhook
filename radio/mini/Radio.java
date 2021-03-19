@@ -2,9 +2,12 @@
 import java.time.Instant;
 import java.util.*;
 import java.io.*;
+import java.util.logging.Logger;
 
 public class Radio
 {
+	private final static Logger log = Logger.getLogger(Radio.class.getName());
+
 	private final static String DEFAULT_HTML = "player";
 	
 	public Radio(Store store) {
@@ -28,11 +31,14 @@ public class Radio
 		if (channel.CurrentVideo != null) {
 
 			int duration = channel.CurrentVideo.DurationSeconds;
-			if (duration > 1) duration -= 1; // slop because machines are fast
+			duration -= 2; // slop because machines are fast
+			if (duration < 1) duration = 1;
 			
 			Instant doneAt = channel.CurrentVideoStarted.plusSeconds(duration);
+			Instant now = Instant.now();
+			log.info(String.format("updateIfNeeded; doneAt = %s; now = %s", doneAt, now));
 
-			if (Instant.now().isBefore(doneAt)) {
+			if (now.isBefore(doneAt)) {
 				// all good, keep going with this one
 				return(channel);
 			}
@@ -70,10 +76,18 @@ public class Radio
 			// found one!
 			playlist.Videos.get(i).Played = true;
 			store.savePlaylist(playlist);
+			log.info(String.format("updateIfNeeded; found unplayed vid %d %s", i, playlist.Videos.get(i).Id));
 		}
 		else {
-			// all played, so shuffle a random one
-			i = new Random().nextInt(playlist.Videos.size());
+			// all played, so shuffle a random one (but not the current one)
+			boolean keepLooking = true;
+			String currentId = (channel.CurrentVideo == null ? "" : channel.CurrentVideo.Id);
+			while (keepLooking) {
+				i = new Random().nextInt(playlist.Videos.size());
+				if (playlist.Videos.size() == 1 || !playlist.Videos.get(i).Id.equals(currentId)) keepLooking = false;
+			}
+			
+			log.info(String.format("updateIfNeeded; picked random vid %d %s", i, playlist.Videos.get(i).Id));
 		}
 		
 		channel.CurrentVideo = playlist.Videos.get(i);

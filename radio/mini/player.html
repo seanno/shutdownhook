@@ -52,14 +52,17 @@
 					  html += "<h2>All Videos in Channel</h2>";
 
 					  for (i = data.Videos.length - 1; i >= 0; --i) {
-						  html += "<a target='_blank' href='https://www.youtube.com/watch?v=" +
-							  data.Videos[i].Id + "' title='Added by " + htmlEscape(data.Videos[i].AddedBy) +
+						  html += "<a class='vid' id='" + data.Videos[i].Id + "' target='_blank' " +
+							  "href='https://www.youtube.com/watch?v=" + data.Videos[i].Id +
+							  "' title='Added by " + htmlEscape(data.Videos[i].AddedBy) +
 							  "'>" + htmlEscape(data.Videos[i].Title) + "</a><br/>";
 					  }
 				  }
 				  else {
 					  html = "No videos in channel. Add one!";
 				  }
+
+				  html += "<p><a onclick='refreshPlaylist();return(false);' href='#'>refresh</a></p>";
 				  
 				  $("#playlist").html(html);
 			  }
@@ -107,6 +110,9 @@
 					  }
 
 					  player.loadVideoById(videoId, startSecs);
+
+					  $(".vid").css("font-weight", "normal");
+					  $("#" + videoId).css("font-weight", "bolder");
 				  }
 			  },
 			  error: function(xhr, status, error) {
@@ -193,12 +199,10 @@
 
   </head>
   <body>
-
-	<div id="header">
-	  <h1>Shutdown Radio</h1>
-	</div>
+	  
 
 	<div id="preSet">
+	  <h1>Shutdown Radio</h1>
 	  <form>
 		<table>
 		  <tr>
@@ -217,8 +221,8 @@
 
 	<div id="postSet" style="display:none">
 
+	  <h1 id="channelNameHeader"></h1>
 	  <form>
-		<h2 id="channelNameHeader"></h2>
 		Add Video (URL or ID):
 		<input type="text" id="videoId" />
 		<button id="addVideo" type="button">Add</button>
@@ -226,9 +230,8 @@
 
 	  <div id="player"></div>
 
-	  <div id="playlist">
-	  </div>
-	
+	  <div id="playlist"></div>
+	  
 	</div>
 
   </body>
