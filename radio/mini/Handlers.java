@@ -1,3 +1,7 @@
+/*
+** Read about this code at http://shutdownhook.com.
+** No restrictions on use; no assurances or warranties either!
+*/
 
 import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;

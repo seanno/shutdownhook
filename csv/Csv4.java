@@ -1,3 +1,8 @@
+/*
+** Read about this code at http://shutdownhook.com.
+** No restrictions on use; no assurances or warranties either!
+*/
+
 
 import java.io.FileReader;
 import java.util.Iterator;
