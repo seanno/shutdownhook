@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.Closeable;
+import java.io.InputStream;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
@@ -36,6 +37,20 @@ public class WebServer implements Closeable
 		public int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
 		public int ShutdownWaitSeconds = 30;
 		public boolean ReturnExceptionDetails = false;
+
+		// these aren't documented and are a bit problematic because they
+		// get set as statics ... if you set them you'll change all instances
+		// in the process. But without them clients can end up hanging sockets
+		// for a long time / forever. Use 0 to leave system defaults untouched;
+		// -1 for infinite; else seconds. 
+		public int MaxReadSeconds = (60 * 3);
+		public int MaxWriteSeconds = (60 * 3);
+
+		// if these are set, will create a SecureServer instead of
+		// a regular one. Parameters are named to match Apache config values
+		// so hopefully they make sense to people.
+		public String SSLCertificateFile;
+		public String SSLCertificateKeyFile;
 	}
 
 	// +---------------------------+
@@ -52,7 +67,9 @@ public class WebServer implements Closeable
 
 	public static class Request {
 		public String Url;
+		public String Method;
 		public Map<String,String> QueryParams;
+		public String Body;
 	}
 
 	// +----------+
@@ -69,20 +86,28 @@ public class WebServer implements Closeable
 		public void setHtml(String s) { Status = 200; Body = s; ContentType = "text/html"; }
 	}
 
-	// +-----------+
-	// | WebServer |
-	// +-----------+
+	// +------------------+
+	// | WebServer Public |
+	// +------------------+
 
-	public WebServer(Config cfg) throws IOException {
+	public static WebServer create(Config cfg) throws Exception {
 
-		this.cfg = cfg;
+		WebServer server = (cfg.SSLCertificateFile == null ?
+							new WebServer(cfg) : new SecureServer(cfg));
 
-		pool = (cfg.ThreadCount == 0
-				? Executors.newCachedThreadPool()
-				: Executors.newFixedThreadPool(cfg.ThreadCount));
+		if (cfg.MaxReadSeconds != 0) {
+			System.setProperty("sun.net.httpserver.maxReqTime", Long.toString(cfg.MaxReadSeconds));
+		}
+		
+		if (cfg.MaxWriteSeconds != 0) {
+			System.setProperty("sun.net.httpserver.maxRspTime", Long.toString(cfg.MaxWriteSeconds));
+		}
 
-		server = HttpServer.create(new InetSocketAddress(cfg.Port), 0);
-		server.setExecutor(pool);
+		server.createHttpServer(new InetSocketAddress(cfg.Port));
+		server.setExecutor();
+
+		return(server);
+		
 	}
 
 	public void start() {
@@ -195,6 +220,27 @@ public class WebServer implements Closeable
 		});
 	}
 
+	// +-------------------+
+	// | WebServer Private |
+	// +-------------------+
+
+	public WebServer(Config cfg) {
+		this.cfg = cfg;
+	}
+
+	protected void createHttpServer(InetSocketAddress address) throws Exception {
+		server = HttpServer.create(new InetSocketAddress(cfg.Port), 0);
+	}
+	
+	private void setExecutor() {
+
+		pool = (cfg.ThreadCount == 0
+				? Executors.newCachedThreadPool()
+				: Executors.newFixedThreadPool(cfg.ThreadCount));
+
+		server.setExecutor(pool);
+	}
+	
 	private void sendResponse(HttpExchange exchange, Response response) throws IOException {
 
 		if (response.ContentType != null) {
@@ -211,11 +257,12 @@ public class WebServer implements Closeable
 		}
 	}
 
-	private Request setupRequest(HttpExchange exchange) {
+	private Request setupRequest(HttpExchange exchange) throws IOException {
 
 		Request request = new Request();
 
 		request.Url = exchange.getRequestURI().toString();
+		request.Method = exchange.getRequestMethod();
 
 		request.QueryParams = new HashMap<String,String>();
 
@@ -234,18 +281,45 @@ public class WebServer implements Closeable
 			}
 		}
 
+		if (request.Method.equalsIgnoreCase("POST") ||
+			request.Method.equalsIgnoreCase("PUT")) {
+			
+			InputStream stream = null;
+
+			try {
+				stream = exchange.getRequestBody();
+				request.Body = Easy.stringFromInputStream(stream);
+			}
+			finally {
+				if (stream != null) stream.close();
+			}
+		}
+
 		return(request);
 	}
 
+	// +---------+
+	// | Members |
+	// +---------+
+
 	public static void main(String args[]) throws Exception{
-		final WebServer server = new WebServer(new Config());
+		
+		Config cfg = new Config();
+		if (args.length > 1 && args[1].equalsIgnoreCase("secure")) {
+			log.info("Running secure server");
+			cfg.SSLCertificateFile = "@localhost.crt";
+			cfg.SSLCertificateKeyFile = "@localhost.key";
+		}
+	
+		final WebServer server = WebServer.create(cfg);
 		server.registerStaticHandler("/", args[0], "text/plain");
 		server.runSync();
 	}
 
-	private Config cfg;
+	protected Config cfg;
+	protected HttpServer server;
+	
 	private ExecutorService pool;
-	private HttpServer server;
 	
 	private final static Logger log = Logger.getLogger(WebServer.class.getName());
 }

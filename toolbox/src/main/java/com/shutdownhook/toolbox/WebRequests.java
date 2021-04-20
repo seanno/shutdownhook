@@ -5,20 +5,33 @@
 
 package com.shutdownhook.toolbox;
 
+import java.io.BufferedInputStream;
 import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.Closeable;
+import java.io.FileNotFoundException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.StringBuilder;
 import java.net.HttpURLConnection;
 import java.net.URL;
-import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.security.KeyStore;
+import java.security.KeyStoreException;
+import java.security.NoSuchAlgorithmException;
+import java.security.cert.Certificate;
+import java.security.cert.CertificateException;
+import java.security.cert.CertificateFactory;
+import java.security.cert.X509Certificate;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
+import java.util.HashMap;
 import java.util.Set;
 import java.util.HashSet;
 import java.util.concurrent.CompletableFuture;
@@ -27,25 +40,70 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import javax.net.ssl.HttpsURLConnection;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.SSLSocketFactory;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.TrustManagerFactory;
+import javax.net.ssl.X509TrustManager;
 
 public class WebRequests implements Closeable
 {
 	public static class Config
 	{
-		int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
-		int ShutdownWaitSeconds = 30;
-		int TimeoutMillis = 60000;
-		boolean FollowRedirects = true;
-		boolean LogResponse = true;
-		int CchReadBuffer = 4096;
+		public int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
+		public int ShutdownWaitSeconds = 30;
+		public int TimeoutMillis = 60000;
+		public boolean FollowRedirects = true;
+		public boolean LogResponse = true;
+		public int CchReadBuffer = 4096;
+
+		// If provided, this cert is added to the trust chain for requests.
+		// It is additive, not a replacement for the built-in trusted roots
+		public String TrustedCertificateFile;
+	}
+
+	public static class Params
+	{
+		public Map<String,String> QueryParams;
+		public Map<String,String> Headers;
+		public String MethodOverride;
+		public String Body;
+		
+		public void addQueryParam(String name, String val) {
+			if (QueryParams == null) QueryParams = new HashMap<String,String>();
+			QueryParams.put(name, val);
+		}
+
+		public void addHeader(String name, String val) {
+			if (Headers == null) Headers = new HashMap<String,String>();
+			Headers.put(name, val);
+		}
+
+		public void setContentType(String val) {
+			addHeader("Content-Type", val);
+		}
+		
+		public void setAccept(String val) {
+			addHeader("Accept", val);
+		}
+
+		public void setBasicAuth(String user, String password) {
+			addHeader("Authorization", "Basic " + Easy.base64Encode(user + ":" + password));
+		}
+
+		public void setForm(Map<String,String> form) {
+			setContentType("application/x-www-form-urlencoded");
+			Body = Easy.urlFormatQueryParams(form);
+		}
 	}
 
 	public static class Response
 	{
-		int Status;
-		String StatusText;
-		Exception Ex;
-		String Body;
+		public int Status;
+		public String StatusText;
+		public Exception Ex;
+		public String Body;
 
 		public boolean successful() {
 			return(Ex == null && Status >= 200 && Status <= 300);
@@ -58,7 +116,7 @@ public class WebRequests implements Closeable
 		}
 	}
 
-	public WebRequests(Config cfg) {
+	public WebRequests(Config cfg) throws Exception {
 
 		this.cfg = cfg;
 		this.syncFutures = new HashSet<Future>();
@@ -66,6 +124,13 @@ public class WebRequests implements Closeable
 		this.pool = (cfg.ThreadCount == 0
 					 ? Executors.newCachedThreadPool()
 					 : Executors.newFixedThreadPool(cfg.ThreadCount));
+
+		if (cfg.TrustedCertificateFile != null) {
+			ExtendedTrustManager etm = new ExtendedTrustManager(cfg.TrustedCertificateFile);
+			SSLContext sslContext = SSLContext.getInstance("TLS");
+			sslContext.init(null, new TrustManager[] { etm }, null);
+			sslSocketFactory = sslContext.getSocketFactory();
+		}
 	}
 
 	public void close() {
@@ -90,13 +155,13 @@ public class WebRequests implements Closeable
 		}
 	}
 
-	public Response get(String url) {
-		return(get(url, null));
+	public Response fetch(String url) {
+		return(fetch(url, new Params()));
 	}
 
-	public Response get(String url, Map<String,String> queryParams) {
-		
-		CompletableFuture<Response> future = getAsync(url, queryParams);
+	public Response fetch(String url, Params params) {
+
+		CompletableFuture<Response> future = fetchAsync(url, params);
 		Response response = null;
 
 		rememberSyncFuture(future);
@@ -105,7 +170,14 @@ public class WebRequests implements Closeable
 			response = future.get(cfg.TimeoutMillis, TimeUnit.MILLISECONDS);
 		}
 		catch (Exception e) {
+			response = new Response();
 			response.setException(e);
+
+			if (cfg.LogResponse) {
+				String msg = String.format("WebRequest for %s: Sync Get EXCEPTION %s",
+										   url, response.Ex.toString());
+				log.warning(msg);
+			}
 		}
 		finally {
 			forgetSyncFuture(future);
@@ -114,56 +186,52 @@ public class WebRequests implements Closeable
 		return(response);
 	}
 
-	public CompletableFuture<Response> getAsync(String url, Map<String,String> queryParams) {
+	public CompletableFuture<Response> fetchAsync(String url, Params params) {
 		
 		CompletableFuture<Response> future = new CompletableFuture<Response>();
 
 		pool.submit(() -> {
 
 			HttpURLConnection conn = null;
-			InputStreamReader reader = null;
-			BufferedReader buffered = null;
 
 			Response response = new Response();
 			Instant started = Instant.now();
 
-			String fullUrl = addQueryParams(url, queryParams);
-
+			String fullUrl = "";
+			
 			try {
+				if (params == null) {
+					throw new IllegalArgumentException("params cannot be null");
+				}
+					
+				fullUrl = Easy.urlAddQueryParams(url, params.QueryParams);
+
+				String method = (params.Body == null ? "GET" : "POST");
+				if (params.MethodOverride != null) method = params.MethodOverride;
+
 				conn = (HttpURLConnection) (new URL(fullUrl).openConnection());
-				conn.setRequestMethod("GET");
+				setSocketFactory(conn);
+				
+				conn.setRequestMethod(method);
 				conn.setFollowRedirects(cfg.FollowRedirects);
 				conn.setConnectTimeout(cfg.TimeoutMillis);
 				conn.setReadTimeout(cfg.TimeoutMillis);
 
+				addHeaders(conn, params);
+				sendBody(conn, params);
+				
 				response.Status = conn.getResponseCode();
 				response.StatusText = conn.getResponseMessage();
 
 				InputStream stm = getInputStreamReally(conn);
-				
-				if (stm != null) {
-					
-					StringBuilder sb = new StringBuilder();
-					reader = new InputStreamReader(stm);
-					buffered = new BufferedReader(reader);
-
-					char[] rgch = new char[cfg.CchReadBuffer];
-					int cch = -1;
-
-					while ((cch = buffered.read(rgch, 0, rgch.length)) != -1) {
-						sb.append(rgch, 0, cch);
-					}
-
-					response.Body = sb.toString();
-				}
+				response.Body = Easy.stringFromInputStream(stm);
+				// don't need to close stm; conn.disconnect() handles it
 			}
 			catch (Exception e) {
 				response.setException(e);
 			}
 			finally {
 				try {
-					if (buffered != null) buffered.close();
-					if (reader != null) reader.close();
 					if (conn != null) conn.disconnect();
 				}
 				catch (Exception e2) {
@@ -209,23 +277,43 @@ public class WebRequests implements Closeable
 		return(stm);
 	}
 
-	private String addQueryParams(String baseUrl, Map<String,String> queryParams) {
+	private void addHeaders(HttpURLConnection conn, Params params) {
 
-		if (queryParams == null || queryParams.size() == 0)
-			return(baseUrl);
-		
-		StringBuilder sb = new StringBuilder();
-		sb.append(baseUrl);
-		boolean firstParam = (baseUrl.indexOf("?") == -1);
-		
-		for (String queryParam : queryParams.keySet()) {
+		if (params.Headers == null || params.Headers.size() == 0)
+			return;
 
-			sb.append(firstParam ? "?" : "&"); firstParam = false;
-			sb.append(queryParam).append("=");
-			sb.append(URLEncoder.encode(queryParams.get(queryParam), StandardCharsets.UTF_8));
+		for (String name : params.Headers.keySet())
+			conn.setRequestProperty(name, params.Headers.get(name));
+	}
+
+	private void sendBody(HttpURLConnection conn, Params params) throws IOException {
+		
+		if (params.Body == null)
+			return;
+
+		conn.setRequestProperty("X-Requested-With", "ShutdownHookWebRequests");
+		conn.setRequestProperty("Csrf-Token", "nocheck");
+		
+		conn.setDoOutput(true);
+
+		OutputStream stream = null;
+
+		try {
+			byte[] rgb = params.Body.getBytes(StandardCharsets.UTF_8);
+			conn.setRequestProperty("Content-Length", Integer.toString(rgb.length));
+			
+			stream = conn.getOutputStream();
+			stream.write(rgb, 0, rgb.length);
 		}
+		finally {
+			if (stream != null) stream.close();
+		}
+	}
 
-		return(sb.toString());
+	private void setSocketFactory(HttpURLConnection conn) {
+		if (conn instanceof HttpsURLConnection && sslSocketFactory != null) {
+			((HttpsURLConnection)conn).setSSLSocketFactory(sslSocketFactory);
+		}
 	}
 
 	private synchronized void rememberSyncFuture(Future future) {
@@ -240,16 +328,112 @@ public class WebRequests implements Closeable
 		for (Future future : syncFutures) future.cancel(true);
 	}
 
-	public static void main(String[] args) {
+	public static void main(String[] args) throws Exception {
 		WebRequests requests = new WebRequests(new Config());
-		Response response = requests.get(args[0]);
+		Response response = requests.fetch(args[0]);
 		if (response.successful()) System.out.println(response.Body);
 		requests.close();
+	}
+
+	public static class ExtendedTrustManager implements X509TrustManager
+	{
+		public ExtendedTrustManager(String certificateFile) throws Exception {
+
+			defaultTm = findX509TrustManager(null);
+
+			KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
+			ks.load(null, null);
+
+			Certificate[] certs = getCertsFromPemFile(certificateFile);
+			for (int i = 0; i < certs.length; ++i) {
+				ks.setCertificateEntry("alias" + Integer.toString(i), certs[i]);
+			}
+
+			extendedTm = findX509TrustManager(ks);
+		}
+
+		@Override
+		public void checkServerTrusted(X509Certificate[] chain, String authType)
+			throws CertificateException {
+			// try ours, then default
+			try {
+				extendedTm.checkServerTrusted(chain, authType);
+			}
+			catch (CertificateException e) {
+				defaultTm.checkServerTrusted(chain, authType);
+			}
+		}
+
+		@Override
+		public X509Certificate[] getAcceptedIssuers() {
+			// always delegate
+			return(defaultTm.getAcceptedIssuers());
+		}
+		
+		@Override
+		public void checkClientTrusted(X509Certificate[] chain, String authType)
+			throws CertificateException {
+			// always delegate
+			defaultTm.checkClientTrusted(chain, authType);
+		}
+
+		// this is duplicated here and in SecureServer.java. That is kind of dumb,
+		// but I really want to keep these implementations a little independent and
+		// I don't think there will be a third reason for me to need this code.
+		// If that changes, then we'll revisit.
+		private Certificate[] getCertsFromPemFile(String path) throws IOException,
+																	  FileNotFoundException,
+																	  CertificateException {
+			InputStream stream = null;
+			BufferedInputStream buffered = null;
+
+			List<Certificate> certs = new ArrayList<Certificate>();
+		
+			try {
+				stream = (path.startsWith("@")
+						  ? getClass().getClassLoader().getResourceAsStream(path.substring(1))
+						  : new FileInputStream(path));
+			
+				buffered = new BufferedInputStream(stream);
+			
+				CertificateFactory certFactory = CertificateFactory.getInstance("X.509");
+
+				while (buffered.available() > 0) {
+					certs.add(certFactory.generateCertificate(buffered));
+				}
+			}
+			finally {
+				if (buffered != null) buffered.close();
+				if (stream != null) stream.close();
+			}
+
+			return(certs.toArray(new Certificate[certs.size()]));
+		}
+
+		private X509TrustManager findX509TrustManager(KeyStore ks)
+			throws NoSuchAlgorithmException, KeyStoreException {
+
+			String alg = TrustManagerFactory.getDefaultAlgorithm();
+			TrustManagerFactory tmf = TrustManagerFactory.getInstance(alg);
+			tmf.init(ks);
+
+			for (TrustManager tm : tmf.getTrustManagers()) {
+				if (tm instanceof X509TrustManager) {
+					return((X509TrustManager)tm);
+				}
+			}
+
+			throw new NoSuchAlgorithmException("X509TrustManager not found");
+		}
+
+		private X509TrustManager defaultTm;
+		private X509TrustManager extendedTm;
 	}
 
 	private Config cfg;
 	private ExecutorService pool;
 	private Set<Future> syncFutures;
+	private SSLSocketFactory sslSocketFactory;
 
 	private final static Logger log = Logger.getLogger(WebRequests.class.getName());
 }
