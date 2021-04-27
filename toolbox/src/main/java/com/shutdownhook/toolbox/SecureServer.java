@@ -92,6 +92,10 @@ public class SecureServer extends WebServer
 		// load up the actual key stuff
 		Certificate[] certs = getCertsFromPemFile(cfg.SSLCertificateFile);
 		RSAPrivateKey key = getPrivateKeyFromPemFile(cfg.SSLCertificateKeyFile);
+
+		if (cfg.SSLCertificateKeyFile.equals("@localhost.key")) {
+			log.warning("USING EMBEDDED TEST/DEV KEY --- this should never show in prod!");
+		}
 		
 		// and tuck it all into place
 		ks.setCertificateEntry("alias", certs[0]);

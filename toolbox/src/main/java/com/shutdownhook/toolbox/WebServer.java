@@ -11,13 +11,12 @@ import com.sun.net.httpserver.HttpServer;
 import java.io.Closeable;
 import java.io.InputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
-import java.io.StringWriter;
 import java.io.UnsupportedEncodingException;
+import java.lang.IllegalArgumentException;
 import java.lang.InterruptedException;
 import java.lang.Runtime;
 import java.net.InetSocketAddress;
-import java.net.URLDecoder;
+import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.concurrent.Executors;
@@ -66,9 +65,12 @@ public class WebServer implements Closeable
 	// +---------+
 
 	public static class Request {
-		public String Url;
+		public String Base;
+		public String Path;
 		public String Method;
+		public boolean Secure;
 		public Map<String,String> QueryParams;
+		public Map<String,String> Cookies;
 		public String Body;
 	}
 
@@ -80,10 +82,29 @@ public class WebServer implements Closeable
 		public int Status;
 		public String Body;
 		public String ContentType;
+		public Map<String,String> Headers;
 
 		public void setJson(String s) { Status = 200; Body = s; ContentType = "application/json"; }
 		public void setText(String s) { Status = 200; Body = s; ContentType = "text/plain"; }
 		public void setHtml(String s) { Status = 200; Body = s; ContentType = "text/html"; }
+
+		public void redirect(String url) {
+			Status = 302;
+			addHeader("Location", url);
+		}
+
+		public void setSessionCookie(String name, String val, Request request) {
+
+			String cookie = name + "=" + Easy.urlEncode(val) + "; HttpOnly";
+			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
+
+			addHeader("Set-Cookie", cookie);
+		}
+
+		public void addHeader(String name, String val) {
+			if (Headers == null) Headers = new HashMap<String,String>();
+			Headers.put(name, val);
+		}
 	}
 
 	// +------------------+
@@ -193,19 +214,11 @@ public class WebServer implements Closeable
 					response.Body = null;
 					response.ContentType = null;
 
-					String msg = String.format("Exception in %s: %s",
-											   handler.getClass().getName(), e);
-
-					StringWriter sw = new StringWriter();
-					PrintWriter pw = new PrintWriter(sw);
-					e.printStackTrace(pw);
-					String stack = sw.toString();
-
+					String msg = Easy.exMsg(e, handler.getClass().getName(), true);
 					log.severe(msg);
-					log.severe(stack);
 
 					if (cfg.ReturnExceptionDetails) {
-						response.Body = msg + "\n\n" + stack;
+						response.Body = msg;
 						response.ContentType = "text/plain";
 					}
 				}
@@ -243,6 +256,12 @@ public class WebServer implements Closeable
 	
 	private void sendResponse(HttpExchange exchange, Response response) throws IOException {
 
+		if (response.Headers != null) {
+			for (String name : response.Headers.keySet()) {
+				exchange.getResponseHeaders().add(name, response.Headers.get(name));
+			}
+		}
+		
 		if (response.ContentType != null) {
 			exchange.getResponseHeaders().add("Content-Type", response.ContentType);
 		}
@@ -257,30 +276,45 @@ public class WebServer implements Closeable
 		}
 	}
 
-	private Request setupRequest(HttpExchange exchange) throws IOException {
+	private Request setupRequest(HttpExchange exchange) throws IOException, IllegalArgumentException {
 
 		Request request = new Request();
 
-		request.Url = exchange.getRequestURI().toString();
+		setBaseUrl(exchange, request);
+		
+		request.Path = exchange.getRequestURI().toString();
 		request.Method = exchange.getRequestMethod();
 
+		// query string
 		request.QueryParams = new HashMap<String,String>();
-
 		String queryString = exchange.getRequestURI().getRawQuery();
 
 		if (queryString != null && !queryString.isEmpty()) {
 			for (String pair : queryString.split("&")) {
 				String[] kv = pair.split("=");
-				try {
-					request.QueryParams.put(URLDecoder.decode(kv[0], "UTF-8"),
-											URLDecoder.decode(kv[1], "UTF-8"));
-				}
-				catch (UnsupportedEncodingException e) {
-					// will never happen
-				}
+				request.QueryParams.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
 			}
 		}
 
+		// cookies
+		request.Cookies = new HashMap<String,String>();
+		List<String> cookies = exchange.getRequestHeaders().get("Cookie");
+
+		if (cookies != null) {
+			for (String cookieList : cookies) {
+				for (String cookie : cookieList.split(";")) {
+					String[] nv = cookie.split("=");
+					if (nv.length != 2) continue;
+					try {
+						request.Cookies.put(nv[0].trim(), Easy.urlDecode(nv[1].trim()));
+					} catch (Exception e) {
+						// we encode all of ours so just ignore this
+					}
+				}
+			}
+		}
+		
+		// body
 		if (request.Method.equalsIgnoreCase("POST") ||
 			request.Method.equalsIgnoreCase("PUT")) {
 			
@@ -296,6 +330,25 @@ public class WebServer implements Closeable
 		}
 
 		return(request);
+	}
+
+	private void setBaseUrl(HttpExchange exchange, Request request) {
+
+		request.Secure = (this instanceof SecureServer);
+
+		String hostAndPort = exchange.getRequestHeaders().getFirst("Host");
+		
+		if (hostAndPort == null) {
+			// this is fallback for really lame clients that don't send Host.
+			// are there really any of those out there besides me using telnet?
+			int port = server.getAddress().getPort();
+			String portStr = (((request.Secure && port == 443) || (!request.Secure && port == 80))
+							  ? "" : ":" + Integer.toString(port));
+
+			hostAndPort = server.getAddress().getHostName() + portStr;
+		}
+
+		request.Base = "http" + (request.Secure ? "s" : "") + "://" + hostAndPort;
 	}
 
 	// +---------+

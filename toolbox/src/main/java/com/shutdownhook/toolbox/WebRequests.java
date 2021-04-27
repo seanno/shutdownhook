@@ -104,6 +104,7 @@ public class WebRequests implements Closeable
 		public String StatusText;
 		public Exception Ex;
 		public String Body;
+		public Map<String,List<String>> Headers;
 
 		public boolean successful() {
 			return(Ex == null && Status >= 200 && Status <= 300);
@@ -222,7 +223,8 @@ public class WebRequests implements Closeable
 				
 				response.Status = conn.getResponseCode();
 				response.StatusText = conn.getResponseMessage();
-
+				response.Headers = conn.getHeaderFields();
+				
 				InputStream stm = getInputStreamReally(conn);
 				response.Body = Easy.stringFromInputStream(stm);
 				// don't need to close stm; conn.disconnect() handles it

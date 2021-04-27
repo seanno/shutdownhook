@@ -5,15 +5,25 @@
 
 package com.shutdownhook.toolbox;
 
+import java.io.ByteArrayInputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
+import java.io.PrintWriter;
+import java.io.StringWriter;
+import java.lang.IllegalArgumentException;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Map;
+import java.util.Random;
+import java.util.logging.Logger;
+import java.util.zip.GZIPInputStream;
+import java.util.zip.GZIPOutputStream;
 
 public class Easy
 {
@@ -92,8 +102,16 @@ public class Easy
 		return(Base64.getEncoder().encodeToString(input.getBytes(StandardCharsets.UTF_8)));
 	}
 
+	public static String base64Decode(String input) throws IllegalArgumentException {
+		return(new String(Base64.getDecoder().decode(input), StandardCharsets.UTF_8));
+	}
+
 	public static String urlEncode(String input) {
 		return(URLEncoder.encode(input, StandardCharsets.UTF_8));
+	}
+
+	public static String urlDecode(String input) {
+		return(URLDecoder.decode(input, StandardCharsets.UTF_8));
 	}
 
 	public static String urlPaste(String base, String path) {
@@ -132,4 +150,29 @@ public class Easy
 		return(sb.toString());
 	}
 
+	// +------+
+	// | Misc |
+	// +------+
+
+	public static String exMsg(Exception e, String msg, boolean includeStack) {
+
+		String log = String.format("Exception (%s): %s%s",
+								   e.toString(), msg,
+								   (includeStack ? "\n" + getStackTrace(e) : ""));
+		return(log);
+	}
+	
+	public static String getStackTrace(Exception e) {
+		StringWriter sw = new StringWriter();
+		PrintWriter pw = new PrintWriter(sw);
+		e.printStackTrace(pw);
+		return(sw.toString());
+	}
+	
+	public static void setSimpleLogFormat() {
+		System.setProperty("java.util.logging.SimpleFormatter.format",
+						   "[%1$tF %1$tT] [%4$-7s] %5$s %n");
+	}
+
+	private final static Logger log = Logger.getLogger(Easy.class.getName());
 }

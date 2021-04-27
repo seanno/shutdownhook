@@ -22,6 +22,7 @@ public class WebTest
 	private static String[] baseUrls = new String[SERVER_COUNT];
 	
 	private static WebRequests requests;
+	private static WebRequests requestsDefaultSSL;
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
@@ -38,6 +39,10 @@ public class WebTest
 		clientConfig.TimeoutMillis = 3000;
 		clientConfig.TrustedCertificateFile = "@localhost.crt";
 		requests = new WebRequests(clientConfig);
+
+		WebRequests.Config clientConfigDefaultSSL = new WebRequests.Config();
+		clientConfigDefaultSSL.TimeoutMillis = 3000;
+		requestsDefaultSSL = new WebRequests(clientConfigDefaultSSL);
 	}
 
 	private static WebServer createServer(int port, boolean secure) throws Exception {
@@ -81,6 +86,21 @@ public class WebTest
 			}
 		});
 
+		server.registerHandler("/cookie", new WebServer.Handler() {
+			public void handle(WebServer.Request request, WebServer.Response response)
+				throws Exception {
+
+				String cookie = request.Cookies.get("MACOOKIE");
+				if (cookie == null || !cookie.equals("YOIMACOOK  IE%")) {
+					response.Status = 500;
+				}
+				else {
+					response.setText("OK");
+					response.setSessionCookie("MACOOKIE", "YOYOURACOOKIE", request);
+				}
+			}
+		});
+
 		server.start();
 		
 		return(server);
@@ -96,6 +116,7 @@ public class WebTest
 		}
 
 		requests.close(); requests = null;
+		requestsDefaultSSL.close(); requestsDefaultSSL = null;
 	}
 
 	@Test
@@ -185,5 +206,50 @@ public class WebTest
 		WebRequests.Response response = requests.fetch("http://notaserverreallyiswear.us/");
 		Assert.assertEquals(500, response.Status);
 		Assert.assertNotNull(response.Ex);
+	}
+
+    @Test
+    public void sslRequestGoodCertDefaultConfig() throws Exception
+	{
+		WebRequests.Response response = requestsDefaultSSL.fetch("https://yahoo.com");
+		Assert.assertEquals(200, response.Status);
+		Assert.assertNull(response.Ex);
+	}
+
+    @Test
+    public void sslRequestGoodCertExtendedConfig() throws Exception
+	{
+		WebRequests.Response response = requests.fetch("https://yahoo.com");
+		Assert.assertEquals(200, response.Status);
+		Assert.assertNull(response.Ex);
+	}
+
+    @Test
+    public void sslRequestBadCert() throws Exception
+	{
+		WebRequests.Response response = requestsDefaultSSL.fetch(baseUrls[1] + "/static");
+		Assert.assertEquals(500, response.Status);
+		Assert.assertNotNull(response.Ex);
+	}
+
+    @Test
+    public void cookies() throws Exception
+	{
+		String encodedCookieSend = Easy.urlEncode("YOIMACOOK  IE%");
+		String encodedCookieReceive = Easy.urlEncode("YOYOURACOOKIE");
+		
+		WebRequests.Params params = new WebRequests.Params();
+		params.addHeader("Cookie", "MACOOKIE=" + encodedCookieSend);
+		
+		for (int i = 0; i < SERVER_COUNT; ++i) {
+			WebRequests.Response response = requests.fetch(baseUrls[i] + "/cookie", params);
+			Assert.assertEquals(200, response.Status);
+			Assert.assertNull(response.Ex);
+
+			Assert.assertTrue(response.Headers.get("Set-cookie").get(0).startsWith("MACOOKIE=" + encodedCookieReceive));
+			Assert.assertTrue(response.Headers.get("Set-cookie").get(0).indexOf("; HttpOnly") != -1);
+			if (i == 0) Assert.assertTrue(response.Headers.get("Set-cookie").get(0).indexOf("; Secure") == -1);
+			if (i == 1) Assert.assertTrue(response.Headers.get("Set-cookie").get(0).indexOf("; Secure") != -1);
+		}
 	}
 }
