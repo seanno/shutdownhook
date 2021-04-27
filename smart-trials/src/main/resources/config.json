@@ -1,0 +1,46 @@
+{
+	"SmartServer": {
+		
+		"Smart": {
+
+			"Sites": [
+				{
+					"SiteId": "SmartDevR2",
+
+					"IssUrl": "https://launch.smarthealthit.org/v/r2/fhir",
+					"ClientId": "xyz",
+					"ClientSecret": "bananafishbones",
+					
+					"UseWellKnownMetadata": true
+				},
+				{
+					"SiteId": "SmartDevR4",
+
+					"IssUrl": "https://launch.smarthealthit.org/v/r4/fhir",
+					"ClientId": "xyz",
+					"ClientSecret": "bananafishbones",
+					
+					"UseWellKnownMetadata": true
+				}
+			],
+			
+			"Requests": {
+				
+				"TrustedCertificateFile": "@localhost.crt"
+			},
+
+			"LogFhirResponses": true
+		},
+
+		"Server": {
+
+			"SSLCertificateFile": "@localhost.crt",
+			"SSLCertificateKeyFile": "@localhost.key"
+		}
+	},
+
+	"Requests": {
+		
+	}
+
+}
