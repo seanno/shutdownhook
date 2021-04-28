@@ -77,8 +77,8 @@ public class SmartTypes
 	{
 		public String id;
 		public List<Identifier> identifier;
-		public CodeableConcept clinicalStatus;
-		public CodeableConcept verificationStatus;
+		public ClinicalStatusCode clinicalStatus;
+		public VerificationStatusCode verificationStatus;
 		public CodeableConcept code;
 
 		public static Condition fromJson(String json) {
@@ -89,38 +89,12 @@ public class SmartTypes
 			return(gson.fromJson(json, Condition.class));
 		}
 
-		public ClinicalStatusCode clinicalStatusCode() {
-			if (clinicalStatus == null ||
-				clinicalStatus.coding == null ||
-				clinicalStatus.coding.get(0).code == null) {
-				
-				return(ClinicalStatusCode.active);
-			}
-			
-			return(ClinicalStatusCode.valueOf(clinicalStatus.coding.get(0).code));
-		}
-
-		public VerificationStatusCode verificationStatusCode() {
-			if (verificationStatus == null ||
-				verificationStatus.coding == null ||
-				verificationStatus.coding.get(0).code == null) {
-
-				return(VerificationStatusCode.confirmed);
-			}
-			
-			String val = verificationStatus.coding.get(0).code.replace("-", "_");
-			return(VerificationStatusCode.valueOf(val));
-		}
-
 		public boolean validAndActive() {
-			ClinicalStatusCode clinical = clinicalStatusCode();
-			VerificationStatusCode verification = verificationStatusCode();
-
-			return((clinical.equals(ClinicalStatusCode.active) ||
-					clinical.equals(ClinicalStatusCode.recurrence) ||
-					clinical.equals(ClinicalStatusCode.relapse))
+			return((clinicalStatus.equals(ClinicalStatusCode.active) ||
+					clinicalStatus.equals(ClinicalStatusCode.recurrence) ||
+					clinicalStatus.equals(ClinicalStatusCode.relapse))
 				   &&
-				   (verification.equals(VerificationStatusCode.confirmed)));
+				   (verificationStatus.equals(VerificationStatusCode.confirmed)));
 		}
 	}
 
@@ -315,6 +289,46 @@ public class SmartTypes
 		}
 	}
 
+	public static class CscDeserializer implements JsonDeserializer<ClinicalStatusCode>
+	{
+		public ClinicalStatusCode deserialize(JsonElement json, Type typeOfT,
+										  JsonDeserializationContext context)
+			throws JsonParseException {
+
+			String codeStr = null;
+			
+			if (json.isJsonObject()) {
+				CodeableConcept concept = new Gson().fromJson(json, CodeableConcept.class);
+				codeStr = concept.coding.get(0).code;
+			}
+			else {
+				codeStr = json.getAsString();
+			}
+
+			return(ClinicalStatusCode.valueOf(codeStr));
+		}
+	}
+	
+	public static class VscDeserializer implements JsonDeserializer<VerificationStatusCode>
+	{
+		public VerificationStatusCode deserialize(JsonElement json, Type typeOfT,
+												  JsonDeserializationContext context)
+			throws JsonParseException {
+
+			String codeStr = null;
+			
+			if (json.isJsonObject()) {
+				CodeableConcept concept = new Gson().fromJson(json, CodeableConcept.class);
+				codeStr = concept.coding.get(0).code;
+			}
+			else {
+				codeStr = json.getAsString();
+			}
+
+			return(VerificationStatusCode.valueOf(codeStr.replace("-", "_")));
+		}
+	}
+
 	public static class OdtDeserializer implements JsonDeserializer<OffsetDateTime>
 	{
 		public OffsetDateTime deserialize(JsonElement json, Type typeOfT,
@@ -346,6 +360,8 @@ public class SmartTypes
 		.registerTypeAdapter(String.class, new LaxStringDeserializer())
 		.registerTypeAdapter(OffsetDateTime.class, new OdtDeserializer())
 		.registerTypeAdapter(LocalDate.class, new LdDeserializer())
+		.registerTypeAdapter(ClinicalStatusCode.class, new CscDeserializer())
+		.registerTypeAdapter(VerificationStatusCode.class, new VscDeserializer())
 		.create();
 }
 
