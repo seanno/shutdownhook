@@ -35,10 +35,6 @@ public class ClinicalTrialsSearch implements Closeable
 			Gender = LegacyGender.find(input);
 		}
 		
-		public void setStateProvince(String input) {
-			StateProvince = StateProvince.find(input);
-		}
-
 		public void setCountry(String input) {
 			Country = null;
 			for (Locale loc : Locale.getAvailableLocales()) {
@@ -53,6 +49,11 @@ public class ClinicalTrialsSearch implements Closeable
 				}
 			}
 		}
+
+		public void setStateProvince(String input) {
+			StateProvince = StateProvince.find(input);
+		}
+
 	}
 
 	public static class Trial
@@ -106,24 +107,28 @@ public class ClinicalTrialsSearch implements Closeable
 			
 			Trial trial = new Trial();
 			trials.add(trial);
-			
+
 			String[] fields = lines[i].split("\t");
 			trial.NCTNumber = fields[headers.get("NCT Number")];
 			trial.Title = fields[headers.get("Title")];
 			trial.Acronym = fields[headers.get("Acronym")];
 			trial.Status = fields[headers.get("Status")];
-			trial.Conditions = fields[headers.get("Conditions")].split("|");
-			trial.Interventions = fields[headers.get("Interventions")].split("|");
-			trial.Locations = fields[headers.get("Locations")].split("|");
+			trial.Conditions = parsePsv(fields[headers.get("Conditions")]);
+			trial.Interventions = parsePsv(fields[headers.get("Interventions")]);
+			trial.Locations = parsePsv(fields[headers.get("Locations")]);
 			trial.Url = fields[headers.get("URL")];
 		}
 		
 		return(trials);
 	}
 
+	private String[] parsePsv(String input) {
+		return(input.trim().isEmpty() ? null : input.split("\\|"));
+	}
+
 	private Map<String,Integer> readHeaders(String[] headers) {
 		Map<String,Integer> headerPositions = new HashMap<String,Integer>();
-		for (int i = 0; i < headers.length; ++i) headerPositions.put(headers[i], i);
+		for (int i = 0; i < headers.length; ++i) headerPositions.put(headers[i].trim(), i);
 		return(headerPositions);
 	}
 	
@@ -187,13 +192,21 @@ public class ClinicalTrialsSearch implements Closeable
 		}
 
 		WebRequests.Config cfg = new WebRequests.Config();
-		ClinicalTrialsSearch search = new ClinicalTrialsSearch(cfg);
-		List<Trial> trials = search.search(query);
-		search.close();
-		
-		for (Trial trial : trials) {
-			// nyi
-			System.out.println(trial.Title);
+		ClinicalTrialsSearch search = null;
+
+		try {
+			search = new ClinicalTrialsSearch(cfg);
+			List<Trial> trials = search.search(query);
+
+			for (Trial trial : trials) {
+				System.out.println(trial.Url);
+				System.out.println(trial.Title);
+				System.out.println(trial.Conditions[0]);
+				System.out.println("");
+			}
+		}
+		finally {
+			search.close();
 		}
 	}
 

@@ -41,7 +41,7 @@ public abstract class SmartServer implements Closeable
 		registerLaunchHandler();
 		registerReturnHandler();
 		registerHomeHandler();
-		registerAdditionalHandlers(smart);
+		registerAdditionalHandlers(server, smart);
 	}
 
 	public void start() {
@@ -71,7 +71,7 @@ public abstract class SmartServer implements Closeable
 	abstract public void home(Request request, Response response,
 							  SmartEhr.Session session, SmartEhr smart) throws Exception;
 
-	protected void registerAdditionalHandlers(SmartEhr smart) { }
+	protected void registerAdditionalHandlers(WebServer server, SmartEhr smart) { }
 
 	// +----------------+
 	// | SessionHandler |

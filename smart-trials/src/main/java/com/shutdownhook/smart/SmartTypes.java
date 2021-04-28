@@ -7,7 +7,10 @@ package com.shutdownhook.smart;
 
 import java.lang.reflect.Type;
 import java.time.LocalDate;
+import java.time.Instant;
 import java.time.OffsetDateTime;
+import java.util.Collections;
+import java.util.Comparator;
 import java.util.List;
 
 import com.google.gson.Gson;
@@ -37,6 +40,32 @@ public class SmartTypes
 
 		public static Patient fromJson(String json) {
 			return(gson.fromJson(json, Patient.class));
+		}
+
+		public Address bestAddress() {
+			
+			if (address == null || address.size() == 0) {
+				return(null);
+			}
+
+			// first sort so best are at the front
+			Collections.sort(address, new Comparator<Address>() {
+				public int compare(Address a1, Address a2) {
+					if (a1 == null && a2 == null) return(0);
+					if (a1 == null && a2 != null) return(-1);
+					if (a1 != null && a2 == null) return(1);
+					return(a1.use.ordinal() - a2.use.ordinal());
+				}
+			});
+
+			// then walk looking for one in a valid period
+			Instant now = Instant.now();
+			for (Address a : address) {
+				if (a.period == null) return(a);
+				if (a.period.current()) return(a);
+			}
+
+			return(null);
 		}
 	}
 
@@ -160,7 +189,14 @@ public class SmartTypes
 	public static class Period
 	{
 		public OffsetDateTime start; 
-		public OffsetDateTime end; 
+		public OffsetDateTime end;
+
+		public boolean current() {
+			Instant now = Instant.now();
+			if (start != null && start.toInstant().isAfter(now)) return(false);
+			if (end != null && end.toInstant().isBefore(now)) return(false);
+			return(true);
+		}
 	}
 
 	// +-------+
@@ -237,13 +273,15 @@ public class SmartTypes
 		maiden
 	}
 
+	// http://hl7.org/fhir/valueset-address-use.html
+	// Ordered for sorting purposes (earlier is "more representative")
 	public static enum AddressUse
 	{
 		home,
 		work,
+		billing,
 		temp,
-		old,
-		billing
+		old
 	}
 
 	public static enum AddressType
