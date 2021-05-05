@@ -40,7 +40,6 @@ public abstract class SmartServer implements Closeable
 		
 		registerLaunchHandler();
 		registerReturnHandler();
-		registerHomeHandler();
 		registerAdditionalHandlers(server, smart);
 	}
 
@@ -108,7 +107,6 @@ public abstract class SmartServer implements Closeable
 
 	private final static String LAUNCH_PATH = "/launch";
 	private final static String RETURN_PATH = "/return";
-	private final static String HOME_PATH = "/home";
 	
 	private void registerLaunchHandler() {
 		server.registerHandler(LAUNCH_PATH, new Handler() {
@@ -119,11 +117,8 @@ public abstract class SmartServer implements Closeable
 				String launch = request.QueryParams.get("launch");
 				String iss = request.QueryParams.get("iss");
 
-				SmartEhr.Session session = smart.launch(siteId, launch, iss);
-				response.setSessionCookie(COOKIE_NAME, smart.dehydrate(session), request);
-
 				String returnUrl = request.Base + RETURN_PATH;
-				String redirectUrl = smart.getAuthRequestUrl(session, returnUrl);
+				String redirectUrl = smart.launch(siteId, launch, iss, returnUrl);
 				log.info("Redirecting to " + redirectUrl);
 
 				response.redirect(redirectUrl);
@@ -132,33 +127,22 @@ public abstract class SmartServer implements Closeable
 	}
 
 	private void registerReturnHandler() {
-		server.registerHandler(RETURN_PATH, new SessionHandler(smart) {
+		server.registerHandler(RETURN_PATH, new Handler() {
 				
-			public void handle2(Request request, Response response,
-							    SmartEhr.Session session) throws Exception {
+			public void handle(Request request, Response response) throws Exception {
 
 				String code = request.QueryParams.get("code");
 				String state = request.QueryParams.get("state");
 
-				smart.successfulAuth(session, code, state, request.Base + RETURN_PATH);
+				String returnUrl = request.Base + RETURN_PATH;
+				SmartEhr.Session session = smart.successfulAuth(code, state, returnUrl);
 
-				log.info("Redirecting to " + request.Base + HOME_PATH);
-				response.redirect(request.Base + HOME_PATH);
-			}
-		});
-	}
-	
-	private void registerHomeHandler() {
-		server.registerHandler(HOME_PATH, new SessionHandler(smart) {
-				
-			public void handle2(Request request, Response response,
-								SmartEhr.Session session) throws Exception {
-
+				response.setSessionCookie(COOKIE_NAME, smart.dehydrate(session), request);
 				home(request, response, session, smart);
 			}
 		});
 	}
-
+	
 	// +--------------------+
 	// | Fields and Helpers |
 	// +--------------------+

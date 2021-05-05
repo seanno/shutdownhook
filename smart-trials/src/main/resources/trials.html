@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html>
+  <head>
+	
+	<title>Clinical Trials</title>
+
+	<style>
+	  body,td {
+		  font: 12px Verdana,Helvetica,Arial;
+	  }
+	  div {
+		  margin-bottom: 16px;
+	  }
+	  p {
+		  margin-top: 6px;
+		  margin-bottom: 0px;
+	  }
+	  #patientName {
+		  color: #483d8b;
+	  }
+
+	  .demos {
+		  width: 80px;
+	  }
+	  #form table {
+		  border-collapse: collapse;
+	  }
+	  #form td {
+		  vertical-align: top;
+		  padding: 2px 12px 2px 0px;
+	  }
+	  #form .hdr {
+		  font-weight: bold;
+		  color: #2f4f4f;
+	  }
+	  #form .lbl {
+		  text-align: right;
+		  font-weight: bold;
+		  color: #2f4f4f;
+	  }
+	  #refresh {
+		  text-align: center;
+		  margin-top: 12px;
+	  }
+	  #overflow {
+		  width: 150px;
+		  margin-top: 3px;
+	  }
+	  
+	  #noresults {
+		  color: red;
+	  }
+	  #searching {
+		  color: green;
+	  }
+	  #footer {
+		  margin-top: 20px;
+	  }
+
+	  #results table {
+		  border-collapse: collapse;
+		  width: 100%;
+		  table-layout: fixed;
+		  margin-top: 20px;
+	  }
+	  #results td, #results th {
+		  border: 1px solid #cccccc;
+		  padding: 4px 4px 4px 4px;
+	  }
+	</style>
+
+	<script
+	  src="https://code.jquery.com/jquery-3.6.0.js"
+	  integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+	  crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript">
+
+	  var epic = null;
+
+	  function maybeSetupEpic(data) {
+
+		  if (data.SiteType != "Epic") return;
+
+		  // heads up --- have never run this! Not in Epic developer program
+		  // so unable to test the code; your epic technical contact will be
+		  // able to set it straight and I'd love to incorporate fixes, please
+		  // let me know via the contact form at shutdownhook.com
+		  
+		  epic = {};
+
+		  epic.listener = function(evt) {
+			  for (var type in evt.data) {
+				  var payload = evt.data[type];
+				  switch (type) {
+				      case "token": epic.token = payload; break;
+				      default: break;
+				  }
+			  }
+		  }
+
+		  epic.openWindow = function(url) {
+			  window.parent.postMessage({
+				  "token": epic.token,
+				  "action": "Epic.Clinical.Informatics.Web.OpenExternalWindow",
+				  "args": [ url, "_blank", "resizable,scrollbars,status" ]
+			      }, "*");
+		  }
+
+		  window.addEventListener("message", epic.listener, false);
+		  
+		  window.parent.postMessage({
+			  "action": "Epic.Clinical.Informatics.Web.InitiateHandshake"
+		      }, "*");
+	  }
+	  
+	  function loadPatientInfo() {
+		  $.ajax("/patient", {
+			  success: function(data, status, xhr) {
+				  maybeSetupEpic(data);
+				  setPatientInfo(data);
+				  searchForTrials();
+			  },
+			  error: function(xhr, status, error) {
+				  alert("Error loading patient data (" + status + "/" + error + ")");
+			  }
+		  });
+		  
+	  }
+
+	  function setPatientInfo(data) {
+
+		  if (data.NeedPatientBanner) {
+			  $("#patientName").text(data.PatientName);
+			  $("#patientBanner").show();
+		  }
+
+		  var query = data.Query;
+
+		  if (query.AgeYears) { $("#age").val(query.AgeYears); }
+		  if (query.Gender) { $("#gender").val(query.Gender); }
+		  if (query.Country) { $("#country").val(query.Country); }
+		  if (query.StateProvince) { $("#state").val(query.StateProvince); }
+
+		  if (query.Conditions) {
+
+			  var SPILL_THRESHOLD = 5;
+			  var MAX_CHECKED = 1;
+			  
+			  var totalCheckboxes = query.Conditions.length + 1;
+
+			  // this says, put up to SPILL_THRESHOLD in the first column as long as that
+			  // results in no more than SPILL_THRESHOLD rows across the two divs. If we
+			  // overflow that, just divide them evenly between the two columns, putting
+			  // the extra in the first column for an odd number.
+			  var secondColStart = (totalCheckboxes <= (SPILL_THRESHOLD * 2)
+									? SPILL_THRESHOLD : (totalCheckboxes + 1) / 2);
+
+			  // avoid orphans
+			  if (secondColStart == (totalCheckboxes - 1)) secondColStart++;
+
+			  var checked = "checked";
+			  var icol = 0;
+			  var htmls = [ "", "" ];
+			  
+			  for (var i = 0; i < query.Conditions.length; ++i) {
+				  if (i >= secondColStart) icol = 1;
+				  if (i >= MAX_CHECKED) checked = "";
+
+				  var id = "ccheck" + i;
+				  htmls[icol] += 
+					  "<input type='checkbox' class='ccheck' id='" + id + "' name='" + id + "' " +
+					  "       value='" + htmlEscape(query.Conditions[i]) + "' " + checked + "/>" + 
+					  "<label for='" + id + "'>" + htmlEscape(query.Conditions[i]) + "</label><br/>";
+				  
+			  }
+
+			  var ioverflow = query.Conditions.length;
+			  id = "ccheck" + ioverflow;
+
+			  htmls[ioverflow >= secondColStart ? 1 : 0] +=
+				  "<input type='checkbox' id='ocheck' value='' /> " +
+				  "<input type='text' class='overflow' id='overflow' placeholder='additional condition(s)' />";
+
+			  $("#checkboxes1").html(htmls[0]);
+			  $("#checkboxes2").html(htmls[1]);
+		  }
+	  }
+
+	  function searchForTrials() {
+
+		  $("#results").html("");
+		  $("#noresults").hide();
+		  $("#searching").show();
+
+		  var state = $("#state").val();
+		  var country = $("#country").val();
+		  var gender = $("#gender").val();
+		  var age = $("#age").val();
+
+		  var conditions = "";
+		  $(".ccheck").each(function() {
+			  if (this.checked) {
+				  if (conditions.length > 0) conditions += ",";
+				  conditions += $(this).val();
+			  }
+		  });
+
+		  if ($("#ocheck").is(":checked") && $("#overflow").val()) {
+			  if (conditions.length > 0) conditions += ",";
+			  conditions += $("#overflow").val();
+		  }
+
+		  var url = "/search";
+		  var pc = 0;
+
+		  if (state) url += (pc++ == 0 ? "?" : "&") + "state=" + encodeURIComponent(state);
+		  if (country) url += (pc++ == 0 ? "?" : "&") + "country=" + encodeURIComponent(country);
+		  if (gender) url += (pc++ == 0 ? "?" : "&") + "gender=" + encodeURIComponent(gender);
+		  if (age) url += (pc++ == 0 ? "?" : "&") + "age=" + encodeURIComponent(age);
+		  if (conditions) url += (pc++ == 0 ? "?" : "&") + "conditions=" + encodeURIComponent(conditions);
+			  
+		  $.ajax(url, {
+			  success: function(data, status, xhr) {
+				  setSearchResults(data);
+				  $("#searching").hide();
+			  },
+			  error: function(xhr, status, error) {
+				  alert("Error loading trial data (" + status + "/" + error + ")");
+				  $("#noresults").show();
+				  $("#searching").hide();
+			  }
+		  });
+	  }
+	  
+	  var resultsPrefix = `<table>
+                             <tr>
+                               <th>Trial</th>
+                               <th>Status</th>
+                               <th>Conditions</th>
+                               <th>Interventions</th>
+                               <th>Locations</th>
+                            </tr>`;
+
+	  var resultsSuffix = "</table>";
+
+	  function setSearchResults(data) {
+
+		  if (data.length == 0) {
+			  $("#noresults").show();
+			  return;
+		  }
+
+		  var rows = "";
+		  for (var i = 0; i < data.length; ++i) {
+			  
+			  var trial = data[i];
+
+			  rows += 
+				  "<tr>" + 
+				  "<td><a class='pop' href='" + trial.Url + "'</a>" + htmlEscape(trial.Title) + "</td>" +
+				  "<td>" + htmlEscape(trial.Status) + "</td>" +
+				  "<td>" + expandoTrunc(trial.Conditions) + "</td>" +
+				  "<td>" + expandoTrunc(trial.Interventions) + "</td>" +
+				  "<td>" + expandoTrunc(trial.Locations) + "</td>" +
+				  "</tr>";
+		  }
+
+		  $("#results").html(resultsPrefix + rows + resultsSuffix);
+	  }
+
+	  var expandoCount = 0;
+	  
+	  function expandoTrunc(input) {
+
+		  var EXPANDO_CCHMAX = 100;
+
+		  str = (input ? input.join("\n") : "");
+		  
+		  if (str.length <= EXPANDO_CCHMAX) {
+			  return(htmlEscape(str).replace("\n", "&nbsp;|&nbsp;"));
+		  }
+
+		  expandoCount = expandoCount + 1;
+		  
+		  return(htmlEscape(str.substring(0, EXPANDO_CCHMAX)).replace("\n","&nbsp;|&nbsp;") +
+				 "<span id='extra" + expandoCount + "' style='display:none;'>" +
+				 htmlEscape(str.substring(EXPANDO_CCHMAX)).replace("\n","&nbsp;|&nbsp;") + "</span>" +
+				 " <a href='#' class='dots' id='dots" + expandoCount + "'>...</a>");
+	  }
+
+	  $(document).ready(function() {
+
+		  $("#search").click(function(evt) {
+			  evt.preventDefault();
+			  searchForTrials();
+		  });
+
+		  $(document).on("click", "a", function(evt) {
+			  if ($(this).hasClass("pop")) {
+				  evt.preventDefault();
+				  var url = $(this).attr("href");
+				  if (epic) { epic.openWindow(url); }
+				  else { window.open(url, "_blank"); }
+			  }
+			  else if ($(this).hasClass("dots")) {
+				  evt.preventDefault();
+
+				  var targetSpan = "#extra" + $(this).attr("id").replace("dots","");
+
+				  if ($(targetSpan).is(":hidden")) {
+					  $(targetSpan).show();
+					  $(this).text("less");
+				  }
+				  else {
+					  $(targetSpan).hide();
+					  $(this).text("...");
+				  }
+			  }
+		  });
+
+		  $(document).on("focus", "input", function(evt) {
+			  if ($(this).hasClass("overflow")) {
+				  $("#ocheck").prop("checked", true);
+			  }
+		  });
+
+		  loadPatientInfo();
+	  });
+
+	  function htmlEscape(input) {
+		  return($("<div/>").text(input).html());
+	  }
+
+    </script>
+
+  </head>
+  <body>
+
+	<div id="header">
+	  <h1>Clinical Trials
+		<span id="patientBanner" style="display:none;">: <span id="patientName"></span></span></h1>
+	</div>
+
+	<div id="form">
+	  <form>
+		<table>
+		  <tr><td>
+			  <table>
+				<tr>
+				  <td class="lbl">Age (Years):</td>
+				  <td><input class="demo" type="text" id="age" /></td>
+				</tr><tr>
+				  <td class="lbl">Administrative Gender:</td>
+				  <td>
+					<select id="gender">
+					  <option value="M">Male</option>
+					  <option value="F">Female</option>
+					  <option value="O">Other</option>
+					  <option value="U">Unknown</option>
+					</select>
+				  </td>
+				</tr><tr>
+				  <td class="lbl">Country:</td>
+				  <td><input class="demo" type="text" id="country" /></td>
+				</tr><tr>
+				  <td class="lbl">State (US/CA only):</td>
+				  <td><input class="demo" type="text" id="state" /></td>
+				</tr>
+			  </table>
+			  <div id="refresh">edit values and <a href="#" id="search">refresh list</a> to refine</div>
+			</td><td>
+			  <span class="hdr">Conditions:</span><br/>
+			  <div id="checkboxes1"></div>
+			</td><td>
+			  <span class="hdr"> </span><br/>
+			  <div id="checkboxes2"></div>
+		  </td></tr>
+		</table>
+	  </form>
+	</div>
+
+	<div id="results"></div>
+
+	<div id="noresults" style="display: none;">No matching trials found</div>
+	<div id="searching">Searching...</div>
+
+	<div id="footer">
+	  <p><i>
+		  Data sourced from (and additional search options available at) 
+		  <a class="pop" href="https://clinicaltrials.gov">clinicaltrials.gov</a>.
+	  </i></p>
+	  <p><i>
+		  Learn about this code at
+		  <a class="pop" href="https://shutdownhook.com">shutdownhook.com</a>
+		  and clone it yourself (license-free!) on 
+		  <a class="pop" href="https://github.com/seanno/shutdownhook/tree/main/smart-trials">github</a>.
+	  </i></p>
+	</div>
+
+  </body>
+</html>

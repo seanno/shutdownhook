@@ -3,24 +3,43 @@
 		
 		"Smart": {
 
+			"Scope": "patient/Condition.read patient/Patient.read",
+			"IgnoreFailedMetadata": false,
+			
 			"Sites": [
 				{
 					"SiteId": "SmartDevR2",
-
 					"IssUrl": "https://launch.smarthealthit.org/v/r2/fhir",
 					"ClientId": "xyz",
-					"ClientSecret": "bananafishbones",
-					
-					"UseWellKnownMetadata": true
+					"UseWellKnownMetadata" = true
 				},
 				{
 					"SiteId": "SmartDevR4",
-
 					"IssUrl": "https://launch.smarthealthit.org/v/r4/fhir",
 					"ClientId": "xyz",
-					"ClientSecret": "bananafishbones",
-					
-					"UseWellKnownMetadata": true
+					"UseWellKnownMetadata" = true
+				},
+				{
+					"SiteId": "EpicSandboxR4",
+					"Type": "EpicInBrowser",
+					"IssUrl": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
+					"ClientId": "78c55da6-3ff8-4407-a9dc-d4fa7f1d72cf"
+				},
+				{
+					"SiteId": "EpicSandboxDSTU2",
+					"Type": "EpicInBrowser",
+					"IssUrl": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/DSTU2",
+					"ClientId": "4d49ce90-88d2-47ae-bb69-be991e6032c1"
+				},
+				{
+					"SiteId": "CernerSandboxR4",
+					"IssUrl": "https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+					"ClientId": "d854ccea-0439-4914-8fd5-887b373691e8"
+				},
+				{
+					"SiteId": "CernerSandboxR2",
+					"IssUrl": "https://fhir-ehr-code.cerner.com/dstu2/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+					"ClientId": "5b1cbaee-abfc-47cf-bf66-ee6dcdca68ba"
 				}
 			],
 			

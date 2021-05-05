@@ -6,6 +6,7 @@
 package com.shutdownhook.trials;
 
 import java.io.Closeable;
+import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -18,12 +19,17 @@ import com.shutdownhook.toolbox.WebServer.*;
 import com.shutdownhook.smart.SmartEhr;
 import com.shutdownhook.smart.SmartServer;
 import com.shutdownhook.smart.SmartTypes;
+import com.shutdownhook.smart.SmartTypes.ConditionCategoryCode;
 import com.shutdownhook.trials.ClinicalTrialsTypes.*;
 
 import com.google.gson.Gson;
 
 public class ClinicalTrialsServer extends SmartServer
 {
+	private final static String SEARCH_PATH = "/search";
+	private final static String PATIENT_PATH = "/patient";
+	private final static String HOME_HTML = "trials.html";
+	
 	// +------------------+
 	// | Config and Setup |
 	// +------------------+
@@ -42,6 +48,7 @@ public class ClinicalTrialsServer extends SmartServer
 		super(cfg.SmartServer);
 		this.cfg = cfg;
 		this.trials = new ClinicalTrialsSearch(cfg.Requests);
+		this.homeHtml = Easy.stringFromResource(HOME_HTML);
 	}
 
 	@Override
@@ -65,15 +72,12 @@ public class ClinicalTrialsServer extends SmartServer
 	// | Handlers |
 	// +----------+
 
-	private final static String SEARCH_PATH = "/search";
-	private final static String PATIENT_PATH = "/patient";
-	
 	@Override
 	protected void registerAdditionalHandlers(WebServer server, SmartEhr smart) {
 		registerSearchHandler(server, smart);
 		registerPatientHandler(server, smart);
 	}
-	
+
 	public void registerSearchHandler(WebServer server, SmartEhr smart) {
 		server.registerHandler(SEARCH_PATH, new SessionHandler(smart) {
 				
@@ -120,76 +124,130 @@ public class ClinicalTrialsServer extends SmartServer
 				SmartTypes.Patient patient = smart.getPatient(session);
 				List<SmartTypes.Condition> conditions = smart.getConditions(session);
 
-				ClinicalTrialsSearch.Query query = new ClinicalTrialsSearch.Query();
-				
-				for (SmartTypes.Condition condition : conditions) {
-					if (condition.validAndActive())
-						query.Conditions.add(condition.code.text);
-				}
+				PatientInfo info = new PatientInfo();
+				info.NeedPatientBanner = session.NeedPatientBanner;
+				info.Type = session.Config.Type.toString();
+
+				SmartTypes.HumanName name = patient.bestName();
+				info.PatientName = (name == null ? "unknown" : name.displayName());
+
+				addConditions(info.Query, conditions);
 
 				if (patient.birthDate != null) {
-					query.AgeYears = (int) ChronoUnit.YEARS.between(patient.birthDate,
-																	LocalDate.now());
+					info.Query.AgeYears =
+						(int) ChronoUnit.YEARS.between(patient.birthDate,
+													   LocalDate.now());
 				}
 
 				if (patient.gender != null) {
-					query.setGender(patient.gender.toString());
+					info.Query.setGender(patient.gender.toString());
 				}
 
 				SmartTypes.Address address = patient.bestAddress();
 				if (address != null) {
 
-					query.setCountry(address.country == null ? "US" : address.country);
+					info.Query.setCountry(address.country == null
+										  ? "US" : address.country);
 
 					if (address.state != null &&
-						(query.Country.equals("US") || query.Country.equals("CA"))) {
-						if (address.state != null) query.setStateProvince(address.state);
+						(info.Query.Country.equals("US") || info.Query.Country.equals("CA"))) {
+						if (address.state != null) info.Query.setStateProvince(address.state);
 					}
 				}
 
-				response.setJson(new Gson().toJson(query));
+				response.setJson(new Gson().toJson(info));
 			}
 		});
+	}
+
+	private void addConditions(ClinicalTrialsSearch.Query query,
+							   List<SmartTypes.Condition> conditions) {
+
+		// sort descending by our best guess at onset
+		Collections.sort(conditions, new Comparator<SmartTypes.Condition>() {
+			@Override
+			public int compare(SmartTypes.Condition c1, SmartTypes.Condition c2) {
+				if (c1 == null && c2 == null) return(0);
+				if (c1 == null && c2 != null) return(-1);
+				if (c1 != null && c2 == null) return(1);
+					
+				LocalDate ld1 = c1.bestGuessOnset();
+				LocalDate ld2 = c2.bestGuessOnset();
+
+				if (ld1 == null && ld2 == null) return(0);
+				if (ld1 == null && ld2 != null) return(-1);
+				if (ld1 != null && ld2 == null) return(1);
+
+				return(ld2.compareTo(ld1));
+			}
+		});
+
+		// we try to add just "problem list" conditions. If that doesn't work
+		// we'll take any that are valid and active. We stop there, but might
+		// want to extend to valid but not active if we still come up empty.
+		
+		List<String> uniqueProblems = new ArrayList<String>();
+		List<String> uniqueActive = new ArrayList<String>();
+		
+		for (SmartTypes.Condition condition : conditions) {
+			if (condition.validAndActive()) {
+
+				String clean = cleanCondition(condition.code.text);
+				if (!uniqueActive.contains(clean)) uniqueActive.add(clean);
+									 
+				SmartTypes.ConditionCategoryCodes cats = condition.category;
+				if (cats != null) {
+					for (ConditionCategoryCode cat : cats) {
+						if (cat == ConditionCategoryCode.problem ||
+							cat == ConditionCategoryCode.problem_list_item) {
+
+							if (!uniqueProblems.contains(clean)) uniqueProblems.add(clean);
+						}
+					}
+				}
+			}
+		}
+
+		List<String> uniqueFinal =
+			(uniqueProblems.size() > 0 ? uniqueProblems : uniqueActive);
+		
+		for (String c : uniqueFinal) {
+			query.Conditions.add(c);
+		}
 	}
 
 	@Override
 	public void home(Request request, Response response,
 					 SmartEhr.Session session, SmartEhr smart) throws Exception {
 
-		StringBuilder sb = new StringBuilder();
-		sb.append("\nUser: " + session.UserId);
-		sb.append("\nPatient: " + session.PatientId);
-		sb.append("\nToken expires: " + session.AccessExpires.toString());
-
-		SmartTypes.Patient patient = smart.getPatient(session);
-		sb.append("\n\nGender: " + patient.gender.toString());
-		sb.append("\nBirthDate: " + patient.birthDate.toString());
-
-		sb.append("\n\nConditions: ");
-
-		List<SmartTypes.Condition> conditions = smart.getConditions(session);
-
-		if (conditions.size() == 0) {
-			sb.append("(none)");
-		}
-		else {
-			int added = 0;
-			for (SmartTypes.Condition c : conditions) {
-				if (added++ > 0) sb.append(", ");
-				sb.append(c.code.text);
-				if (!c.validAndActive()) sb.append(" (!active)");
-			}
-		}
-		
-		response.setText(sb.toString());
+		response.setHtml(homeHtml);
 	}
 
 	// +--------------------+
 	// | Fields and Helpers |
 	// +--------------------+
 
+	private String cleanCondition(String input) {
+		// hacky rules to try to make these better for searching,
+		// purely based on inspection ... nothing pretty in here.
+		String clean = input.replace(",", ";");
+		clean = clean.replace(" (disorder)", "");
+		clean = clean.replace("; initial encounter", "");
+		clean = clean.replace("; subsequent encounter", "");
+		return(clean);
+	}
+	
+	public static class PatientInfo
+	{
+		public String PatientName;
+		public Boolean NeedPatientBanner;
+		public String Type;
+		public ClinicalTrialsSearch.Query Query = new ClinicalTrialsSearch.Query();
+	}
+		
 	private Config cfg;
 	private ClinicalTrialsSearch trials;
+	private String homeHtml;
 	
 	private final static Logger log =
 		Logger.getLogger(ClinicalTrialsServer.class.getName());

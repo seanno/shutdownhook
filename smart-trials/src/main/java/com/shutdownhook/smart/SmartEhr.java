@@ -30,6 +30,7 @@ public class SmartEhr implements Closeable
 	public static class Config
 	{
 		public String Scope = "patient/*.read";
+		public Boolean IgnoreFailedMetadata = false;
 		public List<SiteConfig> Sites = new ArrayList<SiteConfig>();
 		public WebRequests.Config Requests = new WebRequests.Config();
 
@@ -40,6 +41,7 @@ public class SmartEhr implements Closeable
 	{
 		// identifies a unique EHR
 		public String SiteId;
+		public SiteType Type = SiteType.General;
 
 		// ignore the inbound iss url and use this preconfigured one
 		public String IssUrl; 
@@ -49,9 +51,16 @@ public class SmartEhr implements Closeable
 		// these urls can be null, if so we discover() them at init time
 		public String AuthUrl;
 		public String TokenUrl;
-		public Boolean UseWellKnownMetadata;
+		public Boolean UseWellKnownMetadata = false;
 	}
 
+	public static enum SiteType
+	{
+		General,
+		Epic,
+		EpicInBrowser
+	}
+	
 	public SmartEhr(Config cfg) throws Exception {
 
 		this.cfg = cfg;
@@ -60,7 +69,19 @@ public class SmartEhr implements Closeable
 		sitesMap = new HashMap<String,SiteConfig>();
 		for (SiteConfig site : cfg.Sites) {
 			sitesMap.put(site.SiteId, site);
-			if (site.AuthUrl == null) discover(site);
+			if (site.AuthUrl == null) {
+				try {
+					discover(site);
+				}
+				catch (Exception e) {
+					if (cfg.IgnoreFailedMetadata) {
+						log.severe("Unable to load metadata for site " + site.SiteId + ", app WILL NOT WORK!");
+					}
+					else {
+						throw e;
+					}
+				}
+			}
 		}
 
 		if (sitesMap.size() == 0) {
@@ -81,8 +102,6 @@ public class SmartEhr implements Closeable
 	{
 		public UUID Id = UUID.randomUUID();
 		public String SiteId;
-
-		public String Launch;
 		public Boolean NeedPatientBanner = false;
 
 		public String AccessToken;
@@ -126,31 +145,55 @@ public class SmartEhr implements Closeable
 
 	// Implements logic for the "launch" endpoint configured in the EHR as the
 	// URL that will load up your iframe or whatever UX. Call launch() passing
-	// in the received parameters "siteid", "launch" and "iss". Remember the 
-	// returned Session object for the caller, in a secure cookie or whatever
-	// session mechanism (use dehydrate if not in-memory). Finally call
-	// getAuthRedirectUrl and redirect the browser to that URL.
+	// in the received parameters "siteid", "launch" and "iss" as well as the
+	// return/redirect url configured with the EHR.
 	//
-	// Note "siteid" is NOT a standard SMART parameter; we use it as a key to
-	// the ehr configuration and verify it with the configured iss parameter.
-	// Each "launch url" configured with an ehr must embed the site id for
-	// this code to work!
+	// Redirect the client browser to the URL returned by this function; it will
+	// initiate authorization in the EHR and ultimately (on success) result in
+	// the browser coming back to returnUrl with all the goodies needed to
+	// get an access token and start actually doing stuff.
+	//
+	// Note siteId is not a standard SMART parameter! It can be null if the iss
+	// value occurs exactly once in your configuration. Otherwise, embed it into
+	// your EHR-configured launch URL to differentiate between multiple "sites"
+	// using the same iss url.
+	//
+	// Finally --- if using Epic, we're not going to get back a "fhirUser" in the
+	// id_token. You can configure your launch URL to supply the user id in an
+	// alternate way by adding user=%SYSLOGIN% on the launch url.
 
-	public Session launch(String siteId, String launch, String iss) throws Exception {
+	public String launch(String siteId, String launch, String iss, String returnUrl) throws Exception {
 
 		Session session = new Session();
 		session.Id = UUID.randomUUID();
 		session.Updated = true;
 		session.SiteId = siteId;
-		session.Launch = launch;
+
+		// validate siteid/iss and setup the Session
 		
 		session.Config = sitesMap.get(session.SiteId);
 		
 		if (session.Config == null) {
-			throw new IllegalArgumentException("no match for " + siteId);
-		}
 
-		if (!session.Config.IssUrl.equals(iss)) {
+			// exactly one match by iss is acceptable; this simplifies setting launch urls a bit
+			for (String id : sitesMap.keySet()) {
+				if (sitesMap.get(id).IssUrl.equals(iss)) {
+					if (session.Config != null) {
+						throw new IllegalArgumentException("multiple iss matches: " + iss);
+					}
+					session.Config = sitesMap.get(id);
+					session.SiteId = id;
+				}
+			}
+
+			// still nothing, oh well
+			if (session.Config == null) {
+				throw new IllegalArgumentException("no match for site " + siteId + " or iss " + iss);
+			}
+		}
+		else if (!session.Config.IssUrl.equals(iss)) {
+
+			// siteid is great but iss still has to match!
 			String msg = String.format("Provided iss %s doesn't match configured " +
 									   "value for site %s (expected %s)",
 									   iss, siteId, session.Config.IssUrl);
@@ -158,21 +201,18 @@ public class SmartEhr implements Closeable
 			throw new IllegalArgumentException(msg);
 		}
 
-		return(session);
-	}
-
-	public String getAuthRequestUrl(Session session, String successfulReturnUrl) {
-
+		// generate and return the auth url
+		
 		Map<String,String> params = new HashMap<String,String>();
 		
 		params.put("response_type", "code");
 		params.put("client_id", session.Config.ClientId);
-		params.put("redirect_uri", successfulReturnUrl);
-		params.put("launch", session.Launch);
-		params.put("state", session.Id.toString());
+		params.put("redirect_uri", returnUrl);
+		params.put("launch", launch);
+		params.put("state", Easy.base64Encode(dehydrate(session)));
 		params.put("aud", session.Config.IssUrl);
 
-		String scope = "launch openid fhirUser online_access";
+		String scope = "launch openid fhirUser";
 		if (cfg.Scope != null) scope = scope + " " + cfg.Scope;
 
 		params.put("scope", scope);
@@ -188,35 +228,39 @@ public class SmartEhr implements Closeable
 	// authorization (as provided in the call to getAuthReuestUrl during launch).
 	// Call successfulAuth() passing the received parameters "code" and "state",
 	// as well as the url of the endpoint itself (which must be the same as
-	// the "successfulReturnUrl" parameter used in getAuthRequestUrl).
+	// the "returnUrl" parameter used in launch).
+	//
+	// Be sure to save the returned session away for ongoing use. A cookie is
+	// fine or whatever other session mechanism your web environment is wired up for.
 
-	public void successfulAuth(Session session, String code, String state,
-							   String successfulReturnUrlAgain) throws Exception {
+	public Session successfulAuth(String code, String state, String returnUrlAgain) throws Exception {
 
-		if (!session.Id.toString().equals(state)) {
-			String msg = String.format("Provided state %s doesn't match session (%s)",
-									   state,  session.Id.toString());
-									   
-			throw new IllegalArgumentException(msg);
-		}
+		Session session = rehydrate(Easy.base64Decode(state));;
 
 		// call ehr to get access_token
 		
+		WebRequests.Params params = new WebRequests.Params();
+		params.setAccept("application/json");
+
 		Map<String,String> form = new HashMap<String,String>();
 		form.put("grant_type", "authorization_code");
 		form.put("code", code);
-		form.put("redirect_uri", successfulReturnUrlAgain);
-			
-		WebRequests.Params params = new WebRequests.Params();
-		params.setAccept("text/javascript");
-		params.setBasicAuth(session.Config.ClientId, session.Config.ClientSecret);
+		form.put("redirect_uri", returnUrlAgain);
+
+		if (session.Config.ClientSecret == null) {
+			form.put("client_id", session.Config.ClientId);
+		}
+		else {
+			params.setBasicAuth(session.Config.ClientId, session.Config.ClientSecret);
+		}
+		
 		params.setForm(form);
 
 		WebRequests.Response response = requests.fetch(session.Config.TokenUrl, params);
 
 		if (!response.successful()) {
-			throw new Exception(String.format("Failed fetching access_token (%d) %s",
-											  response.Status, response.Ex));
+			throw new Exception(String.format("Failed fetching access_token (%d) %s [%s]",
+											  response.Status, response.Ex, response.Body));
 		}
 
 		parseTokens(session, response.Body);
@@ -224,6 +268,8 @@ public class SmartEhr implements Closeable
 		if (session.PatientId == null || session.UserId == null) {
 			throw new Exception("Missing patient and/or id_token fields in response!");
 		}
+
+		return(session);
 	}
 
 	// +----------------+
@@ -290,7 +336,7 @@ public class SmartEhr implements Closeable
 		form.put("refresh_token", "session.RefreshToken");
 			
 		WebRequests.Params params = new WebRequests.Params();
-		params.setAccept("text/javascript");
+		params.setAccept("application/json");
 		params.setForm(form);
 
 		WebRequests.Response response = requests.fetch(session.Config.TokenUrl, params);
@@ -335,7 +381,14 @@ public class SmartEhr implements Closeable
 		if (jsonIdToken != null) {
 			String tokenJson = Easy.base64Decode(jsonIdToken.getAsString().split("\\.")[1]);
 			JsonObject jsonProfile = parser.parse(tokenJson).getAsJsonObject();
-			session.UserId = jsonProfile.getAsJsonPrimitive("fhirUser").getAsString();
+			if (jsonProfile.has("fhirUser")) {
+				session.UserId = jsonProfile.getAsJsonPrimitive("fhirUser").getAsString();
+			}
+		}
+
+		// if not in id_token, look for a configured epic "user" launch token
+		if (session.UserId == null && json.has("user")) {
+			session.UserId = json.getAsJsonPrimitive("user").getAsString();
 		}
 
 		JsonPrimitive jsonBanner = json.getAsJsonPrimitive("need_patient_banner");
@@ -405,17 +458,17 @@ public class SmartEhr implements Closeable
 							   url, session == null ? "na" : session.Id));
 
 		WebRequests.Params params = new WebRequests.Params();
-		params.setAccept("text/javascript");
+		params.setAccept("application/json");
 
 		if (session != null) {
-			params.addHeader("Authorization", "Bearer: " + session.AccessToken);
+			params.addHeader("Authorization", "Bearer " + session.AccessToken);
 		}
 		
 		WebRequests.Response response = requests.fetch(url, params);
 
 		if (!response.successful()) {
-			throw new Exception(String.format("Failed fetching json (%d) %s",
-											  response.Status, response.Ex));
+			throw new Exception(String.format("Failed fetching json (%d) %s [%s]",
+											  response.Status, response.Ex, response.Body));
 		}
 
 		if (cfg.LogFhirResponses) {

@@ -27,23 +27,25 @@ public class ClinicalTrialsSearch implements Closeable
 	{
 		public List<String> Conditions = new ArrayList<String>();
 		public Integer AgeYears;
-		public LegacyGender Gender;
+		public LegacyGender Gender = LegacyGender.U;
 		public String Country;
 		public StateProvince StateProvince;
 
 		public void setGender(String input) {
-			Gender = LegacyGender.find(input);
+			LegacyGender lg = LegacyGender.find(input);
+			if (lg != null) Gender = lg;
 		}
 		
 		public void setCountry(String input) {
 			Country = null;
+			String cleanInput = (input != null && input.length() > 2 ? input.substring(0,2) : input);
 			for (Locale loc : Locale.getAvailableLocales()) {
 				String locCountry = loc.getCountry();
 				if (locCountry.length() == 0) continue;
 				if (locCountry.length() > 2) locCountry = locCountry.substring(0,2);
 				
-				if (input.equalsIgnoreCase(locCountry) ||
-					input.equalsIgnoreCase(loc.getDisplayCountry())) {
+				if (cleanInput.equalsIgnoreCase(locCountry) ||
+					cleanInput.equalsIgnoreCase(loc.getDisplayCountry())) {
 					Country = locCountry;
 					return;
 				}
@@ -86,6 +88,11 @@ public class ClinicalTrialsSearch implements Closeable
 													   makeQueryParams(query));
 		
 		if (!response.successful()) {
+
+			if (response.Status == 404) {
+				// this is actually fine ... just means no results
+				return(new ArrayList<Trial>()); 
+			}
 			
 			String msg = String.format("Error calling clinicaltrials.gov (%d: %s)",
 									   response.Status, response.StatusText);
