@@ -6,7 +6,6 @@
 package com.shutdownhook.trials;
 
 import java.io.Closeable;
-import java.time.Instant;
 import java.time.LocalDate;
 import java.time.temporal.ChronoUnit;
 import java.util.*;
@@ -122,7 +121,7 @@ public class ClinicalTrialsServer extends SmartServer
 							    SmartEhr.Session session) throws Exception {
 
 				SmartTypes.Patient patient = smart.getPatient(session);
-				List<SmartTypes.Condition> conditions = smart.getConditions(session);
+				List<SmartTypes.Condition> conditions = smart.getActiveValidProblemsByOnset(session);
 
 				PatientInfo info = new PatientInfo();
 				info.NeedPatientBanner = session.NeedPatientBanner;
@@ -131,7 +130,10 @@ public class ClinicalTrialsServer extends SmartServer
 				SmartTypes.HumanName name = patient.bestName();
 				info.PatientName = (name == null ? "unknown" : name.displayName());
 
-				addConditions(info.Query, conditions);
+				for (SmartTypes.Condition condition : conditions) {
+					String clean = cleanConditionText(condition);
+					if (!info.Query.Conditions.contains(clean)) info.Query.Conditions.add(clean);
+				}
 
 				if (patient.birthDate != null) {
 					info.Query.AgeYears =
@@ -160,62 +162,6 @@ public class ClinicalTrialsServer extends SmartServer
 		});
 	}
 
-	private void addConditions(ClinicalTrialsSearch.Query query,
-							   List<SmartTypes.Condition> conditions) {
-
-		// sort descending by our best guess at onset
-		Collections.sort(conditions, new Comparator<SmartTypes.Condition>() {
-			@Override
-			public int compare(SmartTypes.Condition c1, SmartTypes.Condition c2) {
-				if (c1 == null && c2 == null) return(0);
-				if (c1 == null && c2 != null) return(-1);
-				if (c1 != null && c2 == null) return(1);
-					
-				LocalDate ld1 = c1.bestGuessOnset();
-				LocalDate ld2 = c2.bestGuessOnset();
-
-				if (ld1 == null && ld2 == null) return(0);
-				if (ld1 == null && ld2 != null) return(-1);
-				if (ld1 != null && ld2 == null) return(1);
-
-				return(ld2.compareTo(ld1));
-			}
-		});
-
-		// we try to add just "problem list" conditions. If that doesn't work
-		// we'll take any that are valid and active. We stop there, but might
-		// want to extend to valid but not active if we still come up empty.
-		
-		List<String> uniqueProblems = new ArrayList<String>();
-		List<String> uniqueActive = new ArrayList<String>();
-		
-		for (SmartTypes.Condition condition : conditions) {
-			if (condition.validAndActive()) {
-
-				String clean = cleanCondition(condition.code.text);
-				if (!uniqueActive.contains(clean)) uniqueActive.add(clean);
-									 
-				SmartTypes.ConditionCategoryCodes cats = condition.category;
-				if (cats != null) {
-					for (ConditionCategoryCode cat : cats) {
-						if (cat == ConditionCategoryCode.problem ||
-							cat == ConditionCategoryCode.problem_list_item) {
-
-							if (!uniqueProblems.contains(clean)) uniqueProblems.add(clean);
-						}
-					}
-				}
-			}
-		}
-
-		List<String> uniqueFinal =
-			(uniqueProblems.size() > 0 ? uniqueProblems : uniqueActive);
-		
-		for (String c : uniqueFinal) {
-			query.Conditions.add(c);
-		}
-	}
-
 	@Override
 	public void home(Request request, Response response,
 					 SmartEhr.Session session, SmartEhr smart) throws Exception {
@@ -227,10 +173,10 @@ public class ClinicalTrialsServer extends SmartServer
 	// | Fields and Helpers |
 	// +--------------------+
 
-	private String cleanCondition(String input) {
+	private String cleanConditionText(SmartTypes.Condition condition) {
 		// hacky rules to try to make these better for searching,
 		// purely based on inspection ... nothing pretty in here.
-		String clean = input.replace(",", ";");
+		String clean = condition.code.text.replace(",", ";");
 		clean = clean.replace(" (disorder)", "");
 		clean = clean.replace("; initial encounter", "");
 		clean = clean.replace("; subsequent encounter", "");

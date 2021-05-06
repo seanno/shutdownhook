@@ -9,9 +9,7 @@ import java.lang.Comparable;
 import java.lang.reflect.Type;
 import java.time.LocalDate;
 import java.time.Instant;
-import java.time.OffsetDateTime;
-import java.time.format.DateTimeFormatter;
-import java.time.format.DateTimeParseException;
+import java.time.ZonedDateTime;
 import java.util.Collections;
 import java.util.List;
 import java.util.HashSet;
@@ -24,7 +22,9 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParseException;
-	
+
+import com.shutdownhook.toolbox.Easy;
+
 public class SmartTypes
 {
 	// +---------+
@@ -93,9 +93,9 @@ public class SmartTypes
 		public ConditionCategoryCodes category;
 		public CodeableConcept code;
 		
-		public LocalDate onsetDateTime;
-		public LocalDate dateRecorded; // DSTU2
-		public LocalDate recordedDate; // R4
+		public ZonedDateTime onsetDateTime;
+		public ZonedDateTime dateRecorded; // DSTU2
+		public ZonedDateTime recordedDate; // R4
 
 		public static Condition fromJson(String json) {
 			Condition c = gson.fromJson(json, Condition.class);
@@ -119,7 +119,7 @@ public class SmartTypes
 					verificationStatus.equals(VerificationStatusCode.confirmed)));
 		}
 
-		public LocalDate bestGuessOnset() {
+		public ZonedDateTime bestGuessOnset() {
 			// could try to deal with other versions of onset here
 			if (onsetDateTime != null) return(onsetDateTime);
 			if (recordedDate != null) return(recordedDate);
@@ -247,8 +247,8 @@ public class SmartTypes
 	// http://hl7.org/fhir/datatypes.html#Period
 	public static class Period
 	{
-		public OffsetDateTime start; 
-		public OffsetDateTime end;
+		public ZonedDateTime start; 
+		public ZonedDateTime end;
 
 		public boolean current() {
 			Instant now = Instant.now();
@@ -409,25 +409,29 @@ public class SmartTypes
 				for (int i = 0; i < arr.size(); ++i) {
 					JsonObject j = arr.get(i).getAsJsonObject();
 					CodeableConcept c = gson.fromJson(j, CodeableConcept.class);
-					addCode(codes, c.coding.get(0).code);
+					addCodes(codes, c.coding);
 				}
 			}
 			else {
 				// dstu2
 				CodeableConcept c = gson.fromJson(json, CodeableConcept.class);
-				addCode(codes, c.coding.get(0).code);
+				addCodes(codes, c.coding);
 			}
 
 			return(codes);
 		}
 
-		private void addCode(ConditionCategoryCodes codes, String input) {
-			try {
-				codes.add(ConditionCategoryCode.valueOf(input.replace("-", "_")));
+		private void addCodes(ConditionCategoryCodes codes, List<SmartTypes.Coding> codings) {
+
+			for (SmartTypes.Coding coding : codings) {
+				try {
+					codes.add(ConditionCategoryCode.valueOf(coding.code.replace("-", "_")));
+				}
+				catch (Exception e) {
+					// ignore it... 
+				}
 			}
-			catch (Exception e) {
-				// ignore it
-			}
+			
 		}
 	}
 	
@@ -491,13 +495,14 @@ public class SmartTypes
 		}
 	}
 
-	public static class OdtDeserializer implements JsonDeserializer<OffsetDateTime>
+	public static class ZdtDeserializer implements JsonDeserializer<ZonedDateTime>
 	{
-		public OffsetDateTime deserialize(JsonElement json, Type typeOfT,
-										  JsonDeserializationContext context)
+		public ZonedDateTime deserialize(JsonElement json, Type typeOfT,
+										 JsonDeserializationContext context)
 			throws JsonParseException {
 
-			return(OffsetDateTime.parse(json.getAsString()));
+			// true below = default to local timezone if none given
+			return(Easy.parseVariablePrecisionDateTime(json.getAsString(), true));
 		}
 	}
 
@@ -507,20 +512,14 @@ public class SmartTypes
 									 JsonDeserializationContext context)
 			throws JsonParseException {
 
-			// note we trim off a time part ... from what I read a fhir "date"
-			// should never have a time component but reality disagrees.
-			String[] fields = json.getAsString().split("T")[0].split("-");
-			int year = (fields.length >= 1 ? Integer.parseInt(fields[0]) : 1);
-			int month = (fields.length >= 2 ? Integer.parseInt(fields[1]) : 1);
-			int day = (fields.length >= 3 ? Integer.parseInt(fields[2]) : 1);
-			return(LocalDate.of(year, month, day));
+			return(Easy.parseVariablePrecisionDate(json.getAsString()));
 		}
 	}
 
 	private static Gson gson = new GsonBuilder()
 		.setPrettyPrinting()
 		.registerTypeAdapter(String.class, new LaxStringDeserializer())
-		.registerTypeAdapter(OffsetDateTime.class, new OdtDeserializer())
+		.registerTypeAdapter(ZonedDateTime.class, new ZdtDeserializer())
 		.registerTypeAdapter(LocalDate.class, new LdDeserializer())
 		.registerTypeAdapter(ClinicalStatusCode.class, new CscDeserializer())
 		.registerTypeAdapter(VerificationStatusCode.class, new VscDeserializer())

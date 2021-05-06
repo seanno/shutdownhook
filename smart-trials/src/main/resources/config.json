@@ -3,16 +3,10 @@
 		
 		"Smart": {
 
-			"Scope": "patient/Condition.read patient/Patient.read",
+			"Scope": "patient/Condition.search patient/Condition.read patient/Patient.read",
 			"IgnoreFailedMetadata": false,
 			
 			"Sites": [
-				{
-					"SiteId": "SmartDevR2",
-					"IssUrl": "https://launch.smarthealthit.org/v/r2/fhir",
-					"ClientId": "xyz",
-					"UseWellKnownMetadata" = true
-				},
 				{
 					"SiteId": "SmartDevR4",
 					"IssUrl": "https://launch.smarthealthit.org/v/r4/fhir",
@@ -20,14 +14,20 @@
 					"UseWellKnownMetadata" = true
 				},
 				{
+					"SiteId": "SmartDevR2",
+					"IssUrl": "https://launch.smarthealthit.org/v/r2/fhir",
+					"ClientId": "xyz",
+					"UseWellKnownMetadata" = true
+				},
+				{
 					"SiteId": "EpicSandboxR4",
 					"Type": "EpicInBrowser",
+					"Version": "R4",
 					"IssUrl": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
 					"ClientId": "78c55da6-3ff8-4407-a9dc-d4fa7f1d72cf"
 				},
 				{
 					"SiteId": "EpicSandboxDSTU2",
-					"Type": "EpicInBrowser",
 					"IssUrl": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/DSTU2",
 					"ClientId": "4d49ce90-88d2-47ae-bb69-be991e6032c1"
 				},

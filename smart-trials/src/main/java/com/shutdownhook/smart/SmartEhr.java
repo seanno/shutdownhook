@@ -8,6 +8,7 @@ package com.shutdownhook.smart;
 import java.io.Closeable;
 import java.lang.IllegalArgumentException;
 import java.time.Instant;
+import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -42,6 +43,7 @@ public class SmartEhr implements Closeable
 		// identifies a unique EHR
 		public String SiteId;
 		public SiteType Type = SiteType.General;
+		public FhirVersion Version = FhirVersion.R4;
 
 		// ignore the inbound iss url and use this preconfigured one
 		public String IssUrl; 
@@ -59,6 +61,12 @@ public class SmartEhr implements Closeable
 		General,
 		Epic,
 		EpicInBrowser
+	}
+
+	public static enum FhirVersion
+	{
+		DSTU2,
+		R4
 	}
 	
 	public SmartEhr(Config cfg) throws Exception {
@@ -272,9 +280,9 @@ public class SmartEhr implements Closeable
 		return(session);
 	}
 
-	// +----------------+
-	// | 3. Data Access |
-	// +----------------+
+	// +------------------------+
+	// | 3a. Data Access - Easy |
+	// +------------------------+
 
 	public SmartTypes.Patient getPatient(Session session) throws Exception {
 		String url = "/Patient/" + session.PatientId;
@@ -282,12 +290,89 @@ public class SmartEhr implements Closeable
 		return(SmartTypes.Patient.fromJson(json));
 	}
 
+	public JsonObject getJson(Session session, String path) throws Exception {
+		return(getJson(session, session.Config.IssUrl, path));
+	}
+
+	// +------------------------------+
+	// | 3b. Data Access - Conditions |
+	// +------------------------------+
+
+	public List<SmartTypes.Condition> getActiveValidProblemsByOnset(Session session)
+		throws Exception {
+
+		SiteType type = session.Config.Type;
+		FhirVersion ver = session.Config.Version;
+
+		String params = null;
+		if ((type == SiteType.Epic || type == SiteType.EpicInBrowser) && ver == FhirVersion.R4) {
+			// epic r4 has multiple permissions for conditions search ... adding this allows
+			// us to limit the perms we require to the "Problems" subset rather than over-asking.
+			params = "category=problem-list-item";
+		}
+
+		List<SmartTypes.Condition> conditions = getConditionsInternal(session, params);
+
+		// filter on problems that are valid and active
+		List<SmartTypes.Condition> filtered = new ArrayList<SmartTypes.Condition>();
+
+		for (SmartTypes.Condition c : conditions) {
+
+			if (c.validAndActive()) {
+				SmartTypes.ConditionCategoryCodes cats = c.category;
+				if (cats == null) {
+					// maybe questionable
+					filtered.add(c);
+				}
+				else {
+					for (SmartTypes.ConditionCategoryCode cat : cats) {
+						if (cat == SmartTypes.ConditionCategoryCode.problem ||
+							cat == SmartTypes.ConditionCategoryCode.problem_list_item) {
+
+							filtered.add(c);
+							break;
+						}
+					}
+				}
+			}
+		}
+		
+		// sort descending by our best guess at onset
+		Collections.sort(filtered, new Comparator<SmartTypes.Condition>() {
+			@Override
+			public int compare(SmartTypes.Condition c1, SmartTypes.Condition c2) {
+				if (c1 == null && c2 == null) return(0);
+				if (c1 == null && c2 != null) return(-1);
+				if (c1 != null && c2 == null) return(1);
+					
+				ZonedDateTime zdt1 = c1.bestGuessOnset();
+				ZonedDateTime zdt2 = c2.bestGuessOnset();
+
+				if (zdt1 == null && zdt2 == null) return(0);
+				if (zdt1 == null && zdt2 != null) return(-1);
+				if (zdt1 != null && zdt2 == null) return(1);
+
+				return(zdt2.compareTo(zdt1));
+			}
+		});
+
+		return(filtered);
+	}
+	
 	public List<SmartTypes.Condition> getConditions(Session session)
+		throws Exception {
+
+		return(getConditionsInternal(session, null));
+	}
+	
+	private List<SmartTypes.Condition> getConditionsInternal(Session session, String params)
 		throws Exception {
 
 		List<SmartTypes.Condition> conditions = new ArrayList<SmartTypes.Condition>();
 		
 		String url = "/Condition?patient=" + session.PatientId;
+		if (params != null) url += "&" + params;
+		
 		JsonObject json = getJson(session, url);
 
 		JsonArray entries = json.getAsJsonArray("entry");
@@ -302,10 +387,6 @@ public class SmartEhr implements Closeable
 		}
 
 		return(conditions);
-	}
-
-	public JsonObject getJson(Session session, String path) throws Exception {
-		return(getJson(session, session.Config.IssUrl, path));
 	}
 
 	// +-------------------+

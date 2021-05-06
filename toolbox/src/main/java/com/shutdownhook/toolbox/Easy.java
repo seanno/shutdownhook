@@ -18,6 +18,13 @@ import java.lang.IllegalArgumentException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
+import java.time.LocalDate;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
+import java.time.format.DateTimeFormatterBuilder;
+import java.time.temporal.ChronoField;
 import java.util.Base64;
 import java.util.Map;
 import java.util.Random;
@@ -94,6 +101,79 @@ public class Easy
 		return(stringFromSmartyPath("@" + name));
 	}
 
+	// +-----------------+
+	// | Dates and Times |
+	// +-----------------+
+
+	public static LocalDate parseVariablePrecisionDate(String input) {
+		ensureParsers();
+		return(LocalDate.parse(input, vpdParser));
+	}
+
+	public static ZonedDateTime parseVariablePrecisionDateTime(String input, boolean defaultLocal) {
+		ensureParsers();
+		DateTimeFormatter dtf = (defaultLocal ? vpdtParserLocal : vpdtParserUTC);
+		return(ZonedDateTime.parse(input, dtf));
+	}
+
+	private static DateTimeFormatter vpdParser = null;
+	private static DateTimeFormatter vpdtParserLocal = null;
+	private static DateTimeFormatter vpdtParserUTC = null;
+
+	private synchronized static void ensureParsers() {
+		
+		if (vpdParser != null) return;
+
+		vpdParser = new DateTimeFormatterBuilder()
+			.appendValue(ChronoField.YEAR, 4)
+			.optionalStart()
+			    .appendLiteral("-")
+			    .appendValue(ChronoField.MONTH_OF_YEAR, 2)
+			    .optionalStart()
+			        .appendLiteral("-")
+			        .appendValue(ChronoField.DAY_OF_MONTH, 2)
+   			    .optionalEnd()
+			.optionalEnd()
+			.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1)
+			.parseDefaulting(ChronoField.DAY_OF_MONTH, 1)
+			.toFormatter();
+
+		DateTimeFormatter vpdtParserZoneless = new DateTimeFormatterBuilder()
+			.appendValue(ChronoField.YEAR, 4)
+			.optionalStart()
+			    .appendLiteral("-")
+			    .appendValue(ChronoField.MONTH_OF_YEAR, 2)
+			    .optionalStart()
+			        .appendLiteral("-")
+			        .appendValue(ChronoField.DAY_OF_MONTH, 2)
+			        .optionalStart()
+			            .appendLiteral("T")
+			            .appendValue(ChronoField.HOUR_OF_DAY, 2)
+			            .appendLiteral(":")
+			            .appendValue(ChronoField.MINUTE_OF_HOUR, 2)
+			            .optionalStart()
+			                .appendLiteral(":")
+			                .appendValue(ChronoField.SECOND_OF_MINUTE, 2)
+			                .optionalStart()
+			                    .appendFraction(ChronoField.MILLI_OF_SECOND, 0, 6, true)
+			                .optionalEnd()
+			            .optionalEnd()
+			            .appendZoneOrOffsetId()
+			        .optionalEnd()
+   			    .optionalEnd()
+			.optionalEnd()
+			.parseDefaulting(ChronoField.MONTH_OF_YEAR, 1)
+			.parseDefaulting(ChronoField.DAY_OF_MONTH, 1)
+			.parseDefaulting(ChronoField.HOUR_OF_DAY, 0)
+			.parseDefaulting(ChronoField.MINUTE_OF_HOUR, 0)
+			.parseDefaulting(ChronoField.SECOND_OF_MINUTE, 0)
+			.parseDefaulting(ChronoField.MILLI_OF_SECOND, 0)
+			.toFormatter();
+
+		vpdtParserLocal = vpdtParserZoneless.withZone(ZoneId.systemDefault());
+		vpdtParserUTC = vpdtParserZoneless.withZone(ZoneOffset.UTC);
+	}
+	
 	// +--------------------+
 	// | URLs and Encodings |
 	// +--------------------+
