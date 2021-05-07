@@ -48,7 +48,7 @@
 				"TrustedCertificateFile": "@localhost.crt"
 			},
 
-			"LogFhirResponses": true
+			"LogFhirResponses": false
 		},
 
 		"Server": {

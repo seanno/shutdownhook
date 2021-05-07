@@ -28,6 +28,7 @@ public class ClinicalTrialsServer extends SmartServer
 	private final static String SEARCH_PATH = "/search";
 	private final static String PATIENT_PATH = "/patient";
 	private final static String HOME_HTML = "trials.html";
+	private final static String LINKS_HTML = "links.html";
 	
 	// +------------------+
 	// | Config and Setup |
@@ -72,9 +73,11 @@ public class ClinicalTrialsServer extends SmartServer
 	// +----------+
 
 	@Override
-	protected void registerAdditionalHandlers(WebServer server, SmartEhr smart) {
+	protected void registerAdditionalHandlers(WebServer server,
+											  SmartEhr smart) throws Exception {
 		registerSearchHandler(server, smart);
 		registerPatientHandler(server, smart);
+		server.registerStaticHandler("/", Easy.stringFromResource(LINKS_HTML), "text/html");
 	}
 
 	public void registerSearchHandler(WebServer server, SmartEhr smart) {
