@@ -178,6 +178,32 @@ public class Easy
 	// | URLs and Encodings |
 	// +--------------------+
 
+	public static String htmlEncode(String input) {
+		
+		StringBuffer sb = new StringBuffer();
+
+		for (int ich = 0; ich < input.length(); ++ich) {
+			
+			char ch = input.charAt(ich);
+			
+			if (ch > 127) {
+				sb.append("&#").append((int)ch).append(";");
+			}
+			else {
+				switch (ch) {
+				    case '<': sb.append("&lt;"); break;
+				    case '>': sb.append("&gt;"); break;
+				    case '&': sb.append("&amp;"); break;
+				    case '"': sb.append("&quot;"); break;
+				    case '\'': sb.append("&apos;"); break;
+				    default: sb.append(ch); break;
+				}
+			}
+		}
+
+		return(sb.toString());
+	}
+	
 	public static String base64Encode(String input) {
 		return(Base64.getEncoder().encodeToString(input.getBytes(StandardCharsets.UTF_8)));
 	}

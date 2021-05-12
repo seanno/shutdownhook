@@ -1,0 +1,20 @@
+{
+	"Smart": {
+
+		"Scope": "user/*.read patient/*.search patient/*.read",
+			
+		"Sites": [
+			{
+				"SiteId": "SmartDev",
+				"IssUrl": "https://launch.smarthealthit.org/v/r4/fhir",
+				"ClientId": "x"
+			}
+		]
+	},
+
+	"Server": {
+		
+		"SSLCertificateFile": "@localhost.crt",
+		"SSLCertificateKeyFile": "@localhost.key"
+	}
+}

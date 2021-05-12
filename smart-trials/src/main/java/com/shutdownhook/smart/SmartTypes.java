@@ -146,6 +146,31 @@ public class SmartTypes
 		public String country;
 		public Period period;
 
+		public String display() {
+
+			if (text != null) return(text);
+			
+			StringBuilder sb = new StringBuilder();
+
+			if (line != null) {
+				for (String thisLine : line) {
+					if (sb.length() > 0) sb.append("\n");
+					sb.append(thisLine);
+				}
+			}
+
+			if (city != null) { if (sb.length() > 0) sb.append("\n"); sb.append(city); }
+			if (state != null) { if (sb.length() > 0) sb.append("\n"); sb.append(state); }
+			if (postalCode != null) { if (sb.length() > 0) sb.append("\n"); sb.append(postalCode); }
+			if (country != null) { if (sb.length() > 0) sb.append("\n"); sb.append(country); }
+
+			return(sb.toString());
+		}
+
+		public String displaySingleLine() {
+			return(display().replace("\n", ", "));
+		}
+		
 		public int compareTo(Address a) {
 			int i = compareEnums(use, a.use); if (i != 0) return(i);
 			return(compareEnums(type, a.type));

@@ -118,6 +118,7 @@ public class SmartEhr implements Closeable
 
 		public String PatientId;
 		public String UserId;
+		public String UserType;
 
 		public transient boolean Updated = false;
 		public transient SiteConfig Config = null;
@@ -285,7 +286,7 @@ public class SmartEhr implements Closeable
 	// +------------------------+
 
 	public SmartTypes.Patient getPatient(Session session) throws Exception {
-		String url = "/Patient/" + session.PatientId;
+		String url = "Patient/" + session.PatientId;
 		String json = getJsonStr(session, session.Config.IssUrl, url);
 		return(SmartTypes.Patient.fromJson(json));
 	}
@@ -370,7 +371,7 @@ public class SmartEhr implements Closeable
 
 		List<SmartTypes.Condition> conditions = new ArrayList<SmartTypes.Condition>();
 		
-		String url = "/Condition?patient=" + session.PatientId;
+		String url = "Condition?patient=" + session.PatientId;
 		if (params != null) url += "&" + params;
 		
 		JsonObject json = getJson(session, url);
@@ -463,19 +464,37 @@ public class SmartEhr implements Closeable
 			String tokenJson = Easy.base64Decode(jsonIdToken.getAsString().split("\\.")[1]);
 			JsonObject jsonProfile = parser.parse(tokenJson).getAsJsonObject();
 			if (jsonProfile.has("fhirUser")) {
-				session.UserId = jsonProfile.getAsJsonPrimitive("fhirUser").getAsString();
+				setUser(session, jsonProfile.getAsJsonPrimitive("fhirUser").getAsString());
 			}
 		}
 
 		// if not in id_token, look for a configured epic "user" launch token
 		if (session.UserId == null && json.has("user")) {
-			session.UserId = json.getAsJsonPrimitive("user").getAsString();
+			setUser(session, json.getAsJsonPrimitive("user").getAsString());
 		}
 
 		JsonPrimitive jsonBanner = json.getAsJsonPrimitive("need_patient_banner");
 		session.NeedPatientBanner = (jsonBanner != null && jsonBanner.getAsBoolean());
 
 		session.Updated = true;
+	}
+
+	private void setUser(Session session, String input) {
+
+		session.UserId = input;
+		session.UserType = "Practitioner";
+		
+		// grotty. user should come in as a resource url, but it might not. It seems
+		// like it's always a Practitioner, but there is vague mention in the ether
+		// that it might sometimes be another Person resource. Trying to consolidate
+		// all of this here.
+
+		int ichSlash = input.indexOf("/");
+		
+		if (ichSlash != -1) {
+			session.UserId = input.substring(ichSlash + 1);
+			session.UserType = input.substring(0, ichSlash);
+		}
 	}
 
 	// +--------------------+
@@ -486,13 +505,13 @@ public class SmartEhr implements Closeable
 		
 		if (site.UseWellKnownMetadata) {
 			JsonObject json = getJson(null, site.IssUrl,
-									  "/.well-known/smart-configuration");
+									  ".well-known/smart-configuration");
 
 			site.AuthUrl = json.getAsJsonPrimitive("authorization_endpoint").getAsString();
 			site.TokenUrl = json.getAsJsonPrimitive("token_endpoint").getAsString();
 		}
 		else {
-			JsonObject json = getJson(null, site.IssUrl, "/metadata");
+			JsonObject json = getJson(null, site.IssUrl, "metadata");
 
 			// ./rest[0]/security/extension[0].extension[]
 			JsonArray extensions = json.getAsJsonArray("rest")
