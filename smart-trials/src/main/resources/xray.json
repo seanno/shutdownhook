@@ -1,15 +1,25 @@
 {
 	"Smart": {
 
-		"Scope": "user/*.read patient/*.search patient/*.read",
+		"Scope": "user/Practitioner.read patient/Patient.read patient/Condition.search patient/Condition.read patient/MedicationRequest.search patient/MedicationRequest.read user/*.search patient/*.read ",
 			
 		"Sites": [
 			{
-				"SiteId": "SmartDev",
+				"SiteId": "Smart",
 				"IssUrl": "https://launch.smarthealthit.org/v/r4/fhir",
 				"ClientId": "x"
-			}
-		]
+			},
+            {
+                "SiteId": "Epic",
+                "IssUrl": "https://fhir.epic.com/interconnect-fhir-oauth/api/FHIR/R4",
+                "ClientId": "3b0e5c6a-e5df-438f-b654-864aed042ce0"
+            },
+            {
+                "SiteId": "Cerner",
+                "IssUrl": "https://fhir-ehr-code.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d",
+                "ClientId": "8789fffd-661b-4548-b60e-518cb0de6fb9"
+            }
+  		]
 	},
 
 	"Server": {

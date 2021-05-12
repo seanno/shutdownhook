@@ -57,9 +57,6 @@ public class XrayServer extends SmartServer
 	public void home(Request request, Response response,
 					 SmartEhr.Session session, SmartEhr smart) throws Exception {
 
-		String userString = session.UserId + " (" + session.UserType + ")";
-		String userUrl = session.UserType + "/" + session.UserId;
-		
 		StringBuilder sb = new StringBuilder();
 
 		sb.append("<!DOCTYPE html>\n<html><head><style>li{margin-bottom:6px;}</style>");
@@ -70,15 +67,15 @@ public class XrayServer extends SmartServer
 		sb.append("<p>");
 		sb.append("<b>Site</b>: ").append(Easy.htmlEncode(session.SiteId)).append("<br/>");
 		sb.append("<b>Session</b>: ").append(session.Id.toString()).append("<br/>");
-		sb.append("<b>User</b>: ").append(Easy.htmlEncode(userString)).append("<br/>");
+		sb.append("<b>UserResource</b>: ").append(Easy.htmlEncode(session.UserResource)).append("<br/>");
 		sb.append("<b>Patient</b>: ").append(Easy.htmlEncode(session.PatientId)).append("<br/>");
 		sb.append("</p>");
 
 		sb.append("<ul>");
 		sb.append("<li><a target='_blank' href='/session'>Session Detail</a></li>");
-		appendFhirListItem(sb, userUrl);
+		appendFhirListItem(sb, session.UserResource);
 		appendFhirListItem(sb, "Patient/" + session.PatientId);
-		appendFhirListItem(sb, "Condition?patient=" + session.PatientId);
+		appendFhirListItem(sb, "Condition?patient=" + session.PatientId + "&category=problem-list-item");
 		appendFhirListItem(sb, "MedicationRequest?patient=" + session.PatientId);
 
 		sb.append("<li>Custom: <input type='text' id='path' style='width: 300px;' /> ");

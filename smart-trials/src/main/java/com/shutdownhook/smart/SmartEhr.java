@@ -117,8 +117,7 @@ public class SmartEhr implements Closeable
 		public String RefreshToken;
 
 		public String PatientId;
-		public String UserId;
-		public String UserType;
+		public String UserResource;
 
 		public transient boolean Updated = false;
 		public transient SiteConfig Config = null;
@@ -166,10 +165,6 @@ public class SmartEhr implements Closeable
 	// value occurs exactly once in your configuration. Otherwise, embed it into
 	// your EHR-configured launch URL to differentiate between multiple "sites"
 	// using the same iss url.
-	//
-	// Finally --- if using Epic, we're not going to get back a "fhirUser" in the
-	// id_token. You can configure your launch URL to supply the user id in an
-	// alternate way by adding user=%SYSLOGIN% on the launch url.
 
 	public String launch(String siteId, String launch, String iss, String returnUrl) throws Exception {
 
@@ -274,7 +269,7 @@ public class SmartEhr implements Closeable
 
 		parseTokens(session, response.Body);
 
-		if (session.PatientId == null || session.UserId == null) {
+		if (session.PatientId == null || session.UserResource == null) {
 			throw new Exception("Missing patient and/or id_token fields in response!");
 		}
 
@@ -464,37 +459,18 @@ public class SmartEhr implements Closeable
 			String tokenJson = Easy.base64Decode(jsonIdToken.getAsString().split("\\.")[1]);
 			JsonObject jsonProfile = parser.parse(tokenJson).getAsJsonObject();
 			if (jsonProfile.has("fhirUser")) {
-				setUser(session, jsonProfile.getAsJsonPrimitive("fhirUser").getAsString());
+				// sometimes we get full urls, sometimes partial... clean it up.
+				String fhirUser = jsonProfile.getAsJsonPrimitive("fhirUser").getAsString();
+				fhirUser = fhirUser.replace(session.Config.IssUrl, "");
+				if (fhirUser.startsWith("/")) fhirUser = fhirUser.substring(1);
+				session.UserResource = fhirUser;
 			}
-		}
-
-		// if not in id_token, look for a configured epic "user" launch token
-		if (session.UserId == null && json.has("user")) {
-			setUser(session, json.getAsJsonPrimitive("user").getAsString());
 		}
 
 		JsonPrimitive jsonBanner = json.getAsJsonPrimitive("need_patient_banner");
 		session.NeedPatientBanner = (jsonBanner != null && jsonBanner.getAsBoolean());
 
 		session.Updated = true;
-	}
-
-	private void setUser(Session session, String input) {
-
-		session.UserId = input;
-		session.UserType = "Practitioner";
-		
-		// grotty. user should come in as a resource url, but it might not. It seems
-		// like it's always a Practitioner, but there is vague mention in the ether
-		// that it might sometimes be another Person resource. Trying to consolidate
-		// all of this here.
-
-		int ichSlash = input.indexOf("/");
-		
-		if (ichSlash != -1) {
-			session.UserId = input.substring(ichSlash + 1);
-			session.UserType = input.substring(0, ichSlash);
-		}
 	}
 
 	// +--------------------+
