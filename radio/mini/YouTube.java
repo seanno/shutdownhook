@@ -1,6 +1,6 @@
 /*
-** Read about this code at http://shutdownhook.com.
-** No restrictions on use; no assurances or warranties either!
+** Read about this code at http://shutdownhook.com
+** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
 import java.lang.System;
