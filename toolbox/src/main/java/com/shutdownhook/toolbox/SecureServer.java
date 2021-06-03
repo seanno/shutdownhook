@@ -83,10 +83,8 @@ public class SecureServer extends WebServer
 													 CertificateException,
 													 InvalidKeySpecException {
 
-		// default type is supposedly the "preferred" one?
-		KeyStore ks = KeyStore.getInstance(KeyStore.getDefaultType());
-
 		// this initializes it as empty
+		KeyStore ks = KeyStore.getInstance("PKCS12");
 		ks.load(null, null);
 
 		// load up the actual key stuff
@@ -141,6 +139,7 @@ public class SecureServer extends WebServer
 		str = str.replace("-----BEGIN PRIVATE KEY-----", "");
 		str = str.replace("-----END PRIVATE KEY-----", "");
 		str = str.replace("\n", "");
+		str = str.replace("\r", "");
 		
 		byte[] rgb = Base64.getDecoder().decode(str);
 		

@@ -14,10 +14,10 @@ import java.io.InputStreamReader;
 import java.io.IOException;
 import java.io.PrintWriter;
 import java.io.StringWriter;
+import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
-import java.nio.charset.StandardCharsets;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
@@ -205,19 +205,23 @@ public class Easy
 	}
 	
 	public static String base64Encode(String input) {
-		return(Base64.getEncoder().encodeToString(input.getBytes(StandardCharsets.UTF_8)));
+		try { return(Base64.getEncoder().encodeToString(input.getBytes("UTF-8"))); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
 	public static String base64Decode(String input) throws IllegalArgumentException {
-		return(new String(Base64.getDecoder().decode(input), StandardCharsets.UTF_8));
+		try { return(new String(Base64.getDecoder().decode(input), "UTF-8")); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
 	public static String urlEncode(String input) {
-		return(URLEncoder.encode(input, StandardCharsets.UTF_8));
+		try { return(URLEncoder.encode(input, "UTF-8")); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
 	public static String urlDecode(String input) {
-		return(URLDecoder.decode(input, StandardCharsets.UTF_8));
+		try { return(URLDecoder.decode(input, "UTF-8")); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
 	public static String urlPaste(String base, String path) {
