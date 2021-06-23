@@ -33,9 +33,10 @@ public class TextWebSocket implements Closeable
 		public Boolean LogContent = false;
 	}
 
-	public TextWebSocket(String url, Config cfg) throws Exception {
+	public TextWebSocket(String url, Config cfg, Receiver receiver) throws Exception {
 		
 		this.cfg = cfg;
+		this.receiver = receiver;
 
 		log.info("Connecting to url: " + url);
 
@@ -43,7 +44,7 @@ public class TextWebSocket implements Closeable
 			.newHttpClient()
 			.newWebSocketBuilder()
 			.connectTimeout(Duration.ofSeconds(cfg.ConnectTimeoutSeconds))
-			.buildAsync(new URI(url), new Receiver(this))
+			.buildAsync(new URI(url), new InternalReceiver(this))
 			.join();
 	}
 
@@ -55,7 +56,7 @@ public class TextWebSocket implements Closeable
 		
 		if (ws != null) {
 
-			log.fine(String.format("Closing with status = %d, msg = %s",
+			log.info(String.format("Closing with status = %d, msg = %s",
 								   statusCode, msg));
 			
 			try {
@@ -65,6 +66,9 @@ public class TextWebSocket implements Closeable
 			}
 			catch (Exception e) {
 				log.severe("Exception closing websocket: " + e.toString());
+
+				try { ws.abort(); }
+				catch (Exception inner) { }
 			}
 
 			ws = null;
@@ -85,21 +89,22 @@ public class TextWebSocket implements Closeable
 			.join();
 	}
 
-	public void receive(String message) throws Exception {
-		// override me
-	}
-
-	public void error(Throwable error) throws Throwable {
-		// override me
-	}
-
 	// +----------+
 	// | Receiver |
 	// +----------+
 
-	public class Receiver implements WebSocket.Listener
+	public interface Receiver {
+		default public void receive(String message, TextWebSocket tws) throws Exception { }
+		default public void error(Throwable error, TextWebSocket tws) throws Throwable { }
+	}
+
+	// +------------------+
+	// | InternalReceiver |
+	// +------------------+
+
+	public class InternalReceiver implements WebSocket.Listener
 	{
-		public Receiver(TextWebSocket tws) {
+		public InternalReceiver(TextWebSocket tws) {
 			this.tws = tws;
 
 			sb = new StringBuilder();
@@ -120,7 +125,9 @@ public class TextWebSocket implements Closeable
 				if (cfg.LogContent) log.info("Message Received: " + sb.toString());
 				
 				try {
-					receive(sb.toString());
+					if (tws.receiver != null) {
+						tws.receiver.receive(sb.toString(), tws);
+					}
 				}
 				catch (Exception e) {
 					log.warning(String.format("ImplEx handling message (%s)",
@@ -140,7 +147,9 @@ public class TextWebSocket implements Closeable
 			tws.ws = null; // it's screwed so don't touch it any more
 			
 			try {
-				tws.error(error);
+				if (tws.receiver != null) {
+					tws.receiver.error(error, tws);
+				}
 			}
 			catch (Throwable e) {
 				log.warning(String.format("ImplEx handling error (input = %s; e = %s)",
@@ -169,6 +178,7 @@ public class TextWebSocket implements Closeable
 	// +-------------------+
 
 	private Config cfg;
+	private Receiver receiver;
 	private WebSocket ws;
 	
 	private final static Logger log = Logger.getLogger(WebSocket.class.getName());

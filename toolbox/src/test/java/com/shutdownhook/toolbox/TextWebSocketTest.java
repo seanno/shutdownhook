@@ -20,26 +20,29 @@ public class TextWebSocketTest
 	// | Setup |
 	// +-------+
 	
-	private static EchoWebSocket echo = null;
+	private static EchoReceiver receiver = null;
+	private static TextWebSocket tws = null;
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 		// bless the folks hosting this service!
 		TextWebSocket.Config cfg = new TextWebSocket.Config();
 		cfg.LogContent = true;
-		echo = new EchoWebSocket("wss://echo.websocket.org", cfg);
+		
+		receiver = new EchoReceiver();
+		tws = new TextWebSocket("wss://echo.websocket.org", cfg, receiver);
 	}
 
 	@AfterClass
 	public static void afterClass() {
-		echo.close();
-		echo = null;
+		tws.close();
+		tws = null;
+		receiver = null;
 	}
 
-	public static class EchoWebSocket extends TextWebSocket
+	public static class EchoReceiver implements TextWebSocket.Receiver
 	{
-		public EchoWebSocket(String url, TextWebSocket.Config cfg) throws Exception {
-			super(url, cfg);
+		public EchoReceiver() throws Exception {
 			latch = new CountDownLatch(1);
 		}
 
@@ -49,14 +52,12 @@ public class TextWebSocketTest
 			return(message);
 		}
 
-		@Override
-		public void receive(String message) throws Exception {
+		public void receive(String message, TextWebSocket tws) throws Exception {
 			this.message = message;
 			latch.countDown();
 		}
 
-		@Override
-		public void error(Throwable error) throws Throwable {
+		public void error(Throwable error, TextWebSocket tws) throws Throwable {
 			// shouldn't happen; fail test
 			throw error;
 		}
@@ -75,8 +76,8 @@ public class TextWebSocketTest
 		String msg = "TextWebSocketTest; random = " +
 			Integer.toString(new Random().nextInt(20000));
 		
-		echo.send(msg);
-		String received = echo.waitForEcho();
+		tws.send(msg);
+		String received = receiver.waitForEcho();
 
 		Assert.assertEquals(msg, received);
 	}

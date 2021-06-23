@@ -46,6 +46,17 @@ public class SqlStore
 		return(DriverManager.getConnection(cfg.ConnectionString));
 	}
 
+	// +--------+
+	// | Return |
+	// +--------+
+
+	// Convenience class to wrap return values from anon handler classes
+	
+	public static class Return<T>
+	{
+		public T Value = null;
+	}
+
 	// +-------+
 	// | query |
 	// +-------+
