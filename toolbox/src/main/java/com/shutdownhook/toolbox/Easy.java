@@ -1,6 +1,6 @@
 /*
 ** Read about this code at http://shutdownhook.com
-** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
+n** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
 package com.shutdownhook.toolbox;
@@ -18,6 +18,8 @@ import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
@@ -260,10 +262,50 @@ public class Easy
 		return(sb.toString());
 	}
 
+	public static String sha256(String input) {
+
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] bytes = digest.digest(input.getBytes("UTF-8"));
+			return(bytesToHex(bytes));
+		}
+		catch (NoSuchAlgorithmException e1) { return(null); } // will never happen
+		catch (UnsupportedEncodingException e2) { return(null); } // will never happen
+	}
+
+	public static String bytesToHex(byte[] bytes) {
+		
+		StringBuilder sb = new StringBuilder();
+
+		for (byte b : bytes) {
+			String hex = Integer.toHexString(0xFF & b);
+			if (hex.length() == 1) sb.append("0");
+			sb.append(hex);
+		}
+		
+		return(sb.toString());
+	}
+
 	// +------+
 	// | Misc |
 	// +------+
 
+	public static String randomAlphaNumeric(int cch) {
+		StringBuilder sb = new StringBuilder();
+		Random random = new Random();
+		for (int i = 0; i < cch; ++i) {
+			
+			int ch = 0;
+			while (!Character.isAlphabetic(ch) && !Character.isDigit(ch)) {
+				ch = random.nextInt(93) + 30;
+			}
+
+			sb.append((char)ch);
+		}
+
+		return(sb.toString());
+	}
+	
 	public static String exMsg(Exception e, String msg, boolean includeStack) {
 
 		String log = String.format("Exception (%s): %s%s",
@@ -282,6 +324,13 @@ public class Easy
 	public static void setSimpleLogFormat() {
 		System.setProperty("java.util.logging.SimpleFormatter.format",
 						   "[%1$tF %1$tT] [%4$-7s] %5$s %n");
+	}
+
+	public static String superGetProperty(String name, String defaultValue) {
+		String val = System.getProperty(name);
+		if (val == null) val = System.getenv(name);
+		if (val == null) val = defaultValue;
+		return(val);
 	}
 
 	private final static Logger log = Logger.getLogger(Easy.class.getName());
