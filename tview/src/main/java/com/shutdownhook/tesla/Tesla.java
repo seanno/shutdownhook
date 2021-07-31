@@ -36,7 +36,9 @@ public class Tesla implements Closeable
 		public String Email;
 		public String Password;
 		public Integer WakeWaitSeconds = 30;
-		public Integer MaxWaitRetries = 3;
+		public Integer MaxWaitRetries = 4;
+		public Integer ApiWaitSeconds = 5;
+		public Integer MaxApiRetries = 4;
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
 
@@ -72,8 +74,54 @@ public class Tesla implements Closeable
 	// | Specific Values |
 	// +-----------------+
 
-	// nyi
+	private final static String BING_URL_FMT =
+		"https://bing.com/maps/default.aspx?cp=%f~%f&sp=point.%f_%f_%s___&style=a&lvl=18";
+
+	public String getMapUrl(String vehicleId) throws Exception {
+		
+		JsonObject jsonResponse = getVehicleData(vehicleId).getAsJsonObject("response");
+		JsonObject jsonDriveState = jsonResponse.getAsJsonObject("drive_state");
+
+		String name = Easy.urlEncode(jsonResponse.get("display_name").getAsString());
+		double latitude = jsonDriveState.get("latitude").getAsDouble();
+		double longitude = jsonDriveState.get("longitude").getAsDouble();
+		
+		return(String.format(BING_URL_FMT, latitude, longitude, latitude, longitude, name));
+	}
+
+	public Double getMileage(String vehicleId) throws Exception {
+
+		double odometer = getVehicleData(vehicleId)
+			.getAsJsonObject("response")
+			.getAsJsonObject("vehicle_state")
+			.get("odometer")
+			.getAsDouble();
+
+		return(odometer);
+	}
 	
+	public Double getInsideTemp(String vehicleId) throws Exception {
+
+		double c = getVehicleData(vehicleId)
+			.getAsJsonObject("response")
+			.getAsJsonObject("climate_state")
+			.get("inside_temp")
+			.getAsDouble();
+
+		return((c * 9.0 / 5.0) + 32.0);
+	}
+
+	public Double getOutsideTemp(String vehicleId) throws Exception {
+
+		double c = getVehicleData(vehicleId)
+			.getAsJsonObject("response")
+			.getAsJsonObject("climate_state")
+			.get("outside_temp")
+			.getAsDouble();
+
+		return((c * 9.0 / 5.0) + 32.0);
+	}
+
 	// +---------------+
 	// | Specific JSON |
 	// +---------------+
@@ -108,15 +156,33 @@ public class Tesla implements Closeable
 		params.addHeader("Authorization", "Bearer " + accessToken);
 		if (post) params.MethodOverride = "POST";
 
-		WebRequests.Response response = requests.fetch(OWNER_URL + relativeUrl, params);
-		if (!response.successful()) {
-			String msg = String.format("Failed fetching %s (%d/%s)", relativeUrl,
-									   response.Status, response.StatusText);
+		WebRequests.Response response = null;
+		int retries = 0;
+
+		while (retries++ < cfg.MaxApiRetries) {
 			
-			throw new Exception(msg, response.Ex);
+			response = requests.fetch(OWNER_URL + relativeUrl, params);
+
+			if (response.successful()) {
+				return(new JsonParser().parse(response.Body).getAsJsonObject());
+			}
+			else if (response.Status == 408) {
+				log.info(String.format("Url %s returned 408; waiting %d seconds (%d)",
+									   relativeUrl, cfg.ApiWaitSeconds, retries));
+
+				Thread.sleep(cfg.ApiWaitSeconds * 1000);
+			}
+			else {
+				String msg = String.format("Failed fetching %s (%d/%s)", relativeUrl,
+										   response.Status, response.StatusText);
+			
+				throw new Exception(msg, response.Ex);
+			}
 		}
-		
-		return(new JsonParser().parse(response.Body).getAsJsonObject());
+
+		String msg = String.format("Url %s failed; too many retries", relativeUrl);
+		log.severe(msg);
+		throw new Exception(msg);
 	}
 
 	// +----------+

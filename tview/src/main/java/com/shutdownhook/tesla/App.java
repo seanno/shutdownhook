@@ -20,12 +20,20 @@ public class App
 		VEHICLES,
 		VEHICLE,
 		HONK,
-		NEARBY
+		NEARBY,
+		MAP,
+		MILEAGE,
+		INSIDETEMP,
+		OUTSIDETEMP
 	}
 
 	private static void usage() {
 		System.err.println("List vehicles:\tjava -cp PATH_TO_JAR [settings] vehicles");
 		System.err.println("Vehicle details:\tjava -cp PATH_TO_JAR [settings] vehicle ID");
+		System.err.println("Map URL:\tjava -cp PATH_TO_JAR [settings] map ID");
+		System.err.println("Mileage:\tjava -cp PATH_TO_JAR [settings] mileage ID");
+		System.err.println("Inside Temp (F):\tjava -cp PATH_TO_JAR [settings] insideTemp ID");
+		System.err.println("Outisde Temp(F):\tjava -cp PATH_TO_JAR [settings] outsideTemp ID");
 		System.err.println("");
 		System.err.println("Options (also can be set in env):");
 		System.err.println("  * -Dtview_email=EMAIL");
@@ -58,6 +66,7 @@ public class App
 		try {
 			gson = new GsonBuilder().setPrettyPrinting().create(); 
 			tesla = new Tesla(cfg);
+			String vehicleId = (args.length >= 2 ? args[1] : null);
 
 			switch (action) {
 			    case VEHICLES:
@@ -65,16 +74,32 @@ public class App
 					break;
 
 			    case VEHICLE:
-					System.out.println(gson.toJson(tesla.getVehicleData(args[1])));
+					System.out.println(gson.toJson(tesla.getVehicleData(vehicleId)));
 				    break;
 
 			    case HONK:
-					System.out.println(Boolean.toString(tesla.honk(args[1])));
+					System.out.println(Boolean.toString(tesla.honk(vehicleId)));
 				    break;
 
 			    case NEARBY:
-					System.out.println(gson.toJson(tesla.getNearbyChargers(args[1])));
+					System.out.println(gson.toJson(tesla.getNearbyChargers(vehicleId)));
 				    break;
+
+			    case MAP:
+					System.out.println(tesla.getMapUrl(vehicleId));
+					break;
+					
+			    case MILEAGE:
+					System.out.println(Double.toString(tesla.getMileage(vehicleId)));
+					break;
+
+			    case INSIDETEMP:
+					System.out.println(Double.toString(tesla.getInsideTemp(vehicleId)));
+					break;
+					
+			    case OUTSIDETEMP:
+					System.out.println(Double.toString(tesla.getOutsideTemp(vehicleId)));
+					break;
 			}
 		
 		}
