@@ -6,9 +6,11 @@
 package com.shutdownhook.smart;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.lang.IllegalArgumentException;
 import java.time.Instant;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.*;
 import java.util.logging.Logger;
 
@@ -16,11 +18,15 @@ import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
 
 import com.google.gson.Gson;
+import com.google.gson.GsonBuilder;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonElement;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonPrimitive;
 import com.google.gson.JsonObject;
-import com.google.gson.JsonArray;
+import com.google.gson.stream.JsonReader;
+import com.google.gson.stream.JsonWriter;
+import com.google.gson.TypeAdapter;
 
 public class SmartEhr implements Closeable
 {
@@ -124,16 +130,16 @@ public class SmartEhr implements Closeable
 	}
 
 	public String dehydrate(Session session) {
-		return(new Gson().toJson(session));
+		return(gson.toJson(session));
 	}
 
 	public String dehydrateIfUpdated(Session session) {
-		return(session.Updated ? new Gson().toJson(session) : null);
+		return(session.Updated ? gson.toJson(session) : null);
 	}
 
 	public Session rehydrate(String json) throws Exception {
 
-		Session session = new Gson().fromJson(json, Session.class);
+		Session session = gson.fromJson(json, Session.class);
 		
 		session.Config = sitesMap.get(session.SiteId);
 		
@@ -432,9 +438,7 @@ public class SmartEhr implements Closeable
 			log.info(String.format("Token response:\n-----\n%s", responseJson));
 		}
 
-		JsonParser parser = new JsonParser();
-		
-		JsonObject json = parser.parse(responseJson).getAsJsonObject();
+		JsonObject json = jsonParser.parse(responseJson).getAsJsonObject();
 		
 		session.AccessToken = json.getAsJsonPrimitive("access_token").getAsString();
 
@@ -457,7 +461,7 @@ public class SmartEhr implements Closeable
 		JsonPrimitive jsonIdToken = json.getAsJsonPrimitive("id_token");
 		if (jsonIdToken != null) {
 			String tokenJson = Easy.base64Decode(jsonIdToken.getAsString().split("\\.")[1]);
-			JsonObject jsonProfile = parser.parse(tokenJson).getAsJsonObject();
+			JsonObject jsonProfile = jsonParser.parse(tokenJson).getAsJsonObject();
 			if (jsonProfile.has("fhirUser")) {
 				// sometimes we get full urls, sometimes partial... clean it up.
 				String fhirUser = jsonProfile.getAsJsonPrimitive("fhirUser").getAsString();
@@ -521,7 +525,7 @@ public class SmartEhr implements Closeable
 
 	private JsonObject getJson(Session session, String base, String path) throws Exception {
 		String json = getJsonStr(session, base, path);
-		return(new JsonParser().parse(json).getAsJsonObject());
+		return(jsonParser.parse(json).getAsJsonObject());
 	}
 
 	private String getJsonStr(Session session, String base, String path) throws Exception {
@@ -553,6 +557,31 @@ public class SmartEhr implements Closeable
 		
 		return(response.Body);
 	}
+
+	// +---------------+
+	// | Gson Adapters |
+	// +---------------+
+	
+	public static class InstantAdapter extends TypeAdapter<Instant>
+	{ 
+		@Override 
+		public Instant read(JsonReader reader) throws IOException {
+			JsonElement json = jsonParser.parse(reader);
+			return(Instant.parse(json.getAsString()));
+		} 
+   
+		@Override 
+		public void write(JsonWriter writer, Instant instant) throws IOException {
+			writer.value(instant == null ? null : DateTimeFormatter.ISO_INSTANT.format(instant));
+		} 
+	}
+	
+	private static Gson gson = new GsonBuilder()
+		.setPrettyPrinting()
+		.registerTypeAdapter(Instant.class, new InstantAdapter())
+		.create();
+
+	private static JsonParser jsonParser = new JsonParser();
 
 	// +---------+
 	// | Members |
