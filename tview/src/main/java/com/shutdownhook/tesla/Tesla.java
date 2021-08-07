@@ -8,6 +8,8 @@
 package com.shutdownhook.tesla;
 
 import java.io.Closeable;
+import java.io.File;
+import java.time.Instant;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -35,6 +37,9 @@ public class Tesla implements Closeable
 	{
 		public String Email;
 		public String Password;
+		public String ClientId;
+		public String ClientSecret;
+		public String CachedTokenPath = "/tmp/.tesla";
 		public Integer WakeWaitSeconds = 30;
 		public Integer MaxWaitRetries = 4;
 		public Integer ApiWaitSeconds = 5;
@@ -42,7 +47,12 @@ public class Tesla implements Closeable
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
 
-	public Tesla(Config cfg) throws Exception {
+	public interface CaptchaSolver {
+		public String solve(String imagePath) throws Exception;
+	}
+	
+	public Tesla(Config cfg, CaptchaSolver solver) throws Exception {
+		this.solver = solver;
 		this.cfg = cfg;
 		this.cfg.Requests.FollowRedirects = false;
 		requests = new WebRequests(cfg.Requests);
@@ -173,10 +183,7 @@ public class Tesla implements Closeable
 				Thread.sleep(cfg.ApiWaitSeconds * 1000);
 			}
 			else {
-				String msg = String.format("Failed fetching %s (%d/%s)", relativeUrl,
-										   response.Status, response.StatusText);
-			
-				throw new Exception(msg, response.Ex);
+				response.throwException("getOwnerApi");
 			}
 		}
 
@@ -215,14 +222,11 @@ public class Tesla implements Closeable
 	private final static String SSO_URL =
 		"https://auth.tesla.com";
 
-	private final static String CLIENT_ID =
-		"81527cff06843c8634fdc09e8ac0abefb46ac849f38fe1e431c2ef2106796384";
-
-	private final static String CLIENT_SECRET =
-		"c7257eb71a564034f9419ee651c7d0e5f7aa6bfbd18bafb5c5c033b093bb2fa3";
-	
 	private final static String HIDDENS_REGEX =
 		"<input type=\\\"hidden\\\" name=\\\"([^\\\"]+)\\\" value=\\\"([^\\\"]+)\\\"";
+
+	private final static String USER_AGENT = Tesla.class.getName();
+	private final static String CAPTCHA_MSG = "Captcha does not match";
 
 	public static class AuthState
 	{
@@ -232,6 +236,8 @@ public class Tesla implements Closeable
 		public String State;
 		public Map<String,String> Hiddens = new HashMap<String,String>();
 		public Map<String,String> Cookies = new HashMap<String,String>();
+		// possibly added in solveCaptcha
+		public String Captcha;
 		// added in fetchAuthorizationCode
 		public String Code;
 		// added in exchangeCodeForToken
@@ -239,15 +245,24 @@ public class Tesla implements Closeable
 		// added in exchangeInterimForFinal
 		public String AccessToken;
 	}
-	
+
 	public void ensureAuthentication() throws Exception {
 		
 		if (accessToken != null) return;
 
+		accessToken = readCachedToken();
+		
+		if (accessToken != null) return;
+		
 		AuthState state = new AuthState();
 
 		fetchLoginPage(state);
-		fetchAuthorizationCode(state);
+
+		while (!fetchAuthorizationCode(state)) {
+			// false == captcha needed
+			solveCaptcha(state);
+		}
+		
 		exchangeCodeForInterim(state);
 		exchangeInterimForFinal(state);
 
@@ -263,11 +278,11 @@ public class Tesla implements Closeable
 		String url = SSO_URL + "/oauth2/v3/authorize";
 		
 		WebRequests.Params params = new WebRequests.Params();
-		params.addHeader("User-Agent", Tesla.class.getName());
+		params.addHeader("User-Agent", USER_AGENT);
 		addAuthQueryStuff(params, state);
 
 		WebRequests.Response response = requests.fetch(url, params);
-		if (!response.successful()) throw response.Ex;
+		if (!response.successful()) response.throwException("fetchLoginPage");
 
 		for (String setCookie : response.Headers.get("Set-Cookie")) {
 			
@@ -289,30 +304,34 @@ public class Tesla implements Closeable
 		}
 	}
 
-	private void fetchAuthorizationCode(AuthState state) throws Exception {
+	private boolean fetchAuthorizationCode(AuthState state) throws Exception {
 
 		String url = SSO_URL + "/oauth2/v3/authorize";
 		
 		WebRequests.Params params = new WebRequests.Params();
-		params.addHeader("User-Agent", Tesla.class.getName());
+		params.addHeader("User-Agent", USER_AGENT);
 		addAuthQueryStuff(params, state);
 
 		state.Hiddens.put("identity", cfg.Email);
 		state.Hiddens.put("credential", cfg.Password);
+		if (state.Captcha != null) state.Hiddens.put("captcha", state.Captcha);
+		
 		params.setForm(state.Hiddens);
+		
+		addCookies(params, state);
+		
+		WebRequests.Response response = requests.fetch(url, params);
+		if (response.Status != 302) {
 
-		StringBuilder sb = new StringBuilder();
-		for (String name : state.Cookies.keySet()) {
-			if (sb.length() > 0) sb.append("; ");
-			sb.append(name).append("=").append(state.Cookies.get(name));
+			if ((response.Status == 200) && response.Body.indexOf(CAPTCHA_MSG) != -1) {
+				return(false);
+			}
+
+			response.throwException("fetchAuthorizationCode");
 		}
 
-		params.addHeader("Cookie", sb.toString());
-
-		WebRequests.Response response = requests.fetch(url, params);
-		if (response.Status != 302) throw response.Ex;
-
 		state.Code = findQueryParam(response.Headers.get("Location").get(0), "code");
+		return(true);
 	}
 
 	private void exchangeCodeForInterim(AuthState state) throws Exception {
@@ -331,7 +350,7 @@ public class Tesla implements Closeable
 		params.Body = new Gson().toJson(json);
 
 		WebRequests.Response response = requests.fetch(url, params);
-		if (!response.successful()) throw response.Ex;
+		if (!response.successful()) response.throwException("exchangeCodeforInterim");
 
 		JsonParser parser = new JsonParser();
 		JsonObject jsonResponse = parser.parse(response.Body).getAsJsonObject();
@@ -346,8 +365,8 @@ public class Tesla implements Closeable
 
 		JsonObject json = new JsonObject();
 		json.addProperty("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer");
-		json.addProperty("client_id", CLIENT_ID);
-		json.addProperty("client_secret", CLIENT_SECRET);
+		json.addProperty("client_id", cfg.ClientId);
+		json.addProperty("client_secret", cfg.ClientSecret);
 		
 		WebRequests.Params params = new WebRequests.Params();
 		params.setContentType("application/json");
@@ -355,15 +374,47 @@ public class Tesla implements Closeable
 		params.Body = new Gson().toJson(json);
 
 		WebRequests.Response response = requests.fetch(url, params);
-		if (!response.successful()) throw response.Ex;
+		if (!response.successful()) response.throwException("exchangeInterimForFinal");
 
 		JsonParser parser = new JsonParser();
 		JsonObject jsonResponse = parser.parse(response.Body).getAsJsonObject();
 		
 		state.AccessToken =
 			jsonResponse.getAsJsonPrimitive("access_token").getAsString();
+
+		long expiresIn = jsonResponse.getAsJsonPrimitive("expires_in").getAsLong();
+		storeCachedToken(state.AccessToken, expiresIn);
 	}
 
+	private void solveCaptcha(AuthState state) throws Exception {
+
+		state.Captcha = null;
+		
+		String url = SSO_URL + "/captcha";
+		String imgPath = File.createTempFile("tesla", ".svg").getAbsolutePath();
+		
+		WebRequests.Params params = new WebRequests.Params();
+		params.addHeader("User-Agent", USER_AGENT);
+		params.ResponseBodyPath = imgPath;
+		addCookies(params, state);
+
+		WebRequests.Response response = requests.fetch(url, params);
+		if (!response.successful()) response.throwException("solveCaptcha");
+
+		state.Captcha = solver.solve(imgPath);
+	}
+
+	private void addCookies(WebRequests.Params params, AuthState state) {
+
+		StringBuilder sb = new StringBuilder();
+		for (String name : state.Cookies.keySet()) {
+			if (sb.length() > 0) sb.append("; ");
+			sb.append(name).append("=").append(state.Cookies.get(name));
+		}
+
+		params.addHeader("Cookie", sb.toString());
+	}
+	
 	private void addAuthQueryStuff(WebRequests.Params params, AuthState state) {
 		params.addQueryParam("client_id", "ownerapi");
 		params.addQueryParam("code_challenge", state.CodeChallenge);
@@ -388,13 +439,66 @@ public class Tesla implements Closeable
 		return(null);
 	}
 
+	// +-------------+
+	// | Token Cache |
+	// +-------------+
+	
+	public static class CachedToken
+	{
+		public String Token;
+		public Long EpochSecondsExpires;
+	}
+
+	private String readCachedToken() throws Exception {
+		
+		if (cfg.CachedTokenPath == null) {
+			log.info("No cache file specified; skipping read");
+			return(null);
+		}
+
+		File file = new File(cfg.CachedTokenPath);
+		if (!file.exists()) {
+			return(null);
+		}
+
+		String json = Easy.stringFromFile(cfg.CachedTokenPath);
+		CachedToken cachedToken = new Gson().fromJson(json, CachedToken.class);
+
+		Long nowEpochSeconds = Instant.now().getEpochSecond();
+		if (nowEpochSeconds > (cachedToken.EpochSecondsExpires - 300)) {
+			// the 300 is slop just to deal with clock sync
+			log.info("Cached token expired; will re-fetch");
+			return(null);
+		}
+
+		log.info("Using cached token");
+		return(cachedToken.Token);
+	}
+
+	private void storeCachedToken(String token, Long expireSecs) throws Exception {
+
+		if (cfg.CachedTokenPath == null) {
+			log.info("No cache file specified; skipping save");
+			return;
+		}
+
+		CachedToken cachedToken = new CachedToken();
+		cachedToken.Token = token;
+		cachedToken.EpochSecondsExpires = Instant.now().getEpochSecond() + expireSecs;
+
+		log.info("Caching token to " + cfg.CachedTokenPath);
+		Easy.stringToFile(cfg.CachedTokenPath, new Gson().toJson(cachedToken));
+		Easy.setFileOwnerOnly(cfg.CachedTokenPath);
+	}
+	
 	// +-------------------+
 	// | Helpers & Members |
 	// +-------------------+
 
+	private CaptchaSolver solver;
 	private Config cfg;
 	private WebRequests requests;
-	
+
 	private String accessToken;
 
 	private final static Logger log = Logger.getLogger(Tesla.class.getName());

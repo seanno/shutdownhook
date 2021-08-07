@@ -5,6 +5,7 @@
 
 package com.shutdownhook.tesla;
 
+import java.util.Scanner;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
@@ -40,6 +41,15 @@ public class App
 		System.err.println("  * -Dtview_password=PASSWORD");
 		System.err.println("  * -Dtview_loglevel=FINE/INFO/WARNING/SEVERE (Default WARNING)");
 	}
+
+	public static class ConsoleCaptchaSolver implements Tesla.CaptchaSolver {
+		public String solve(String imagePath) throws Exception {
+			System.out.println("CAPTCHA solve required; image at: " + imagePath);
+			System.out.print("> ");
+			return(new Scanner(System.in).nextLine().trim());
+		}
+	}
+	
 	
     public static void main(String[] args) throws Exception {
 
@@ -58,6 +68,8 @@ public class App
 		Tesla.Config cfg = new Tesla.Config();
 		cfg.Email = Easy.superGetProperty("tview_email", null);
 		cfg.Password = Easy.superGetProperty("tview_password", null);
+		cfg.ClientId = Easy.superGetProperty("tview_clientid", null);
+		cfg.ClientSecret = Easy.superGetProperty("tview_clientsecret", null);
 
 		if (cfg.Email == null || cfg.Password == null) {
 			throw new Exception("tview_email and tview_password must be set in env or props");
@@ -65,7 +77,7 @@ public class App
 
 		try {
 			gson = new GsonBuilder().setPrettyPrinting().create(); 
-			tesla = new Tesla(cfg);
+			tesla = new Tesla(cfg, new ConsoleCaptchaSolver());
 			String vehicleId = (args.length >= 2 ? args[1] : null);
 
 			switch (action) {

@@ -9,6 +9,7 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
 import java.io.FileInputStream;
+import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
@@ -18,6 +19,10 @@ import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
+import java.nio.file.Files;
+import java.nio.file.Paths;
+import java.nio.file.attribute.PosixFilePermission;
+import java.security.InvalidKeyException;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.LocalDate;
@@ -28,11 +33,17 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Base64;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Random;
+import java.util.Set;
+import java.util.HashSet;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import javax.crypto.Mac;
+import javax.crypto.spec.SecretKeySpec;
+
 
 public class Easy
 {
@@ -103,10 +114,59 @@ public class Easy
 		return(stringFromSmartyPath("@" + name));
 	}
 
+	public static void stringToFile(String path, String data) throws IOException {
+		Files.write(Paths.get(path), data.getBytes("UTF-8"));
+	}
+
+	public static void setFileOwnerOnly(String path) throws IOException {
+
+		Set<PosixFilePermission> perms = new HashSet<PosixFilePermission>();
+		perms.add(PosixFilePermission.OWNER_READ);
+		perms.add(PosixFilePermission.OWNER_WRITE);
+
+		Files.setPosixFilePermissions(Paths.get(path), perms);
+	}
+
+	public static void inputStreamToFile(InputStream stm, String path)
+		throws IOException {
+		
+		if (stm == null)
+			return;
+
+		FileOutputStream output = null;
+		
+		try {
+			output = new FileOutputStream(path);
+
+			byte[] rgb = new byte[4096];
+			int cb = -1;
+
+			while ((cb = stm.read(rgb, 0, rgb.length)) != -1) {
+				output.write(rgb, 0, cb);
+			}
+		}
+		finally {
+			if (output != null) {
+				try { output.flush(); }
+				finally {output.close(); }
+			}
+		}
+	}
+
 	// +-----------------+
 	// | Dates and Times |
 	// +-----------------+
 
+	private static DateTimeFormatter dtfHttp = null;
+	private static DateTimeFormatter vpdParser = null;
+	private static DateTimeFormatter vpdtParserLocal = null;
+	private static DateTimeFormatter vpdtParserUTC = null;
+
+	public static String httpNow() {
+		ensureParsers();
+		return(dtfHttp.format(ZonedDateTime.now(ZoneOffset.UTC)));
+	}
+	
 	public static LocalDate parseVariablePrecisionDate(String input) {
 		ensureParsers();
 		return(LocalDate.parse(input, vpdParser));
@@ -118,9 +178,6 @@ public class Easy
 		return(ZonedDateTime.parse(input, dtf));
 	}
 
-	private static DateTimeFormatter vpdParser = null;
-	private static DateTimeFormatter vpdtParserLocal = null;
-	private static DateTimeFormatter vpdtParserUTC = null;
 
 	private synchronized static void ensureParsers() {
 		
@@ -174,6 +231,9 @@ public class Easy
 
 		vpdtParserLocal = vpdtParserZoneless.withZone(ZoneId.systemDefault());
 		vpdtParserUTC = vpdtParserZoneless.withZone(ZoneOffset.UTC);
+
+		dtfHttp = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O",
+											  Locale.ENGLISH);
 	}
 	
 	// +--------------------+
@@ -268,6 +328,34 @@ public class Easy
 			MessageDigest digest = MessageDigest.getInstance("SHA-256");
 			byte[] bytes = digest.digest(input.getBytes("UTF-8"));
 			return(bytesToHex(bytes));
+		}
+		catch (NoSuchAlgorithmException e1) { return(null); } // will never happen
+		catch (UnsupportedEncodingException e2) { return(null); } // will never happen
+	}
+
+	public static String sha256Base64(String input) {
+
+		try {
+			MessageDigest digest = MessageDigest.getInstance("SHA-256");
+			byte[] bytes = digest.digest(input.getBytes("UTF-8"));
+			return(Base64.getEncoder().encodeToString(bytes));
+		}
+		catch (NoSuchAlgorithmException e1) { return(null); } // will never happen
+		catch (UnsupportedEncodingException e2) { return(null); } // will never happen
+	}
+
+	public static String hmac256(String input, String keyBase64)
+		throws  InvalidKeyException {
+		
+		try {
+			Mac mac = Mac.getInstance("HmacSHA256");
+
+			SecretKeySpec spec =
+				new SecretKeySpec(Base64.getDecoder().decode(keyBase64), "HmacSHA256");
+			
+			mac.init(spec);
+			byte[] rgb = mac.doFinal(input.getBytes("UTF-8"));
+			return(Base64.getEncoder().encodeToString(rgb));
 		}
 		catch (NoSuchAlgorithmException e1) { return(null); } // will never happen
 		catch (UnsupportedEncodingException e2) { return(null); } // will never happen

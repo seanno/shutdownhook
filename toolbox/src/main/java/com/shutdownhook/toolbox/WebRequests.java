@@ -70,6 +70,12 @@ public class WebRequests implements Closeable
 		public String MethodOverride;
 		public String Body;
 		
+		// if ResponseBodyPath is non-null, it is interpreted as a local file
+		// path and response content is saved to that file rather than being
+		// stored in repsonse.Body. In this mode raw bytes are written with
+		// no string or other translation.
+		public String ResponseBodyPath = null;
+		
 		public void addQueryParam(String name, String val) {
 			if (QueryParams == null) QueryParams = new HashMap<String,String>();
 			QueryParams.put(name, val);
@@ -110,6 +116,13 @@ public class WebRequests implements Closeable
 			return(Ex == null && Status >= 200 && Status <= 300);
 		}
 
+		public void throwException(String tag) throws Exception {
+			String msg = String.format("HTTP tag %s %d:%s (%s)", tag, Status, StatusText,
+									   Ex == null ? "" : Ex.toString());
+			
+			throw new Exception(msg, Ex);
+		}
+		
 		protected void setException(Exception e) {
 			Status = 500;
 			StatusText = "Exception";
@@ -226,8 +239,14 @@ public class WebRequests implements Closeable
 				response.Headers = conn.getHeaderFields();
 				
 				InputStream stm = getInputStreamReally(conn);
-				response.Body = Easy.stringFromInputStream(stm);
 				// don't need to close stm; conn.disconnect() handles it
+				
+				if (params.ResponseBodyPath != null) {
+					Easy.inputStreamToFile(stm, params.ResponseBodyPath);
+					}
+				else {
+					response.Body = Easy.stringFromInputStream(stm);
+				}
 			}
 			catch (Exception e) {
 				response.setException(e);

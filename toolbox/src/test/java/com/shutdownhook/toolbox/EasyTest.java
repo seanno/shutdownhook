@@ -74,4 +74,16 @@ public class EasyTest
 		LocalDate ldParsed = Easy.parseVariablePrecisionDate("2015");
 		Assert.assertEquals(ldExpected, ldParsed);
 	}
+
+	@Test
+	public void testSha256() {
+		String sha = Easy.sha256("abc");
+		Assert.assertEquals("ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", sha);
+	}
+
+	@Test
+	public void testHmac256() throws Exception {
+		String sig = Easy.hmac256("abc", Easy.base64Encode("def"));
+		Assert.assertEquals("OX9Gc0Hk14xHSGfvMmHNtGwOEDUempiZY+bLLc5A7l0=", sig);
+	}
 }
