@@ -29,6 +29,7 @@ public class App
 	}
 
 	private static void usage() {
+		System.err.println("");
 		System.err.println("List vehicles:\tjava -cp PATH_TO_JAR [settings] vehicles");
 		System.err.println("Vehicle details:\tjava -cp PATH_TO_JAR [settings] vehicle ID");
 		System.err.println("Map URL:\tjava -cp PATH_TO_JAR [settings] map ID");
@@ -36,10 +37,15 @@ public class App
 		System.err.println("Inside Temp (F):\tjava -cp PATH_TO_JAR [settings] insideTemp ID");
 		System.err.println("Outisde Temp(F):\tjava -cp PATH_TO_JAR [settings] outsideTemp ID");
 		System.err.println("");
-		System.err.println("Options (also can be set in env):");
+		System.err.println("Config (also can be set in env):");
 		System.err.println("  * -Dtview_email=EMAIL");
 		System.err.println("  * -Dtview_password=PASSWORD");
+		System.err.println("  * -Dtview_clientid=CLIENTID");
+		System.err.println("  * -Dtview_clientsecret=CLIENTSECRET");
 		System.err.println("  * -Dtview_loglevel=FINE/INFO/WARNING/SEVERE (Default WARNING)");
+		System.err.println("");
+		System.err.println("ClientID/Secret can be found at https://pastebin.com/pS7Z6yyP");
+		System.err.println("");
 	}
 
 	public static class ConsoleCaptchaSolver implements Tesla.CaptchaSolver {
@@ -53,7 +59,7 @@ public class App
 	
     public static void main(String[] args) throws Exception {
 
-		if (args.length < 1) {
+		if (args.length < 1 || args[0].isEmpty()) {
 			usage();
 			return;
 		}
