@@ -10,10 +10,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.Random;
 
 import org.junit.Assert;
+import org.junit.Ignore;
 import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
+// sadly echo.websocket.org shut down ... disabling this until I can cons up a replacement
+@Ignore
 public class TextWebSocketTest
 {
 	// +-------+
@@ -69,7 +72,7 @@ public class TextWebSocketTest
 	// +-------+
 	// | Tests |
 	// +-------+
-	
+
     @Test
     public void endToEnd() throws Exception {
 
