@@ -5,6 +5,7 @@
 
 package com.shutdownhook.tesla;
 
+import java.util.Scanner;
 import java.util.logging.Logger;
 import java.util.logging.Level;
 
@@ -20,22 +21,45 @@ public class App
 		VEHICLES,
 		VEHICLE,
 		HONK,
-		NEARBY
+		NEARBY,
+		MAP,
+		MILEAGE,
+		INSIDETEMP,
+		OUTSIDETEMP
 	}
 
 	private static void usage() {
+		System.err.println("");
 		System.err.println("List vehicles:\tjava -cp PATH_TO_JAR [settings] vehicles");
 		System.err.println("Vehicle details:\tjava -cp PATH_TO_JAR [settings] vehicle ID");
+		System.err.println("Map URL:\tjava -cp PATH_TO_JAR [settings] map ID");
+		System.err.println("Mileage:\tjava -cp PATH_TO_JAR [settings] mileage ID");
+		System.err.println("Inside Temp (F):\tjava -cp PATH_TO_JAR [settings] insideTemp ID");
+		System.err.println("Outisde Temp(F):\tjava -cp PATH_TO_JAR [settings] outsideTemp ID");
 		System.err.println("");
-		System.err.println("Options (also can be set in env):");
+		System.err.println("Config (also can be set in env):");
 		System.err.println("  * -Dtview_email=EMAIL");
 		System.err.println("  * -Dtview_password=PASSWORD");
+		System.err.println("  * -Dtview_clientid=CLIENTID");
+		System.err.println("  * -Dtview_clientsecret=CLIENTSECRET");
 		System.err.println("  * -Dtview_loglevel=FINE/INFO/WARNING/SEVERE (Default WARNING)");
+		System.err.println("");
+		System.err.println("ClientID/Secret can be found at https://pastebin.com/pS7Z6yyP");
+		System.err.println("");
 	}
+
+	public static class ConsoleCaptchaSolver implements Tesla.CaptchaSolver {
+		public String solve(String imagePath) throws Exception {
+			System.out.println("CAPTCHA solve required; image at: " + imagePath);
+			System.out.print("> ");
+			return(new Scanner(System.in).nextLine().trim());
+		}
+	}
+	
 	
     public static void main(String[] args) throws Exception {
 
-		if (args.length < 1) {
+		if (args.length < 1 || args[0].isEmpty()) {
 			usage();
 			return;
 		}
@@ -50,6 +74,8 @@ public class App
 		Tesla.Config cfg = new Tesla.Config();
 		cfg.Email = Easy.superGetProperty("tview_email", null);
 		cfg.Password = Easy.superGetProperty("tview_password", null);
+		cfg.ClientId = Easy.superGetProperty("tview_clientid", null);
+		cfg.ClientSecret = Easy.superGetProperty("tview_clientsecret", null);
 
 		if (cfg.Email == null || cfg.Password == null) {
 			throw new Exception("tview_email and tview_password must be set in env or props");
@@ -57,7 +83,8 @@ public class App
 
 		try {
 			gson = new GsonBuilder().setPrettyPrinting().create(); 
-			tesla = new Tesla(cfg);
+			tesla = new Tesla(cfg, new ConsoleCaptchaSolver());
+			String vehicleId = (args.length >= 2 ? args[1] : null);
 
 			switch (action) {
 			    case VEHICLES:
@@ -65,16 +92,32 @@ public class App
 					break;
 
 			    case VEHICLE:
-					System.out.println(gson.toJson(tesla.getVehicleData(args[1])));
+					System.out.println(gson.toJson(tesla.getVehicleData(vehicleId)));
 				    break;
 
 			    case HONK:
-					System.out.println(Boolean.toString(tesla.honk(args[1])));
+					System.out.println(Boolean.toString(tesla.honk(vehicleId)));
 				    break;
 
 			    case NEARBY:
-					System.out.println(gson.toJson(tesla.getNearbyChargers(args[1])));
+					System.out.println(gson.toJson(tesla.getNearbyChargers(vehicleId)));
 				    break;
+
+			    case MAP:
+					System.out.println(tesla.getMapUrl(vehicleId));
+					break;
+					
+			    case MILEAGE:
+					System.out.println(Double.toString(tesla.getMileage(vehicleId)));
+					break;
+
+			    case INSIDETEMP:
+					System.out.println(Double.toString(tesla.getInsideTemp(vehicleId)));
+					break;
+					
+			    case OUTSIDETEMP:
+					System.out.println(Double.toString(tesla.getOutsideTemp(vehicleId)));
+					break;
 			}
 		
 		}

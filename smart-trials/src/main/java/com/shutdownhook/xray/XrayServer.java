@@ -39,7 +39,9 @@ public class XrayServer extends SmartServer
 					.setPrettyPrinting()
 					.create();
 
-				response.setJson(gson.toJson(session));
+				response.Status = 200;
+				response.Body = smart.dehydrate(session);
+				response.ContentType = "application/json";
 			}
 		});
 

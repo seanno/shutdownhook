@@ -5,9 +5,11 @@
 
 package com.shutdownhook.toolbox;
 
+import java.io.File;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
+import java.util.UUID;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -152,6 +154,29 @@ public class WebTest
 			Assert.assertEquals(200, response.Status);
 			Assert.assertNull(response.Ex);
 			Assert.assertEquals("bananafishbones", response.Body);
+		}
+	}
+
+    @Test
+    public void echoSuccessToFile() throws Exception
+    {
+		for (int i = 0; i < SERVER_COUNT; ++i) {
+
+			WebRequests.Params params = new WebRequests.Params();
+			params.addQueryParam("echo", "bananafishbones");
+
+			params.ResponseBodyPath = "/tmp/" + UUID.randomUUID().toString() + ".txt";
+			File f = new File(params.ResponseBodyPath);
+
+			try {
+				WebRequests.Response response = requests.fetch(baseUrls[i] + "/echo", params);
+				Assert.assertEquals(200, response.Status);
+				Assert.assertNull(response.Ex);
+				Assert.assertEquals("bananafishbones", Easy.stringFromFile(params.ResponseBodyPath));
+			}
+			finally {
+				if (f.exists()) f.delete();
+			}
 		}
 	}
 
