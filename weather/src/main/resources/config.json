@@ -1,0 +1,11 @@
+{
+	"Sql": {
+		"ConnectionString": "jdbc:sqlite:/tmp/shutdown_weather_archive.sqlite"
+	},
+
+	"Socket": {
+		"TextWebSocketConfig": {
+			"LogContent": false
+		}
+	}
+}

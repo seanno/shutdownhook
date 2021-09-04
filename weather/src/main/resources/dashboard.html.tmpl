@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+	<style>
+
+	  body {
+		  margin: 0px 0px 0px 0px;
+		  padding: 0px 0px 0px 0px;
+	  }
+
+	  p {
+		  margin: 10px 0px 2px 0px;
+	  }
+	  
+	  div {
+		  margin: 0px 0px 0px 0px;
+		  padding: 8px 8px 8px 8px;
+	  }
+	  
+	  #now {
+		  float: left;
+		  width: 334px;
+		  height: 584px;
+		  text-align: center;
+		  font: bold 40px Verdana,Arial,Helvetica;
+		  background: {{NOW_BGCOLOR}};
+		  /* background-color: red; */
+	  }
+
+	  #hourly {
+		  height: 284px;
+		  /* background-color: green; */
+	  }
+
+	  #daily {
+		  height: 284px;
+		  /* background-color: blue; */
+	  }
+
+	  .imgnow {
+		  width: 320px;
+	  }
+	  
+	</style>
+
+  </head>
+
+  <body>
+
+	<div id="now">
+	  <p>{{STATION_NAME}}</p>
+	  <img class="imgnow" src="https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/{{NOW_ICON}}.svg" />
+	  <p>{{NOW_TEMP}}</p>
+	  <p>{{NOW_WIND}}</p>
+	</div>
+	<div id="hourly">
+	</div>
+	<div id="daily">
+	</div>
+
+  </body>
+
+</html>`
