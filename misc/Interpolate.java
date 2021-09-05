@@ -14,6 +14,11 @@ public class Interpolate
 
 	public static void main(String[] args) throws Exception {
 
+		if (args.length == 0) {
+			usage();
+			return;
+		}
+		
 		int count = Integer.parseInt(args[0]);
 		String[] gradientTypes = args[1].split(",");
 
@@ -33,6 +38,14 @@ public class Interpolate
 				from = to;
 			}
 		}
+	}
+
+	private static void usage() {
+		System.out.println("usage: java Interpolate STEPS ALGORITHMS RGB1 RGB2...");
+		System.out.println("       STEPS = # of elements along each gradient");
+		System.out.println("       ALGORITHMS = csv of HSB_ANGULAR, HSB_LINEAR, RGB");
+		System.out.println("       RGBx = R,G,B csv e.g., 255,0,0 for red");
+		System.out.println("              > 2 RGB values may be provided");
 	}
 
 	private static Color colorFromCsv(String csv) {
