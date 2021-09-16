@@ -14,11 +14,37 @@ import java.time.ZoneOffset;
 import java.util.Random;
 
 import org.junit.Assert;
+import org.junit.BeforeClass;
 import org.junit.Test;
 import org.junit.Ignore;
 
 public class EasyTest
 {
+	@BeforeClass
+	public static void beforeClass() throws Exception {
+		Global.init();
+	}
+
+	// +----+
+	// | IO |
+	// +----+
+
+	@Test
+	public void testStringToProcess() throws Exception {
+		Assert.assertEquals("hello\n", Easy.stringFromProcess("echo \"hello\""));
+		Assert.assertEquals("0\n", Easy.stringFromProcess("expr 5 = 6"));
+
+		String piped = Easy.stringFromProcess("ping -c 1 127.0.0.1 " +
+											  "| grep received " +
+											  "| wc -l");
+
+		Assert.assertEquals("1\n", piped);
+	}
+
+	// +-------------+
+	// | Conversions |
+	// +-------------+
+	
 	@Test
 	public void testParseDT_UtcSpecified() {
 		ZonedDateTime zdtExpected = ZonedDateTime.of(2017, 5, 10, 1, 1, 1, 0, ZoneOffset.UTC);
