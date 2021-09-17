@@ -44,6 +44,10 @@ public class Template
 		TemplateProcessor realProcessor =
 			(processor == null ? new TemplateProcessor() : processor);
 		
+		for (String key : realTokens.keySet()) {
+			log.finest("render map: [" + key + "]=[" + realTokens.get(key) + "]");
+		}
+		
 		StringBuilder sb = new StringBuilder();
 		renderRecursive(sb, realTokens, realProcessor, 0);
 		return(sb.toString());
@@ -51,7 +55,7 @@ public class Template
 
 	private int renderRecursive(StringBuilder sb, Map<String,String> tokens,
 								TemplateProcessor processor, int iblockStart) throws Exception {
-								
+
 		int iblock = iblockStart;
 
 		while (iblock < blocks.size()) {
