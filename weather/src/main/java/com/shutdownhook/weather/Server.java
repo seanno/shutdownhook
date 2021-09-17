@@ -7,11 +7,14 @@ package com.shutdownhook.weather;
 
 import java.lang.Math;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Convert;
 import com.shutdownhook.toolbox.Easy;
+import com.shutdownhook.toolbox.Template;
 import com.shutdownhook.toolbox.WebServer;
 import com.shutdownhook.toolbox.WebServer.*;
 
@@ -106,8 +109,19 @@ public class Server
 	private final static String ICON_URL_FMT =
 		"https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/%s.svg";
 
+	private final static String TKN_STATION_ID = "{{STATION_ID}}";
+	private final static String TKN_STATION_NAME = "{{STATION_NAME}}";
+	private final static String TKN_NOW_ICON = "{{NOW_ICON}}";
+	private final static String TKN_NOW_WIND_SPEED = "{{NOW_WIND_SPEED}}";
+	private final static String TKN_NOW_WIND_DIR = "{{NOW_WIND_DIR}}";
+	private final static String TKN_NOW_TEMP = "{{NOW_TEMP}}";
+	private final static String TKN_NOW_BGCOLOR = "{{NOW_BGCOLOR}}";
+	
 	private static void registerDashboardHandler() throws Exception {
 
+		String templateText = Easy.stringFromResource(DASHBOARD_TEMPLATE);
+		final Template template = new Template(templateText);
+		
 		server.registerHandler("/dashboard", new Handler() {
 				
 			public void handle(Request request, Response response) throws Exception {
@@ -117,44 +131,34 @@ public class Server
 				Tempest.Station station = tempest.getStation(stationId);
 				Tempest.Forecast forecast = tempest.getForecast(stationId);
 
-				// F
+				Map<String,String> tokens = new HashMap<String,String>();
+
+				tokens.put(TKN_STATION_ID, stationId);
+				tokens.put(TKN_STATION_NAME, station.stations.get(0).name);
+				
+				// Temperature (F)
 				int temp = (int) Math.round(
 								     Convert.celsiusToFarenheit(
 								     forecast.current_conditions.air_temperature));
 
-				// KILLME
 				String overrideTemp = request.QueryParams.get("tf");
 				if (overrideTemp != null) temp = Integer.parseInt(overrideTemp);
+
+				tokens.put(TKN_NOW_TEMP, Integer.toString(temp));
+				tokens.put(TKN_NOW_BGCOLOR, getTemperatureColor(temp));
 				
-				String tempStr = String.format("%d F", temp);
-				String colorStr = getTemperatureColor(temp);
-				
-				// MPH
+				// Wind (MPH)
 				int wind = (int) Math.round(
 									 Convert.metersToMiles(
 									 forecast.current_conditions.wind_avg)
 									 * 60 * 60);
 
-				String windStr = String.format("%s mph", wind);
-				if (wind > 0) {
-					windStr += "<br/> (" +
-						forecast.current_conditions.wind_direction_cardinal + ")";
-				}
+				tokens.put(TKN_NOW_WIND_SPEED, Integer.toString(wind));
 
-				
-				String template = Easy.stringFromResource(DASHBOARD_TEMPLATE);
+				tokens.put(TKN_NOW_WIND_DIR,
+						   wind > 0 ? forecast.current_conditions.wind_direction_cardinal : "");
 
-				template = template.replace("{{STATION_NAME}}",
-											station.stations.get(0).name);
-											
-				template = template.replace("{{NOW_ICON}}",
-											forecast.current_conditions.icon);
-
-				template = template.replace("{{NOW_TEMP}}", tempStr);
-				template = template.replace("{{NOW_WIND}}", windStr);
-				template = template.replace("{{NOW_BGCOLOR}}", colorStr);
-
-				response.setHtml(template);
+				response.setHtml(template.render(tokens));
 			}
 		});
 	}
