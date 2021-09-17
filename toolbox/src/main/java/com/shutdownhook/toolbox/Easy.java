@@ -38,6 +38,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
@@ -417,8 +418,16 @@ public class Easy
 	}
 	
 	public static void setSimpleLogFormat() {
+		setSimpleLogFormat("WARNING");
+	}
+
+	public static void setSimpleLogFormat(String defaultLevel) {
+
 		System.setProperty("java.util.logging.SimpleFormatter.format",
 						   "[%1$tF %1$tT] [%4$-7s] %5$s %n");
+
+		Level level = Level.parse(Easy.superGetProperty("loglevel", defaultLevel));
+		Logger.getLogger("").setLevel(level);
 	}
 
 	public static String superGetProperty(String name, String defaultValue) {
