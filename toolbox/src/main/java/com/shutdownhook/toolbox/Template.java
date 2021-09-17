@@ -110,7 +110,9 @@ public class Template
 	public static class TemplateProcessor {
 
 		public String token(String token, String args) throws Exception {
-			throw new Exception("TemplateProcessor.token used without implementation");
+			String msg = String.format("TemplateProcessor.token used without impl " +
+									   "for token %s with args %s", token, args);
+			throw new Exception(msg);
 		}
 
 		public boolean repeat(String args, int counter) {
