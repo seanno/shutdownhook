@@ -38,8 +38,10 @@ import java.util.Map;
 import java.util.Random;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.logging.Handler;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.logging.LogManager;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
 import javax.crypto.Mac;
@@ -427,7 +429,9 @@ public class Easy
 						   "[%1$tF %1$tT] [%4$-7s] %5$s %n");
 
 		Level level = Level.parse(Easy.superGetProperty("loglevel", defaultLevel));
-		Logger.getLogger("").setLevel(level);
+		Logger rootLogger = Logger.getLogger("");
+		rootLogger.setLevel(level);
+		for (Handler handler : rootLogger.getHandlers()) handler.setLevel(level);
 	}
 
 	public static String superGetProperty(String name, String defaultValue) {
