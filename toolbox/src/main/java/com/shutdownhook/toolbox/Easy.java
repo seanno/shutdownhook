@@ -114,6 +114,13 @@ public class Easy
 		return(stringFromSmartyPath("@" + name));
 	}
 
+	public static String stringFromProcess(String cmdLine) throws Exception {
+		String[] commands = new String[] { "bash", "-c", cmdLine};
+		ProcessBuilder pb = new ProcessBuilder(commands);
+		Process p = pb.start();
+		return(stringFromInputStream(p.getInputStream()));
+	}
+
 	public static void stringToFile(String path, String data) throws IOException {
 		Files.write(Paths.get(path), data.getBytes("UTF-8"));
 	}

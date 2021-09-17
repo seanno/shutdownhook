@@ -28,6 +28,7 @@ public class SqlTest
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
+		Global.init();
 		sql = new SqlStore(new SqlStore.Config(SQLITE_CXN_STRING));
 	}
 	

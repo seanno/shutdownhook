@@ -16,7 +16,7 @@ import org.junit.Test;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
-public class WebTest
+public class WebTest 
 {
 	private final static int SERVER_COUNT = 2;
 	
@@ -28,7 +28,8 @@ public class WebTest
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
-
+		Global.init();
+		
 		int port = new Random().nextInt(2000) + 7000; // rand to minimize conflict
 		servers[0] = createServer(port, false);
 		baseUrls[0] = "http://localhost:" + Integer.toString(port);

@@ -14,8 +14,13 @@ import org.junit.Ignore;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
-public class TemplateTest
+public class TemplateTest 
 {
+	@BeforeClass
+	public static void beforeClass() throws Exception {
+		Global.init();
+	}
+	
 	@Test
 	public void testEmptyTemplate() throws Exception {
 		testNoTokens("");
@@ -42,6 +47,22 @@ public class TemplateTest
 	}
 
 	@Test
+	public void testEnvToken() throws Exception {
+		testOne("{{HOME}}", System.getenv("HOME"), null, null);
+	}
+
+	@Test
+	public void testRawToken() throws Exception {
+		HashMap<String,String> tokens = new HashMap<String,String>();
+		tokens.put("abc", "<hr/>&nbsp;");
+
+		String input = "{{abc}}{{:raw abc}}";
+		String expected = "&lt;hr/&gt;&amp;nbsp;<hr/>&nbsp;";
+
+		testOne(input, expected, tokens, null);
+	}
+
+	@Test
 	public void testSimpleProcessor() throws Exception {
 		testReverseProcessor("abc");
 		testReverseProcessor("abc{{REV fed}}ghi");
@@ -61,6 +82,47 @@ public class TemplateTest
 		String expected = "def then anaugi and finally bananafish";
 
 		testOne(input, expected, tokens, new ReverseProcessor());
+	}
+
+	@Test
+	public void testSimpleRepeats() throws Exception {
+
+		String input = "{{:RPT 3}}cow{{:rpt 2}}YOGURT{{:end}}{{:end}}boo";
+		String expected = "cowYOGURTYOGURTcowYOGURTYOGURTcowYOGURTYOGURTboo";
+		testOne(input, expected, null, null);
+
+		input = "{{:RPT 3}}cow{{:rpt 2}}YOGURT{{:end}}{{:end}}";
+		expected = "cowYOGURTYOGURTcowYOGURTYOGURTcowYOGURTYOGURT";
+		testOne(input, expected, null, null);
+
+		input = "zippyzoo{{:RPT 3}}cow{{:rpt 2}}YOGURT{{:end}}{{:end}}";
+		expected = "zippyzoocowYOGURTYOGURTcowYOGURTYOGURTcowYOGURTYOGURT";
+		testOne(input, expected, null, null);
+
+		input = "{{:RPT 3}}{{:rpt 2}}{{:rpt 3}}x{{:end}}{{:end}}{{:end}}";
+		expected = "xxxxxxxxxxxxxxxxxx";
+		testOne(input, expected, null, null);
+	}
+
+	@Test
+	public void testCommandBlock() throws Exception {
+
+		String input = "{{:cmd echo \"hello\"}}{{:cmd expr 5 = 6}}";
+		String expected = "hello\n0\n";
+
+		testOne(input, expected, null, null);
+	}
+	
+	@Test
+	public void testEachBlock() throws Exception {
+		HashMap<String,String> tokens = new HashMap<String,String>();
+		tokens.put("tbl", "1\t2\t3\n4\t5\t6");
+
+		String input = "<table>{{:each tbl \\n}}<tr>{{:each tbl \\t}}<td>{{tbl}}</td>{{:end}}</tr>{{:end}}</table>";
+
+		String expected = "<table><tr><td>1</td><td>2</td><td>3</td></tr><tr><td>4</td><td>5</td><td>6</td></tr></table>";
+
+		testOne(input, expected, tokens, null);
 	}
 
 	// +---------+
@@ -101,8 +163,9 @@ public class TemplateTest
 		testOne(text, sb.toString(), null, new ReverseProcessor());
 	}
 
-	public static class ReverseProcessor implements Template.TokenProcessor {
-		public String process(String token, String args) throws Exception {
+	public static class ReverseProcessor extends Template.TemplateProcessor {
+		@Override
+		public String token(String token, String args) throws Exception {
 			return(args == null ? "-" : reverse(args));
 		}
 	}
@@ -122,10 +185,11 @@ public class TemplateTest
 
 	private void testOne(String text, String expected,
 						 Map<String,String> tokens,
-						 Template.TokenProcessor processor) throws Exception {
+						 Template.TemplateProcessor processor) throws Exception {
 		
 		Template t = new Template(text);
 		String result = t.render(tokens, processor);
+		System.out.println(result);
 		Assert.assertEquals(expected, result);
 	}
 }
