@@ -6,9 +6,14 @@
 package com.shutdownhook.weather;
 
 import java.lang.Math;
+import java.time.Instant;
+import java.time.ZonedDateTime;
+import java.time.ZoneId;
+import java.time.format.TextStyle;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.logging.Logger;
 
@@ -106,16 +111,26 @@ public class Server
 	private final static String DASHBOARD_TEMPLATE =
 		"dashboard.html.tmpl";
 	
-	private final static String ICON_URL_FMT =
-		"https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/%s.svg";
+	private final static String TKN_STATION_ID = "STATION_ID";
+	private final static String TKN_STATION_NAME = "STATION_NAME";
+	private final static String TKN_NOW_ICON = "NOW_ICON";
+	private final static String TKN_NOW_WIND_SPEED = "NOW_WIND_SPEED";
+	private final static String TKN_NOW_WIND_DIR = "NOW_WIND_DIR";
+	private final static String TKN_NOW_TEMP = "NOW_TEMP";
+	private final static String TKN_NOW_BGCOLOR = "NOW_BGCOLOR";
 
-	private final static String TKN_STATION_ID = "{{STATION_ID}}";
-	private final static String TKN_STATION_NAME = "{{STATION_NAME}}";
-	private final static String TKN_NOW_ICON = "{{NOW_ICON}}";
-	private final static String TKN_NOW_WIND_SPEED = "{{NOW_WIND_SPEED}}";
-	private final static String TKN_NOW_WIND_DIR = "{{NOW_WIND_DIR}}";
-	private final static String TKN_NOW_TEMP = "{{NOW_TEMP}}";
-	private final static String TKN_NOW_BGCOLOR = "{{NOW_BGCOLOR}}";
+	private final static String TKN_FCAST_ITEMS = "FCAST_ITEMS";
+	private final static String TKN_FCAST_COLUMN = "FCAST_COLUMN";
+	private final static String TKN_FCAST_ICON = "FCAST_ICON";
+	private final static String TKN_FCAST_CONDITIONS = "FCAST_CONDITIONS";
+	private final static String TKN_FCAST_WIND_SPEED = "FCAST_WIND_SPEED";
+	private final static String TKN_FCAST_WIND_DIR = "FCAST_WIND_DIR";
+	private final static String TKN_FCAST_TEMP = "FCAST_TEMP";
+	private final static String TKN_FCAST_HOUR = "FCAST_HOUR";
+	private final static String TKN_FCAST_WEEKDAY = "FCAST_WEEKDAY";
+	private final static String TKN_FCAST_PRECIP = "FCAST_PRECIP";
+
+	private final static int FORECAST_ITEMS = 5;
 	
 	private static void registerDashboardHandler() throws Exception {
 
@@ -128,37 +143,85 @@ public class Server
 
 				String stationId = request.QueryParams.get("station");
 				msg("Fetching info & forecast for station %s", stationId);
-				Tempest.Station station = tempest.getStation(stationId);
-				Tempest.Forecast forecast = tempest.getForecast(stationId);
+				
+				final Tempest.Station station = tempest.getStation(stationId);
+				final Tempest.Forecast forecast = tempest.getForecast(stationId);
+				final Tempest.FormattedSnapshot current = forecast.getCurrentSnap();
 
 				Map<String,String> tokens = new HashMap<String,String>();
 
 				tokens.put(TKN_STATION_ID, stationId);
 				tokens.put(TKN_STATION_NAME, station.stations.get(0).name);
+				tokens.put(TKN_NOW_ICON, current.Icon);
+
+				tokens.put(TKN_NOW_TEMP, Integer.toString(current.HighTempF));
+				tokens.put(TKN_NOW_BGCOLOR, getTemperatureColor(current.HighTempF));
 				
-				// Temperature (F)
-				int temp = (int) Math.round(
-								     Convert.celsiusToFarenheit(
-								     forecast.current_conditions.air_temperature));
+				tokens.put(TKN_NOW_WIND_SPEED, Integer.toString(current.WindMph));
+				tokens.put(TKN_NOW_WIND_DIR, current.WindDir);
 
-				String overrideTemp = request.QueryParams.get("tf");
-				if (overrideTemp != null) temp = Integer.parseInt(overrideTemp);
+				response.setHtml(template.render(tokens, new Template.TemplateProcessor() {
 
-				tokens.put(TKN_NOW_TEMP, Integer.toString(temp));
-				tokens.put(TKN_NOW_BGCOLOR, getTemperatureColor(temp));
-				
-				// Wind (MPH)
-				int wind = (int) Math.round(
-									 Convert.metersToMiles(
-									 forecast.current_conditions.wind_avg)
-									 * 60 * 60);
+					private int i = 0;
+					private Tempest.FormattedSnapshot snap = null;
+						
+					public String token(String token, String args) throws Exception {
+						
+						switch (token) {
+						    case TKN_FCAST_ITEMS:
+								return(Integer.toString(FORECAST_ITEMS));
 
-				tokens.put(TKN_NOW_WIND_SPEED, Integer.toString(wind));
+						    case TKN_FCAST_COLUMN:
+								return(Integer.toString(i + 1));
 
-				tokens.put(TKN_NOW_WIND_DIR,
-						   wind > 0 ? forecast.current_conditions.wind_direction_cardinal : "");
+						    case TKN_FCAST_HOUR:
+								int hr = snap.Hourly.local_hour;
+								String suffix = (hr < 12 ? "am" : "pm");
+								if (hr > 12) hr = hr - 12;
+								if (hr == 0) hr = 12;
+								return(Integer.toString(hr) + suffix);
 
-				response.setHtml(template.render(tokens));
+						    case TKN_FCAST_WEEKDAY:
+								return(Instant
+									   .ofEpochSecond(snap.Daily.day_start_local)
+									   .atZone(ZoneId.of(forecast.timezone))
+									   .getDayOfWeek()
+									   .getDisplayName(TextStyle.FULL,
+													   Locale.getDefault()));
+
+						    case TKN_FCAST_PRECIP:
+								return(Integer.toString((int)Math.round(snap.Hourly.precip_probability)) + "%");
+									
+						    case TKN_FCAST_ICON:
+								return(snap.Icon);
+
+						    case TKN_FCAST_CONDITIONS:
+								return(snap.Conditions);
+
+						    case TKN_FCAST_TEMP:
+								return(Integer.toString(snap.HighTempF));
+
+						    case TKN_FCAST_WIND_SPEED:
+								return(Integer.toString(snap.WindMph));
+
+						    case TKN_FCAST_WIND_DIR:
+								return(snap.WindDir);
+						}
+						
+						return("NYI");
+					}
+
+					public boolean repeat(String args, int counter) {
+
+						i = counter;
+						snap = (args.equals("D")
+								? forecast.getDailySnap(i+1) /* +1 = start tomorrow */
+								: forecast.getHourlySnap(i));
+
+						return(i < FORECAST_ITEMS);
+					}
+
+				}));
 			}
 		});
 	}

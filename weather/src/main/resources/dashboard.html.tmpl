@@ -5,61 +5,146 @@
 
 	<style>
 
-	  body {
-		  margin: 0px 0px 0px 0px;
-		  padding: 0px 0px 0px 0px;
-	  }
-
-	  p {
-		  margin: 10px 0px 2px 0px;
-	  }
-	  
 	  div {
-		  margin: 0px 0px 0px 0px;
-		  padding: 8px 8px 8px 8px;
+		  font: bold 12px Verdana,Arial,Helvetica;
+		  text-align: center;
 	  }
 	  
-	  #now {
-		  float: left;
-		  width: 334px;
-		  height: 584px;
-		  text-align: center;
-		  font: bold 40px Verdana,Arial,Helvetica;
-		  background: {{NOW_BGCOLOR}};
-		  /* background-color: red; */
+	  p {
+		  margin: 8px 0px 2px 0px;
 	  }
 
+	  #container {
+		  width: 800px;
+		  display: grid;
+		  grid: 30px 100px 160px 160px 30px / 325px 445px 30px;
+		  grid-gap: 0px;
+		  
+		  background: rgba(154,205,50,0.400000);
+	  }
+
+	  .large-icon {
+		  background-repeat: no-repeat;
+		  background-position: center;
+		  background-size: 100%;
+		  width: 250px;
+		  height: 220px;
+		  margin: 0 auto;
+	  }
+
+	  .small-icon {
+		  background-repeat: no-repeat;
+		  background-position: center;
+		  background-size: 100%;
+		  width: 70px;
+		  height: 58px;
+		  margin: 0 auto;
+	  }
+
+	  #now {
+		  grid-column: 1;
+		  grid-row: 2 / span 4;
+
+		  font-size: 30px;
+	  }
+
+	  #datetime {
+		  grid-column: 2;
+		  grid-row: 2;
+		  font-size: 22px;
+	  }
+
+	  .forecast-container {
+		  margin: 8px 8px 8px 8px;
+		  border: solid 1px black;
+		  border-radius: 5px;
+
+		  font-size: 16px;
+		  background-color: ghostwhite;
+	  }
+	  
 	  #hourly {
-		  height: 284px;
-		  /* background-color: green; */
+		  grid-column: 2;
+		  grid-row: 3;
 	  }
 
 	  #daily {
-		  height: 284px;
-		  /* background-color: blue; */
+		  grid-column: 2;
+		  grid-row: 4;
 	  }
 
-	  .imgnow {
-		  width: 320px;
+	  .tiles {
+		  display: grid;
+		  grid: 120px / repeat({{FCAST_ITEMS}}, 1fr);
 	  }
-	  
+
 	</style>
+
+	<script>
+
+	  function updateDateTime() {
+		  var d = new Date();
+		  var ds = d.toLocaleString("en-US", { "dateStyle": "full" });
+		  var ts = d.toLocaleString("en-US", { "timeStyle": "short" });
+		  document.getElementById("dtdynamic").innerHTML = ds + "<br/>" + ts;
+		  
+		  window.setTimeout(updateDateTime, 10000);
+	  }
+
+	  window.setTimeout(updateDateTime, 1000);
+
+	</script>
 
   </head>
 
   <body>
 
-	<div id="now">
-	  <p>{{STATION_NAME}}</p>
-	  <img class="imgnow" src="https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/{{NOW_ICON}}.svg" />
-	  <p>{{NOW_TEMP}}</p>
-	  <p>{{NOW_WIND_SPEED}}</p>
-	  <p>{{NOW_WIND_DIR}}</p>
+	<div id="container">
+
+	  <div id="now">
+		<p>{{STATION_NAME}}</p>
+		<p class="large-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/{{NOW_ICON}}.svg');" />
+		<p>{{NOW_TEMP}}&deg;F</p>
+		<p>{{NOW_WIND_SPEED}} mph<br/>{{NOW_WIND_DIR}}</p>
+	  </div>
+	  
+	  <div id="datetime">
+		<p id="dtdynamic" />
+	  </div>
+
+	  <div id="hourly" class="forecast-container">
+		<div class="tiles">
+		  {{:rpt H}}
+		  <div style="grid-column: {{FCAST_COLUMN}}" class="fcast-entry">
+			<p>{{FCAST_HOUR}}</p>
+			<p class="small-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v9/{{FCAST_ICON}}.svg');" />
+			<p>
+			  {{FCAST_TEMP}}&deg;F<br/>
+			  {{FCAST_PRECIP}}
+			</p>
+		  </div>
+		  {{:end}}
+		</div>
+	  </div>
+
+	  <div id="daily" class="forecast-container">
+		<div class="tiles">
+		  {{:rpt D}}
+		  <div style="grid-column: {{FCAST_COLUMN}}" class="fcast-entry">
+			<p>{{FCAST_WEEKDAY}}</p>
+			<p class="small-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v9/{{FCAST_ICON}}.svg');" />
+			<p>
+			  {{FCAST_TEMP}}&deg;F<br/>
+			  {{FCAST_CONDITIONS}}
+			</p>
+		  </div>
+		  {{:end}}
+		</div>
+		</div>
+	  </div>
+
 	</div>
-	<div id="hourly">
-	</div>
-	<div id="daily">
-	</div>
+
 
   </body>
 

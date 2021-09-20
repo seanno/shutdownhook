@@ -13,6 +13,7 @@ import java.util.List;
 import com.google.gson.GsonBuilder;
 import com.google.gson.Gson;
 
+import com.shutdownhook.toolbox.Convert;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
 
@@ -140,6 +141,20 @@ public class Tempest implements Closeable
 		public Double longitude;
 		public String timezone;
 		public Integer timezone_offset_minutes;
+
+		public FormattedSnapshot getCurrentSnap() {
+			return(new FormattedSnapshot(current_conditions, null, null));
+		}
+		
+		public FormattedSnapshot getHourlySnap(int i) {
+			if (i >= forecast.hourly.size()) return(null);
+			return(new FormattedSnapshot(null, forecast.hourly.get(i), null));
+		}
+			
+		public FormattedSnapshot getDailySnap(int i) {
+			if (i >= forecast.daily.size()) return(null);
+			return(new FormattedSnapshot(null, null, forecast.daily.get(i)));
+		}
 	}
 
 	public static class CurrentConditions
@@ -233,6 +248,66 @@ public class Tempest implements Closeable
 		public String units_air_density;
 	}
 
+	public static class FormattedSnapshot
+	{
+		public int LowTempF;
+		public int HighTempF;
+		public int WindMph;
+		public String WindDir;
+		public String Icon;
+		public String Conditions;
+
+		public CurrentConditions Current;
+		public HourlyForecast Hourly;
+		public DailyForecast Daily;
+
+		public FormattedSnapshot(CurrentConditions current,
+								 HourlyForecast hourly,
+								 DailyForecast daily) {
+
+			this.Current = current;
+			this.Hourly = hourly;
+			this.Daily = daily;
+
+			if (current != null) {
+				calcSnapshot(current.air_temperature,
+							 current.air_temperature,
+							 current.wind_avg,
+							 current.wind_direction_cardinal,
+							 current.icon,
+							 current.conditions);
+			}
+			else if (hourly != null) {
+				calcSnapshot(hourly.air_temperature,
+							 hourly.air_temperature,
+							 hourly.wind_avg,
+							 hourly.wind_direction_cardinal,
+							 hourly.icon,
+							 hourly.conditions);
+			}
+			else {
+				calcSnapshot(daily.air_temp_low,
+							 daily.air_temp_high,
+							 0.0,
+							 "",
+							 daily.icon,
+							 daily.conditions);
+			}
+		}
+
+		private void calcSnapshot(double lowCelsius, double highCelsius,
+								  double mps, String dir, String icon,
+								  String conditions) {
+
+			LowTempF = (int) Math.round(Convert.celsiusToFarenheit(lowCelsius));
+			HighTempF = (int) Math.round(Convert.celsiusToFarenheit(highCelsius));
+			WindMph = (int) Math.round(Convert.metersToMiles(mps) * 60 * 60);
+			WindDir = (WindMph > 0 ? dir : "");
+			Icon = icon;
+			Conditions = conditions;
+		}
+	}
+	
 	public Forecast getForecast(String stationId) throws Exception {
 		WebRequests.Params params = new WebRequests.Params();
 		params.addQueryParam("station_id", stationId);
