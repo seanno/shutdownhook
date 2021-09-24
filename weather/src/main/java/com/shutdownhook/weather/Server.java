@@ -96,7 +96,12 @@ public class Server
 
 		try {
 			server = WebServer.create(cfg.Server);
+			
 			registerDashboardHandler();
+
+			String html = Easy.stringFromResource("main.html");
+			server.registerStaticHandler("/", html, "text/html");
+								  
 			server.runSync();
 		}
 		finally {
@@ -104,9 +109,9 @@ public class Server
 		}
     }
 	
-	// +----------+
-	// | Handlers |
-	// +----------+
+	// +-------------------+
+	// | Dashboard Handler |
+	// +-------------------+
 
 	private final static String DASHBOARD_TEMPLATE =
 		"dashboard.html.tmpl";
