@@ -84,10 +84,30 @@
 
 	  function updateDateTime() {
 		  var d = new Date();
-		  var ds = d.toLocaleString("en-US", { "dateStyle": "full" });
-		  var ts = d.toLocaleString("en-US", { "timeStyle": "short" });
-		  document.getElementById("dtdynamic").innerHTML = ds + "<br/>" + ts;
-		  
+		  var day = d.getDate();
+		  var month = d.getMonth() + 1;
+
+		  var txt = "";
+
+		  if (month == 4 && day == 28) {
+			  txt = "Happy Birthday Dad!";
+		  }
+		  else if (month == 11 && day == 20) {
+			  txt = "Happy Birthday Mom!";
+		  }
+		  else if (month == 12 && day == 25) {
+			  txt = "Merry Christmas!";
+		  }
+		  else if (month == 1 && day == 1) {
+			  txt = "Happy New Year!";
+		  }
+		  else {
+			  var ds = d.toLocaleString("en-US", { "dateStyle": "full" });
+			  var ts = d.toLocaleString("en-US", { "timeStyle": "short" });
+			  txt = ds + "<br/>" + ts;
+		  }
+
+		  document.getElementById("dtdynamic").innerHTML = txt;
 		  window.setTimeout(updateDateTime, 10000);
 	  }
 
