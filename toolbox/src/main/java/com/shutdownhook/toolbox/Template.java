@@ -49,62 +49,54 @@ public class Template
 		}
 		
 		StringBuilder sb = new StringBuilder();
-		renderRecursive(sb, realTokens, realProcessor, 0);
+		renderRecursive(sb, realTokens, realProcessor, blocks);
 		return(sb.toString());
 	}
 
-	private int renderRecursive(StringBuilder sb, Map<String,String> tokens,
-								TemplateProcessor processor, int iblockStart) throws Exception {
+	private void renderRecursive(StringBuilder sb,
+								 Map<String,String> tokens,
+								 TemplateProcessor processor,
+								 List<Block> blocks) throws Exception {
 
-		int iblock = iblockStart;
+		for (Block block : blocks) {
 
-		while (iblock < blocks.size()) {
+			log.fine(String.format("renderRecursive; cch on entry = %d", sb.length()));
 
-			log.fine(String.format("renderRecursive; iblockStart = %d, iblock = %d",
-								   iblockStart, iblock));
-			
-			// we'll eat this block regardless of what happens
-			Block thisBlock = blocks.get(iblock++);
+			if (block instanceof RecursiveBlock) {
+				// gonna recurse
+				RecursiveBlock rb = (RecursiveBlock) block;
+				
+				switch (rb.getDirective()) {
+					
+				    case REPEAT_DIRECTIVE:
+						int counter = 0;
+						while (processor.repeat(rb.getArgs(), counter++)) {
+							renderRecursive(sb, tokens, processor, rb.getChildren());
+						}
+						break;
 
-			if (thisBlock instanceof EndBlock) {
-				// fall out
-				break;
-			}
-			else if (thisBlock instanceof EachBlock) {
-				// start an each cycle
-				int cblocksRecursed = 0;
-				EachBlock eb = (EachBlock) thisBlock;
-				String originalTokenValue = mapOrEnv(tokens, eb.getToken());
-				for (String elt : originalTokenValue.split(eb.getSplit(), -1)) {
-					tokens.put(eb.getToken(), elt);
-					// ditto comment below re: cblocksRecursed
-					cblocksRecursed = renderRecursive(sb, tokens, processor, iblock);
+				    case EACH_DIRECTIVE:
+						String token = rb.getArgs()[0];
+						String split = rb.getArgs()[1];
+						String originalTokenValue = mapOrEnv(tokens, token);
+						
+						for (String elt : originalTokenValue.split(split, -1)) {
+							tokens.put(token, elt);
+							renderRecursive(sb, tokens, processor, rb.getChildren());
+						}
+						
+						tokens.put(token, originalTokenValue);
+						break;
+
+				    default:
+						throw new Exception("What evil is this? " + rb.getDirective());
 				}
-
-				tokens.put(eb.getToken(), originalTokenValue);
-				iblock += cblocksRecursed;
-			}
-			else if (thisBlock instanceof RepeatBlock) {
-				// start a repeat cycle
-				int cblocksRecursed = 0;
-				RepeatBlock rb = (RepeatBlock) thisBlock;
-				int counter = 0;
-				while (processor.repeat(rb.getArgs(), counter++)) {
-					// weird that we keep resetting cblocksRecursed ... it will be the
-					// same every time, but counting the blocks consumed is a side
-					// effect of running this so life is just simpler this way
-					cblocksRecursed = renderRecursive(sb, tokens, processor, iblock);
-				}
-
-				iblock += cblocksRecursed;
 			}
 			else {
 				// normal rendering block
-				thisBlock.append(sb, tokens, processor);
+				block.append(sb, tokens, processor);
 			}
 		}
-
-		return(iblock - iblockStart);
 	}
 
 	// +-------------------+
@@ -119,8 +111,8 @@ public class Template
 			throw new Exception(msg);
 		}
 
-		public boolean repeat(String args, int counter) {
-			int count = Integer.parseInt(args);
+		public boolean repeat(String[] args, int counter) {
+			int count = Integer.parseInt(args[0]);
 			return(counter < count);
 		}
 	}
@@ -143,6 +135,9 @@ public class Template
 	{
 		public StaticBlock(String text) {
 			this.text = text;
+
+			int cchSnippet = (text.length() > 6 ? 6 : text.length());
+			log.fine("Adding StaticBlock: " + text.substring(cchSnippet) + "...");
 		}
 
 		public void append(StringBuilder sb,
@@ -162,6 +157,8 @@ public class Template
 			this.token = token;
 			this.args = args;
 			this.outputRaw = outputRaw;
+
+			log.fine(String.format("Adding TokenBlock (%s): %s", outputRaw, token));
 		}
 
 		public void append(StringBuilder sb,
@@ -183,6 +180,8 @@ public class Template
 	{
 		public CommandBlock(String cmdLine) {
 			this.cmdLine = cmdLine;
+			
+			log.fine("Adding CommandBlock: " + cmdLine);
 		}
 
 		public void append(StringBuilder sb,
@@ -195,40 +194,23 @@ public class Template
 		private String cmdLine;
 	}
 
-	public static class RepeatBlock extends Block
+	public static class RecursiveBlock extends Block
 	{
-		public RepeatBlock(String args) { this.args = args;	}
-		public String getArgs() { return(args); }
-		private String args;
-	}
+		public RecursiveBlock(String directive, String args) {
+			this.directive = directive.toLowerCase();
+			this.args = splitOnWhitespace(args);
+			this.children = new ArrayList<Block>();
 
-	public static class EachBlock extends Block
-	{
-		public EachBlock(String args) {
-			int cch = args.length();
-
-			int ichStart = skipOverWhitespace(args, 0, cch);
-			int ichSplit = skipToWhitespace(args, ichStart, cch);
-			this.token = args.substring(ichStart, ichSplit);
-
-			ichStart = skipOverWhitespace(args, ichSplit, cch);
-			ichSplit = skipToWhitespace(args, ichStart, cch);
-			
-			this.split =
-				args.substring(ichStart, ichSplit)
-				.replaceAll("\\n", "\n")
-				.replaceAll("\\t", "\t");
+			log.fine(String.format("Adding %s RecursiveBlock %s", directive, args));
 		}
 
-		public String getToken() { return(token); }
-		public String getSplit() { return(split); }
-
-		private String token;
-		private String split;
-	}
-
-	public static class EndBlock extends Block {
-		// marker class
+		public List<Block> getChildren() { return(children); }
+		public String getDirective() { return(directive); }
+		public String[] getArgs() { return(args); }
+	
+		private String directive;
+		private String[] args;
+		private List<Block> children;
 	}
 
 	// +-------------+
@@ -236,17 +218,27 @@ public class Template
 	// +-------------+
 
 	private void setupBlocks() throws Exception {
-
 		blocks = new ArrayList<Block>();
+		setupBlockLevel(blocks, templateText, 0, templateText.length());
+	}
 
-		String token;
+	// on entry ichStart is the start of template text. We build the
+	// level (recursively if needed) by adding to levelBlocks until
+	// we come to the end of the text or a matching end block.
+	// Return value is the first character following that end block
+	// (or cch on end of template)
+	
+	private int setupBlockLevel(List<Block> levelBlocks,
+								String templateText,
+								int ichStart, int cch) throws Exception {
+
+		String directive;
 		String args;
 		
 		int ichWalk;
 		int ichDirectiveStart;
-		int cch = templateText.length();
 
-		ichWalk = 0;
+		ichWalk = ichStart;
 		while (ichWalk < cch) {
 			
 			ichDirectiveStart = templateText.indexOf(DIRECTIVE_START, ichWalk);
@@ -255,8 +247,7 @@ public class Template
 				// there is stuff before the next directive (or before end of
 				// the template). Add it as a static block.
 				int ichMac = (ichDirectiveStart == -1 ? cch : ichDirectiveStart);
-				log.fine("Adding StaticBlock");
-				blocks.add(new StaticBlock(templateText.substring(ichWalk, ichMac)));
+				levelBlocks.add(new StaticBlock(templateText.substring(ichWalk, ichMac)));
 				ichWalk = ichMac;
 			}
 
@@ -269,59 +260,61 @@ public class Template
 				if (ichDirectiveEnd == -1) throw new Exception("Mismatched directive at " +
 															   Integer.toString(ichWalk));
 
-				int ichSpace = skipToWhitespace(templateText, ichWalk, ichDirectiveEnd);
-				token = templateText.substring(ichWalk, ichSpace);
 				
-				if (ichSpace == ichDirectiveEnd) {
-					args = null;
-				}
-				else {
-					ichWalk = skipOverWhitespace(templateText, ichSpace, ichDirectiveEnd);
-					args = templateText.substring(ichWalk, ichDirectiveEnd).trim();
-				}
+				int ichSpace = skipToWhitespace(templateText, ichWalk, ichDirectiveEnd);
+				directive = templateText.substring(ichWalk, ichSpace);
 
-				switch (token.toLowerCase()) {
+				int ichArgs = skipOverWhitespace(templateText, ichSpace, ichDirectiveEnd);
+				args = (ichArgs == ichDirectiveEnd
+						? null : templateText.substring(ichArgs, ichDirectiveEnd).trim());
+				
+				ichWalk = ichDirectiveEnd + DIRECTIVE_END.length();
+				
+				switch (directive.toLowerCase()) {
 
-				    case CMD_DIRECTIVE:
-						log.fine("Adding CommandBlock: " + args);
-						blocks.add(new CommandBlock(args));
-						break;
-
-				    case REPEAT_DIRECTIVE:
-						log.fine("Adding RepeatBlock: " + token);
-						blocks.add(new RepeatBlock(args));
-						break;
-						
-				    case EACH_DIRECTIVE:
-						log.fine("Adding EachBlock: " + token);
-						blocks.add(new EachBlock(args));
-						break;
-						
+					// end forces us to fall out
+					
 				    case END_DIRECTIVE:
-						log.fine("Adding EndBlock");
-						blocks.add(new EndBlock());
+						log.fine("Found EndBlock; returning " + Integer.toString(ichWalk));
+						return(ichWalk);
+
+					// recursive blocks
+						
+				    case REPEAT_DIRECTIVE:
+				    case EACH_DIRECTIVE:
+						RecursiveBlock rb = new RecursiveBlock(directive, args);
+						levelBlocks.add(rb);
+						ichWalk = setupBlockLevel(rb.getChildren(),
+												  templateText,
+												  ichWalk, cch);
 						break;
 						
+					// content blocks
+						
+				    case CMD_DIRECTIVE:
+						levelBlocks.add(new CommandBlock(args));
+						break;
+
 				    case RAW_DIRECTIVE:
 						int cchArgs = args.length();
 						int ichRealToken = skipToWhitespace(args, 0, cchArgs);
 						int ichRealArgs = skipOverWhitespace(args, ichRealToken, cchArgs);
-						token = args.substring(0, ichRealToken);
+						String token = args.substring(0, ichRealToken);
 						args = args.substring(ichRealArgs);
-						
-						log.fine("Adding Raw TokenBlock: " + token);
-						blocks.add(new TokenBlock(token, args, true));
+
+						levelBlocks.add(new TokenBlock(token, args, true));
 						break;
 
 				    default:
-						log.fine("Adding TokenBlock: " + token);
-						blocks.add(new TokenBlock(token, args, false));
+						// directive is just a token
+						levelBlocks.add(new TokenBlock(directive, args, false));
 						break;
 				}
 				
-				ichWalk = ichDirectiveEnd + DIRECTIVE_END.length();
 			}
 		}
+
+		return(cch);
 	}
 
 	// +---------------------------+
@@ -372,6 +365,28 @@ public class Template
 		}
 
 		return(ichWalk);
+	}
+
+	private static String[] splitOnWhitespace(String text) {
+
+		List<String> items = new ArrayList<String>();
+
+		int cch = text.length();
+		int ichWalk = skipOverWhitespace(text, 0, cch);
+
+		while (ichWalk < cch) {
+			int ichSpace = skipToWhitespace(text, ichWalk, cch);
+
+			String split = 
+				text.substring(ichWalk, ichSpace)
+				.replaceAll("\\n", "\n")
+				.replaceAll("\\t", "\t");
+
+			items.add(split);
+			ichWalk = skipOverWhitespace(text, ichSpace , cch);
+		}
+
+		return(items.toArray(new String[items.size()]));
 	}
 
 	private String templateText;

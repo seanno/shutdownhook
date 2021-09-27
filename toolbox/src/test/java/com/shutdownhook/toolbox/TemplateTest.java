@@ -166,7 +166,7 @@ public class TemplateTest
 	public static class ReverseProcessor extends Template.TemplateProcessor {
 		@Override
 		public String token(String token, String args) throws Exception {
-			return(args == null ? "-" : reverse(args));
+			return(args == null ? "" : reverse(args));
 		}
 	}
 
