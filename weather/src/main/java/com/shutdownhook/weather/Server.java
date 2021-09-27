@@ -216,10 +216,10 @@ public class Server
 						return("NYI");
 					}
 
-					public boolean repeat(String args, int counter) {
+					public boolean repeat(String[] args, int counter) {
 
 						i = counter;
-						snap = (args.equals("D")
+						snap = (args[0].equals("D")
 								? forecast.getDailySnap(i+1) /* +1 = start tomorrow */
 								: forecast.getHourlySnap(i));
 
