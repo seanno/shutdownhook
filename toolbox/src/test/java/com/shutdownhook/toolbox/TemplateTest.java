@@ -125,6 +125,37 @@ public class TemplateTest
 		testOne(input, expected, tokens, null);
 	}
 
+	@Test
+	public void testIfBlocks() throws Exception {
+		
+		HashMap<String,String> tokens = new HashMap<String,String>();
+		tokens.put("strTrue", "true");
+		tokens.put("strFalse", "false");
+		tokens.put("numTrue", "1");
+		tokens.put("numFalse", "0");
+		tokens.put("numTrueBig", "1000");
+		tokens.put("numTrueNeg", "-2");
+
+		testOne("{{:if true}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if false}}stuff{{:end}}", "", tokens, null);
+
+		testOne("{{:if 1}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if 0}}stuff{{:end}}", "", tokens, null);
+
+		testOne("{{:if strTrue}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if strFalse}}stuff{{:end}}", "", tokens, null);
+		
+		testOne("{{:if numTrue}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if numTrueBig}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if numTrueNeg}}stuff{{:end}}", "stuff", tokens, null);
+		testOne("{{:if numFalse}}stuff{{:end}}", "", tokens, null);
+		
+		testOne("{{:if NOTPRESENT}}stuff{{:end}}", "", tokens, null);
+
+		testOne("{{:if true}}{{:rpt 3}}x{{:end}}{{:end}}", "xxx", tokens, null);
+		testOne("{{:if false}}{{:rpt 3}}x{{:end}}{{:end}}", "", tokens, null);
+	}
+
 	// +---------+
 	// | Helpers |
 	// +---------+
