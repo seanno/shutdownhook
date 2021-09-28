@@ -20,6 +20,8 @@ public class Template
 	private final static String CMD_DIRECTIVE = ":cmd";
 	private final static String REPEAT_DIRECTIVE = ":rpt";
 	private final static String EACH_DIRECTIVE = ":each";
+	private final static String IF_DIRECTIVE = ":if";
+	private final static String IFNOT_DIRECTIVE = ":ifnot";
 	private final static String END_DIRECTIVE = ":end";
 	
 	public Template(String templateText) throws Exception {
@@ -58,6 +60,8 @@ public class Template
 								 TemplateProcessor processor,
 								 List<Block> blocks) throws Exception {
 
+		String token;
+		
 		for (Block block : blocks) {
 
 			log.fine(String.format("renderRecursive; cch on entry = %d", sb.length()));
@@ -76,7 +80,7 @@ public class Template
 						break;
 
 				    case EACH_DIRECTIVE:
-						String token = rb.getArgs()[0];
+						token = rb.getArgs()[0];
 						String split = rb.getArgs()[1];
 						String originalTokenValue = mapOrEnv(tokens, token);
 						
@@ -86,6 +90,39 @@ public class Template
 						}
 						
 						tokens.put(token, originalTokenValue);
+						break;
+
+				    case IF_DIRECTIVE:
+				    case IFNOT_DIRECTIVE:
+						token = rb.getArgs()[0];
+						boolean tokenBool;
+						
+						if (token.equalsIgnoreCase("true") || token.equals("1")) {
+							tokenBool = true;
+						}
+						else if (token.equalsIgnoreCase("false") || token.equals("0")) {
+							tokenBool = false;
+						}
+						else {
+							String tokenStr = mapOrEnv(tokens, token);
+							if (tokenStr == null || tokenStr.isEmpty()) {
+								tokenStr = "false";
+							}
+							
+							if (isDigits(tokenStr)) {
+								tokenBool = (Integer.parseInt(tokenStr) != 0);
+							}
+							else {
+								tokenBool = Boolean.parseBoolean(tokenStr);
+							}
+						}
+							
+						if ((tokenBool && rb.getDirective().equals(IF_DIRECTIVE)) ||
+							(!tokenBool && rb.getDirective().equals(IFNOT_DIRECTIVE))) {
+
+							renderRecursive(sb, tokens, processor, rb.getChildren());
+						}
+						
 						break;
 
 				    default:
@@ -282,6 +319,8 @@ public class Template
 						
 				    case REPEAT_DIRECTIVE:
 				    case EACH_DIRECTIVE:
+				    case IF_DIRECTIVE:
+				    case IFNOT_DIRECTIVE:
 						RecursiveBlock rb = new RecursiveBlock(directive, args);
 						levelBlocks.add(rb);
 						ichWalk = setupBlockLevel(rb.getChildren(),
@@ -387,6 +426,21 @@ public class Template
 		}
 
 		return(items.toArray(new String[items.size()]));
+	}
+
+	private static boolean isDigits(String input) {
+		
+		if (input == null || input.isEmpty() || input.equals("-")) return(false);
+
+		int i = (input.charAt(0) == '-' ? 1 : 0);
+		
+		while (i < input.length()) {
+			if (!Character.isDigit(input.charAt(i++))) {
+				return(false);
+			}
+		}
+
+		return(true);
 	}
 
 	private String templateText;
