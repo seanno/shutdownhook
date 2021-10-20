@@ -128,6 +128,23 @@ public class WebRequests implements Closeable
 			StatusText = "Exception";
 			Ex = e;
 		}
+
+		@Override
+		public String toString() {
+			
+			StringBuilder sb = new StringBuilder();
+			sb.append(String.format("Status = %d, StatusText = %s\n", Status, StatusText));
+			sb.append(Ex == null ? "No Exception" : Easy.exMsg(Ex, "", false)).append("\n");
+			sb.append(Body == null ? "No body" : "Body: " + Body + "\n");
+
+			sb.append("Headers:\n");
+			for (String key : Headers.keySet()) {
+				for (String val : Headers.get(key)) {
+					sb.append("\t").append(key).append(": ").append(val).append("\n");
+				}
+			}
+			return(sb.toString());
+		}
 	}
 
 	public WebRequests(Config cfg) throws Exception {
