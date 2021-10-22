@@ -1,0 +1,93 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+	<style>
+
+	  div {
+		  font: 12px Verdana,Arial,Helvetica;
+		  text-align: left;
+	  }
+
+	  input[type=range] {
+		  width: 200px;
+	  }
+
+	  input[type=button] {
+		  width: 40px;
+		  margin-right: 6px;
+	  }
+	  
+	</style>
+
+	<script
+	  src="https://code.jquery.com/jquery-3.6.0.js"
+	  integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+	  crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript">
+	  
+	  $(document).ready(function() {
+
+		  $('input[type="range"]').change(function(evt) {
+			  evt.preventDefault();
+			  
+			  var url = "exact?screen={{SCREEN_ID}}" +
+				  "&vlight=" + evt.target.id.split(":")[1] +
+				  "&val=" + $(evt.target).val();
+
+			  $.ajax(url, {
+				  error: function(xhr, status, error) {
+					  alert("Error sending exact (" + status + "/" + error + ")");
+				  }
+			  });
+			  
+		  });
+
+		  $('input[type="button"]').click(function(evt) {
+			  evt.preventDefault();
+
+			  var url= "onoff?screen={{SCREEN_ID}}" +
+				  "&cmd=" + evt.target.id;
+
+			  $.ajax(url, {
+				  error: function(xhr, status, error) {
+					  alert("Error sending onoff (" + status + "/" + error + ")");
+				  }
+			  });
+		  });
+		  
+	  });
+	  
+	</script>
+
+  </head>
+
+  <body>
+
+	<form>
+    <div id="container">
+		
+	  <h2>{{ SCREEN_NAME }}</h2>
+
+	  <p>
+		<input type="button" id="on" value="on"></input>
+		<input type="button" id="off" value="off"></input>
+	  </p>
+	  
+	  {{:rpt VLIGHTS}}
+	    <p>
+	      <input type="range" id="light:{{VLIGHT_ID}}"
+				 value="{{VLIGHT_BRIGHTNESS}}"></input>
+		  <label for="light:{{VLIGHT_ID}}">{{VLIGHT_NAME}}</label>
+		</p>
+	  {{:end}}
+
+    </div>
+	</form>
+	
+  </body>
+
+</html>
