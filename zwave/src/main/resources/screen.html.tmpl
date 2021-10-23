@@ -3,6 +3,8 @@
 
   <head>
 
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
 	<style>
 
 	  div {
@@ -17,6 +19,10 @@
 	  input[type=button] {
 		  width: 40px;
 		  margin-right: 6px;
+	  }
+
+	  a {
+		  text-decoration: none;
 	  }
 	  
 	</style>
@@ -70,7 +76,11 @@
 	<form>
     <div id="container">
 		
-	  <h2>{{ SCREEN_NAME }}</h2>
+	  <h2>
+		<a href="screen?screen={{PREV_SCREEN_ID}}">&#11160;</a>&nbsp;
+		{{ SCREEN_NAME }}&nbsp;
+		<a href="screen?screen={{NEXT_SCREEN_ID}}">&#11162;</a>
+	  </h2>
 
 	  <p>
 		<input type="button" id="on" value="on"></input>
@@ -87,7 +97,7 @@
 
     </div>
 	</form>
-	
+
   </body>
 
 </html>

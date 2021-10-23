@@ -74,6 +74,7 @@ public class Server
 			registerScreenHandler();
 			registerExactHandler();
 			registerOnOffHandler();
+			registerHomeHandler();
 			
 			server.runSync();
 		}
@@ -156,11 +157,14 @@ public class Server
 
 	private final static String TKN_SCREEN_NAME = "SCREEN_NAME";
 	private final static String TKN_SCREEN_ID = "SCREEN_ID";
+	private final static String TKN_PREV_SCREEN_ID = "PREV_SCREEN_ID";
+	private final static String TKN_NEXT_SCREEN_ID = "NEXT_SCREEN_ID";
 	private final static String TKN_VLIGHT_NAME = "VLIGHT_NAME";
 	private final static String TKN_VLIGHT_ID = "VLIGHT_ID";
 	private final static String TKN_VLIGHT_BRIGHTNESS = "VLIGHT_BRIGHTNESS";
 	
 	private final static String RPT_VLIGHTS = "VLIGHTS";
+	private final static String RPT_SCREENS = "SCREENS";
 	
 	private static void registerScreenHandler() throws Exception {
 
@@ -171,13 +175,20 @@ public class Server
 				
 			public void handle(Request request, Response response) throws Exception {
 
-				String screenName = request.QueryParams.get("screen");
-				final Screen screen = findScreen(screenName);
+				String screenId = request.QueryParams.get("screen");
+				int iscreen = findScreen(screenId);
+				final Screen screen = cfg.Screens.get(iscreen);
 
 				final Map<String,String> tokens = new HashMap<String,String>();
 				tokens.put(TKN_SCREEN_NAME, screen.Name);
 				tokens.put(TKN_SCREEN_ID, screen.Id);
 
+				int iprev = iscreen - 1; if (iprev < 0) iprev = cfg.Screens.size() - 1;
+				tokens.put(TKN_PREV_SCREEN_ID, cfg.Screens.get(iprev).Id);
+
+				int inext = iscreen + 1; if (inext >= cfg.Screens.size()) inext = 0;
+				tokens.put(TKN_NEXT_SCREEN_ID, cfg.Screens.get(inext).Id);
+				
 				response.setHtml(template.render(tokens, new Template.TemplateProcessor() {
 
 					public boolean repeat(String[] args, int counter) {
@@ -215,21 +226,50 @@ public class Server
 		});
 	}
 
-	private static Screen findScreen(String screenName) throws Exception {
+	private static int findScreen(String screenId) throws Exception {
 		
-		if (screenName == null || screenName.isEmpty()) {
-			return(cfg.Screens.get(0));
+		if (screenId == null || screenId.isEmpty()) {
+			return(0);
 		}
 
-		for (Screen screen : cfg.Screens) {
-			if (screenName.equals(screen.Name)) {
-				return(screen);
+		for (int i = 0; i < cfg.Screens.size(); ++i) {
+			if (screenId.equals(cfg.Screens.get(i).Id)) {
+				return(i);
 			}
 		}
 
-		throw new Exception("Screen not found: " + screenName);
+		throw new Exception("Screen not found: " + screenId);
 	}
 	
+	// +--------------+
+	// | Home Handler |
+	// +--------------+
+
+	private static void registerHomeHandler() throws Exception {
+
+		String templateText = Easy.stringFromResource("home.html.tmpl");
+		final Template template = new Template(templateText);
+
+		server.registerHandler("/", new Handler() {
+				
+			public void handle(Request request, Response response) throws Exception {
+
+				Map<String,String> tokens = new HashMap<String,String>();
+				
+				response.setHtml(template.render(tokens, new Template.TemplateProcessor() {
+
+					public boolean repeat(String[] args, int counter) {
+						if (counter == cfg.Screens.size()) return(false);
+						tokens.put(TKN_SCREEN_NAME, cfg.Screens.get(counter).Name);
+						tokens.put(TKN_SCREEN_ID, cfg.Screens.get(counter).Id);
+						return(true);
+					}
+
+				}));
+			}
+		});
+	}
+
 	// +-------------------+
 	// | Helpers & Members |
 	// +-------------------+

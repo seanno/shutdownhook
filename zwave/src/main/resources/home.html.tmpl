@@ -1,0 +1,29 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+	<title>Shutdown Home</title>
+	
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<style>
+
+	  div {
+		  font: 12px Verdana,Arial,Helvetica;
+		  text-align: left;
+	  }
+
+	</style>
+
+  </head>
+
+  <body>
+
+	{{:rpt SCREENS}}
+		<h2><a href="screen?screen={{SCREEN_ID}}">{{SCREEN_NAME}}</a></h2>
+	{{:end}}
+
+  </body>
+
+</html>
