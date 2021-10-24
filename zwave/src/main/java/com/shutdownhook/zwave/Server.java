@@ -40,9 +40,23 @@ public class Server
 	{
 		public String Id;
 		public String Name;
+		public List<Setting> Settings;
 		public List<VLight> VLights;
 	}
 
+	public static class Setting
+	{
+		public String Id;
+		public String Name;
+		public List<SettingValue> Values;
+	}
+
+	public static class SettingValue
+	{
+		public String VLightId;
+		public Integer Level;
+	}
+	
 	public static class VLight
 	{
 		public String Id;
@@ -72,6 +86,7 @@ public class Server
 			server = WebServer.create(cfg.Server);
 
 			registerScreenHandler();
+			registerSettingHandler();
 			registerExactHandler();
 			registerOnOffHandler();
 			registerHomeHandler();
@@ -94,22 +109,43 @@ public class Server
 			public void handle(Request request, Response response) throws Exception {
 
 				String screenId = request.QueryParams.get("screen");
+				Screen screen = cfg.Screens.get(findScreen(screenId));
+
 				Boolean on = request.QueryParams.get("cmd").equalsIgnoreCase("on");
 
-				boolean handled = false;
-				for (Screen screen : cfg.Screens) {
-					if (screenId.equals(screen.Id)) {
-						for (VLight vlight : screen.VLights) {
-							for (String deviceId : vlight.Devices) {
-								if (on) zway.turnOn(deviceId);
-								else zway.turnOff(deviceId);
-							}
-						}
-						handled = true;
-					}
+				for (VLight vlight : screen.VLights) {
+					if (on) turnOnVLight(vlight);
+					else turnOffVLight(vlight);
 				}
 
-				response.Status = (handled ? 200 : 500);
+				response.Status = 200;
+			}
+
+		});
+	}
+
+	// +---------------+
+	// | OnOff Handler |
+	// +---------------+
+
+	private static void registerSettingHandler() throws Exception {
+
+		server.registerHandler("/setting", new Handler() {
+				
+			public void handle(Request request, Response response) throws Exception {
+
+				String screenId = request.QueryParams.get("screen");
+				Screen screen = cfg.Screens.get(findScreen(screenId));
+
+				String settingId = request.QueryParams.get("setting");
+				Setting setting = screen.Settings.get(findSetting(screen, settingId));
+
+				for (SettingValue sv : setting.Values) {
+					VLight vlight = screen.VLights.get(findVLight(screen, sv.VLightId));
+					setVLightLevel(vlight, sv.Level);
+				}
+
+				response.Status = 200;
 			}
 
 		});
@@ -126,26 +162,15 @@ public class Server
 			public void handle(Request request, Response response) throws Exception {
 
 				String screenId = request.QueryParams.get("screen");
+				Screen screen = cfg.Screens.get(findScreen(screenId));
+												
 				String vlightId = request.QueryParams.get("vlight");
+				VLight vlight = screen.VLights.get(findVLight(screen, vlightId));
+				
 				int val = Integer.parseInt(request.QueryParams.get("val"));
+				setVLightLevel(vlight, val);
 
-				boolean handled = false;
-				for (Screen screen : cfg.Screens) {
-					if (screenId.equals(screen.Id)) {
-						for (VLight vlight : screen.VLights) {
-							if (vlightId.equals(vlight.Id)) {
-
-								for (String deviceId : vlight.Devices) {
-									zway.setLevel(deviceId, val);
-								}
-								
-								handled = true;
-							}
-						}
-					}
-				}
-
-				response.Status = (handled ? 200 : 500);
+				response.Status = 200;
 			}
 
 		});
@@ -159,11 +184,14 @@ public class Server
 	private final static String TKN_SCREEN_ID = "SCREEN_ID";
 	private final static String TKN_PREV_SCREEN_ID = "PREV_SCREEN_ID";
 	private final static String TKN_NEXT_SCREEN_ID = "NEXT_SCREEN_ID";
+	private final static String TKN_SETTING_NAME = "SETTING_NAME";
+	private final static String TKN_SETTING_ID = "SETTING_ID";
 	private final static String TKN_VLIGHT_NAME = "VLIGHT_NAME";
 	private final static String TKN_VLIGHT_ID = "VLIGHT_ID";
 	private final static String TKN_VLIGHT_BRIGHTNESS = "VLIGHT_BRIGHTNESS";
 	
 	private final static String RPT_VLIGHTS = "VLIGHTS";
+	private final static String RPT_SETTINGS = "SETTINGS";
 	private final static String RPT_SCREENS = "SCREENS";
 	
 	private static void registerScreenHandler() throws Exception {
@@ -193,12 +221,29 @@ public class Server
 
 					public boolean repeat(String[] args, int counter) {
 						try {
-							return(setVLightTokens(counter));
+							if (args[0].equals(RPT_VLIGHTS)) {
+								return(setVLightTokens(counter));
+							}
+							else {
+								return(setSettingTokens(counter));
+							}
 						}
 						catch (Exception e) {
 							log.severe(Easy.exMsg(e, "screenhandler", false));
 							return(false);
 						}
+					}
+
+					private boolean setSettingTokens(int i) throws Exception {
+						
+						if (screen.Settings == null) return(false);
+						if (i >= screen.Settings.size()) return(false);
+
+						Setting setting = screen.Settings.get(i);
+						tokens.put(TKN_SETTING_NAME, setting.Name.toLowerCase());
+						tokens.put(TKN_SETTING_ID, setting.Id);
+
+						return(true);
 					}
 
 					private boolean setVLightTokens(int i) throws Exception {
@@ -226,21 +271,6 @@ public class Server
 		});
 	}
 
-	private static int findScreen(String screenId) throws Exception {
-		
-		if (screenId == null || screenId.isEmpty()) {
-			return(0);
-		}
-
-		for (int i = 0; i < cfg.Screens.size(); ++i) {
-			if (screenId.equals(cfg.Screens.get(i).Id)) {
-				return(i);
-			}
-		}
-
-		throw new Exception("Screen not found: " + screenId);
-	}
-	
 	// +--------------+
 	// | Home Handler |
 	// +--------------+
@@ -274,6 +304,63 @@ public class Server
 	// | Helpers & Members |
 	// +-------------------+
 
+	private static void turnOnVLight(VLight vlight) throws Exception {
+		for (String deviceId : vlight.Devices) zway.turnOn(deviceId);
+	}
+									 
+	private static void turnOffVLight(VLight vlight) throws Exception {
+		for (String deviceId : vlight.Devices) zway.turnOff(deviceId);
+	}
+
+	private static void setVLightLevel(VLight vlight, int level) throws Exception {
+		for (String deviceId : vlight.Devices) zway.setLevel(deviceId, level);
+	}
+
+	private static int findSetting(Screen screen, String settingId) throws Exception {
+
+		if (settingId == null || settingId.isEmpty()) {
+			return(0);
+		}
+
+		for (int i = 0; i < screen.Settings.size(); ++i) {
+			if (settingId.equals(screen.Settings.get(i).Id)) {
+				return(i);
+			}
+		}
+
+		throw new Exception("Setting not found in " + screen.Id + ": " + settingId);
+	}
+
+	private static int findVLight(Screen screen, String vlightId) throws Exception {
+
+		if (vlightId == null || vlightId.isEmpty()) {
+			return(0);
+		}
+
+		for (int i = 0; i < screen.VLights.size(); ++i) {
+			if (vlightId.equals(screen.VLights.get(i).Id)) {
+				return(i);
+			}
+		}
+
+		throw new Exception("VLight not found in " + screen.Id + ": " + vlightId);
+	}
+	
+	private static int findScreen(String screenId) throws Exception {
+		
+		if (screenId == null || screenId.isEmpty()) {
+			return(0);
+		}
+
+		for (int i = 0; i < cfg.Screens.size(); ++i) {
+			if (screenId.equals(cfg.Screens.get(i).Id)) {
+				return(i);
+			}
+		}
+
+		throw new Exception("Screen not found: " + screenId);
+	}
+	
 	private static Config cfg;
 	private static WebServer server;
 	private static ZWay zway;

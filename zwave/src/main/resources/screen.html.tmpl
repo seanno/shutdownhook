@@ -17,7 +17,6 @@
 	  }
 
 	  input[type=button] {
-		  width: 40px;
 		  margin-right: 6px;
 	  }
 
@@ -55,12 +54,19 @@
 		  $('input[type="button"]').click(function(evt) {
 			  evt.preventDefault();
 
-			  var url= "onoff?screen={{SCREEN_ID}}" +
-				  "&cmd=" + evt.target.id;
+			  var id = evt.target.id;
+			  var url = "";
+			  
+			  if (id == "on" || id == "off") {
+				  url = "onoff?screen={{SCREEN_ID}}&cmd=" + id;
+			  }
+			  else {
+				  url = "setting?screen={{SCREEN_ID}}&setting=" + id.split(":")[1];
+			  }
 
 			  $.ajax(url, {
 				  error: function(xhr, status, error) {
-					  alert("Error sending onoff (" + status + "/" + error + ")");
+					  alert("Error sending command (" + status + "/" + error + ")");
 				  }
 			  });
 		  });
@@ -77,14 +83,18 @@
     <div id="container">
 		
 	  <h2>
-		<a href="screen?screen={{PREV_SCREEN_ID}}">&#11160;</a>&nbsp;
+		<a href="screen?screen={{PREV_SCREEN_ID}}">&#8678;</a>&nbsp;
 		{{ SCREEN_NAME }}&nbsp;
-		<a href="screen?screen={{NEXT_SCREEN_ID}}">&#11162;</a>
+		<a href="screen?screen={{NEXT_SCREEN_ID}}">&#8680;</a>
 	  </h2>
 
 	  <p>
 		<input type="button" id="on" value="on"></input>
 		<input type="button" id="off" value="off"></input>
+		{{:rpt SETTINGS}}
+		  <input type="button" id="setting:{{SETTING_ID}}"
+				 value="{{SETTING_NAME}}"></input>
+		{{:end}}
 	  </p>
 	  
 	  {{:rpt VLIGHTS}}
