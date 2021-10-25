@@ -18,7 +18,7 @@ import com.shutdownhook.toolbox.WebServer.*;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
-public class Server
+public class Server 
 {
 	// +--------+
 	// | Config |
@@ -28,6 +28,7 @@ public class Server
 	{
 		public WebServer.Config Server = new WebServer.Config();
 		public ZWay.Config ZWay = new ZWay.Config();
+		public Queue.Config Queue = new Queue.Config();
 
 		public List<Screen> Screens;
 
@@ -81,8 +82,11 @@ public class Server
 
 		cfg = Config.fromJson(Easy.stringFromSmartyPath(args[0]));
 		zway = new ZWay(cfg.ZWay);
+		queue = null;
 
 		try {
+			startQueueListener();
+			
 			server = WebServer.create(cfg.Server);
 
 			registerScreenHandler();
@@ -94,10 +98,63 @@ public class Server
 			server.runSync();
 		}
 		finally {
+			if (queue != null) queue.close();
 			zway.close();
 		}
     }
 	
+	// +----------------+
+	// | Queue Listener |
+	// +----------------+
+
+	private static void startQueueListener() throws Exception {
+		
+		queue = new Queue(cfg.Queue, new Queue.Handler() {
+
+			public void handle(String screenName, String screenSetting) throws Exception {
+
+				// NOTE THIS IS DIFFERENT THAN SETTINGHANDLER ... that method
+				// takes Id values embedded into html; this one searches by id or name.
+				// We are sloppier about param validation; deal with it... the exception
+				// handler will manage the queue properly.
+
+				Screen screen = null;
+				for (Screen s : cfg.Screens) {
+					if (screenName.equalsIgnoreCase(s.Id) ||
+						screenName.equalsIgnoreCase(s.Name)) {
+						
+						screen = s;
+						break;
+					}
+				}
+
+				if (screenSetting.equalsIgnoreCase("off")) {
+					turnOffScreen(screen);
+				}
+				else if (screenSetting.equalsIgnoreCase("on")) {
+					turnOnScreen(screen);
+				}
+				else {
+					Setting setting = null;
+					for (Setting s : screen.Settings) {
+						if (screenSetting.equalsIgnoreCase(s.Id) ||
+							screenSetting.equalsIgnoreCase(s.Name)) {
+							
+							setting = s;
+							break;
+						}
+					}
+
+					for (SettingValue sv : setting.Values) {
+						VLight vlight = screen.VLights.get(findVLight(screen, sv.VLightId));
+						setVLightLevel(vlight, sv.Level);
+					}
+				}
+				
+			}
+		});
+	}
+						  
 	// +---------------+
 	// | OnOff Handler |
 	// +---------------+
@@ -112,11 +169,8 @@ public class Server
 				Screen screen = cfg.Screens.get(findScreen(screenId));
 
 				Boolean on = request.QueryParams.get("cmd").equalsIgnoreCase("on");
-
-				for (VLight vlight : screen.VLights) {
-					if (on) turnOnVLight(vlight);
-					else turnOffVLight(vlight);
-				}
+				if (on) turnOnScreen(screen);
+				else turnOffScreen(screen);
 
 				response.Status = 200;
 			}
@@ -124,9 +178,9 @@ public class Server
 		});
 	}
 
-	// +---------------+
-	// | OnOff Handler |
-	// +---------------+
+	// +-----------------+
+	// | Setting Handler |
+	// +-----------------+
 
 	private static void registerSettingHandler() throws Exception {
 
@@ -304,6 +358,14 @@ public class Server
 	// | Helpers & Members |
 	// +-------------------+
 
+	private static void turnOnScreen(Screen screen) throws Exception {
+		for (VLight vl : screen.VLights) turnOnVLight(vl);
+	}
+
+	private static void turnOffScreen(Screen screen) throws Exception {
+		for (VLight vl : screen.VLights) turnOffVLight(vl);
+	}
+	
 	private static void turnOnVLight(VLight vlight) throws Exception {
 		for (String deviceId : vlight.Devices) zway.turnOn(deviceId);
 	}
@@ -364,6 +426,7 @@ public class Server
 	private static Config cfg;
 	private static WebServer server;
 	private static ZWay zway;
+	private static Queue queue;
 	
 	private final static Logger log = Logger.getLogger(Server.class.getName());
 }

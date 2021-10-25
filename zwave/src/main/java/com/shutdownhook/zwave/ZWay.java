@@ -166,7 +166,7 @@ public class ZWay implements Closeable
 		return(getDevices(false));
 	}
 	
-	public Map<String,Device> getDevices(boolean refresh) throws Exception {
+	public synchronized Map<String,Device> getDevices(boolean refresh) throws Exception {
 
 		if (devices == null || refresh) {
 			
