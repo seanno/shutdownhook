@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+	<meta name="viewport" content="width=device-width, initial-scale=1">
+
+	<style>
+
+	  div {
+		  font: 12px Verdana,Arial,Helvetica;
+		  text-align: left;
+	  }
+
+	  input[type=range] {
+		  width: 200px;
+	  }
+
+	  input[type=button] {
+		  margin-right: 6px;
+	  }
+
+	  a {
+		  text-decoration: none;
+	  }
+	  
+	</style>
+
+	<script
+	  src="https://code.jquery.com/jquery-3.6.0.js"
+	  integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+	  crossorigin="anonymous">
+	</script>
+
+	<script type="text/javascript">
+	  
+	  $(document).ready(function() {
+
+		  $('input[type="range"]').change(function(evt) {
+			  evt.preventDefault();
+			  
+			  var url = "exact?screen={{SCREEN_ID}}" +
+				  "&vlight=" + evt.target.id.split(":")[1] +
+				  "&val=" + $(evt.target).val();
+
+			  $.ajax(url, {
+				  error: function(xhr, status, error) {
+					  alert("Error sending exact (" + status + "/" + error + ")");
+				  }
+			  });
+			  
+		  });
+
+		  $('input[type="button"]').click(function(evt) {
+			  evt.preventDefault();
+
+			  var id = evt.target.id;
+			  var url = "";
+			  
+			  if (id == "on" || id == "off") {
+				  url = "onoff?screen={{SCREEN_ID}}&cmd=" + id;
+			  }
+			  else {
+				  url = "setting?screen={{SCREEN_ID}}&setting=" + id.split(":")[1];
+			  }
+
+			  $.ajax(url, {
+				  error: function(xhr, status, error) {
+					  alert("Error sending command (" + status + "/" + error + ")");
+				  }
+			  });
+		  });
+		  
+	  });
+	  
+	</script>
+
+  </head>
+
+  <body>
+
+	<form>
+    <div id="container">
+		
+	  <h2>
+		<a href="screen?screen={{PREV_SCREEN_ID}}">&#8678;</a>&nbsp;
+		{{ SCREEN_NAME }}&nbsp;
+		<a href="screen?screen={{NEXT_SCREEN_ID}}">&#8680;</a>
+	  </h2>
+
+	  <p>
+		<input type="button" id="on" value="on"></input>
+		<input type="button" id="off" value="off"></input>
+		{{:rpt SETTINGS}}
+		  <input type="button" id="setting:{{SETTING_ID}}"
+				 value="{{SETTING_NAME}}"></input>
+		{{:end}}
+	  </p>
+	  
+	  {{:rpt VLIGHTS}}
+	    <p>
+	      <input type="range" id="light:{{VLIGHT_ID}}"
+				 value="{{VLIGHT_BRIGHTNESS}}"></input>
+		  <label for="light:{{VLIGHT_ID}}">{{VLIGHT_NAME}}</label>
+		</p>
+	  {{:end}}
+
+    </div>
+	</form>
+
+  </body>
+
+</html>

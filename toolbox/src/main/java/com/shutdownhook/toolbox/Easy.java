@@ -92,7 +92,9 @@ public class Easy
 			return(Easy.class.getClassLoader().getResourceAsStream(path.substring(1)));
 		}
 
-		return(new FileInputStream(path));
+		String homeDir = System.getProperty("user.home");
+		
+		return(new FileInputStream(path.replaceAll("~", homeDir)));
 	}
 
 	public static String stringFromSmartyPath(String path) throws IOException {
