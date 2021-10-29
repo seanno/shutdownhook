@@ -39,12 +39,12 @@ public class WebTest
 		baseUrls[1] = "https://localhost:" + Integer.toString(port);
 			
 		WebRequests.Config clientConfig = new WebRequests.Config();
-		clientConfig.TimeoutMillis = 3000;
+		clientConfig.TimeoutMillis = 10000;
 		clientConfig.TrustedCertificateFile = "@localhost.crt";
 		requests = new WebRequests(clientConfig);
 
 		WebRequests.Config clientConfigDefaultSSL = new WebRequests.Config();
-		clientConfigDefaultSSL.TimeoutMillis = 3000;
+		clientConfigDefaultSSL.TimeoutMillis = 10000;
 		requestsDefaultSSL = new WebRequests(clientConfigDefaultSSL);
 	}
 
