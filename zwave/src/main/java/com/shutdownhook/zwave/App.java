@@ -28,7 +28,10 @@ public class App
 			gson = new GsonBuilder().setPrettyPrinting().create();
 			zway = new ZWay(cfg);
 
-			if (args.length == 0 || args[0].equalsIgnoreCase("devices")) {
+			if (args.length == 0) {
+				usage();
+			}
+			else if (args[0].equalsIgnoreCase("devices")) {
 				listDevices();
 			}
 			else {
@@ -64,6 +67,10 @@ public class App
 	private static void usage() {
 		System.out.println("List all devices: devices");
 		System.out.println("Device metrics: [deviceId] metrics");
+		System.out.println("Device on: [deviceId] on");
+		System.out.println("Device off: [deviceId] off");
+		System.out.println("Device get level: [deviceId] level");
+		System.out.println("Device set level: [deviceId] exact [0-100]");
 	}
 
 	private static void listDevices() throws Exception {
