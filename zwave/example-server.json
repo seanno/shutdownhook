@@ -1,0 +1,103 @@
+{
+	"Screens": [
+		{
+			"Id": "family",
+			"Name": "Family Room",
+			"Settings": [
+				{
+					"Id": "normal",
+					"Name": "Normal",
+					"Values": [
+						{ "VLightId": "family_main", "Level": 100 },
+						{ "VLightId": "kitchen_main", "Level": 100 },
+						{ "VLightId": "pantry", "Level": 100 },
+						{ "VLightId": "family_tv", "Level": 0 },
+						{ "VLightId": "kitchen_sink", "Level": 0 }
+					]
+				},
+				{
+					"Id": "movie",
+					"Name": "Movie",
+					"Values": [
+						{ "VLightId": "family_main", "Level": 20 },
+						{ "VLightId": "kitchen_main", "Level": 1 },
+						{ "VLightId": "pantry", "Level": 20 },
+						{ "VLightId": "family_tv", "Level": 0 },
+						{ "VLightId": "kitchen_sink", "Level": 0 }
+					]
+				}
+			],
+			"VLights": [
+				{
+					"Id": "family_main",
+					"Name": "Main",
+					"Devices": [
+						"Family Main Lights SE", "Family Main Lights SW",
+						"Family Main Lights NE", "Family Main Lights NW"
+					]
+				},
+				{
+					"Id": "kitchen_main",
+					"Name": "Kitchen",
+					"Devices": [
+						"Kitchen Lights SE", "Kitchen Lights SW",
+						"Kitchen Lights NE", "Kitchen Lights NW"
+					]
+				},
+				{
+					"Id": "pantry",
+					"Name": "Pantry",
+					"Devices": [
+						"Pantry Lights E", "Pantry Lights W"
+					]
+				},
+				{
+					"Id": "kitchen_sink",
+					"Name": "Sink",
+					"Devices": [
+						"Kitchen Sink Light"
+					]
+				},
+				{
+					"Id": "family_tv",
+					"Name": "Family TV",
+					"Devices": [
+						"Family TV Light"
+					]
+				}
+			]
+		},
+		{
+			"Id": "random",
+			"Name": "Random",
+			"VLights": [
+				{
+					"Id": "family_tv",
+					"Name": "Family TV",
+					"Devices": [
+						"Family TV Light"
+					]
+				}
+			]
+		}
+
+	],
+
+	"Queue": {
+		"Url": "https://XXX",
+		"Key": "XXX",
+		"Secret": "XXX"
+	},
+	
+	"ZWay": {
+		
+		"Login": "XXX",
+		"Password": "XXX",
+		"BaseUrl": "http://XXX:8083"
+	},
+
+	"Server": {
+		
+		"Port": 7071
+	}
+}
