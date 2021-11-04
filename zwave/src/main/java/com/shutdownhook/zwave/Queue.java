@@ -128,7 +128,6 @@ public class Queue extends Worker implements Closeable
 			log.severe("Exception in queue thread; exiting: " + e.toString());
 		}
 	}
-		public Integer MaxIntervalSecondsForDuplicate = 10; 
 	
 	@Override
 	public void cleanup(Exception e) {
