@@ -192,6 +192,7 @@ public class ZWay implements Closeable
 	private void ensureLogin() throws Exception {
 
 		if (zwaySession != null && Instant.now().isAfter(expires)) {
+			expires = Instant.MAX; // don't loop forever!
 			logout();
 		}
 
