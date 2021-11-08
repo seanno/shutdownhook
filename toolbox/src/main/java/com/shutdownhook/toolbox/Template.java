@@ -173,8 +173,8 @@ public class Template
 		public StaticBlock(String text) {
 			this.text = text;
 
-			int cchSnippet = (text.length() > 6 ? 6 : text.length());
-			log.fine("Adding StaticBlock: " + text.substring(cchSnippet) + "...");
+			int cchSnippet = (text.length() > 12 ? 12 : text.length());
+			log.fine("Adding StaticBlock: " + text.substring(0, cchSnippet) + "...");
 		}
 
 		public void append(StringBuilder sb,
