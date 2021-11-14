@@ -54,11 +54,15 @@ public class Lights
 		}
 
 		public int getLevel(ZWay zway) throws Exception {
+			return(getLevel(zway, false));
+		}
+
+		public int getLevel(ZWay zway, boolean refresh) throws Exception {
 
 			int maxLevel = 0;
 		
 			for (VLight vlight : VLights) {
-				int thisLevel = vlight.getLevel(zway);
+				int thisLevel = vlight.getLevel(zway, refresh);
 				if (thisLevel > maxLevel) maxLevel = thisLevel;
 			}
 
@@ -92,11 +96,15 @@ public class Lights
 		}
 
 		public int get(ZWay zway) throws Exception {
+			return(get(zway, false));
+		}
+
+		public int get(ZWay zway, boolean refresh) throws Exception {
 			
 			int maxLevel = 0;
 
 			for (SettingValue value : Values) {
-				int thisLevel = value.get(zway);
+				int thisLevel = value.get(zway, refresh);
 				if (thisLevel > maxLevel) maxLevel = thisLevel;
 			}
 
@@ -114,7 +122,11 @@ public class Lights
 		}
 		
 		public int get(ZWay zway) throws Exception {
-			return(vlight.getLevel(zway));
+			return(get(zway, false));
+		}
+
+		public int get(ZWay zway, boolean refresh) throws Exception {
+			return(vlight.getLevel(zway, refresh));
 		}
 
 		private transient VLight vlight;
@@ -142,11 +154,15 @@ public class Lights
 		}
 
 		public int getLevel(ZWay zway) throws Exception {
+			return(getLevel(zway, false));
+		}
+		
+		public int getLevel(ZWay zway, boolean refresh) throws Exception {
 
 			int maxLevel = 0;
 		
 			for (String deviceId : Devices) {
-				int thisLevel = zway.getLevel(deviceId, false);
+				int thisLevel = zway.getLevel(deviceId, refresh);
 				if (thisLevel > maxLevel) maxLevel = thisLevel;
 			}
 
@@ -194,16 +210,21 @@ public class Lights
 	}
 
 	public int settingGet(String screenIdOrName, String settingIdOrName) throws Exception {
+		return(settingGet(screenIdOrName, settingIdOrName, false));
+	}
+	
+	public int settingGet(String screenIdOrName, String settingIdOrName,
+						  boolean refresh) throws Exception {
 
 		Screen screen = findScreen(screenIdOrName);
 
 		if (settingIdOrName.equalsIgnoreCase(ON_SETTING) ||
 			settingIdOrName.equalsIgnoreCase(OFF_SETTING)) {
 			
-			return(screen.getLevel(zway));
+			return(screen.getLevel(zway, refresh));
 		}
 		else {
-			return(findSetting(screen, settingIdOrName).get(zway));
+			return(findSetting(screen, settingIdOrName).get(zway, refresh));
 		}
 	}
 
@@ -231,8 +252,14 @@ public class Lights
 
 	public int vlightGet(String screenIdOrName, String vlightIdOrName)
 		throws Exception {
+
+		return(vlightGet(screenIdOrName, vlightIdOrName, false));
+	}
+	
+	public int vlightGet(String screenIdOrName, String vlightIdOrName, boolean refresh)
+		throws Exception {
 		
-		return(findVLight(screenIdOrName, vlightIdOrName).getLevel(zway));
+		return(findVLight(screenIdOrName, vlightIdOrName).getLevel(zway, refresh));
 	}
 
 	// +---------+

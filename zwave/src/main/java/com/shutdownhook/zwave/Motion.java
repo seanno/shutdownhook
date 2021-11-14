@@ -103,6 +103,10 @@ public class Motion implements Closeable, GpioPinListenerDigital
 
 	public void handleGpioPinDigitalStateChangeEvent(GpioPinDigitalStateChangeEvent event) {
 
+		log.info(String.format("pin state change: %d / %s",
+							   event.getPin().getPin().getAddress(),
+							   event.getEdge().toString()));
+			
 		int pinNumber = event.getPin().getPin().getAddress();
 
 		switch (event.getEdge()) {
@@ -129,11 +133,11 @@ public class Motion implements Closeable, GpioPinListenerDigital
 	}
 
 	private void doMotionActions(int pinNumber) {
-			
+
 		for (Sensor sensor : cfg.Sensors) {
 			if (sensor.WiringPiPinNumber == pinNumber) {
 
-				log.fine(String.format("MOTION: motion for pin %d (%s)",
+				log.info(String.format("MOTION: motion for pin %d (%s)",
 									   sensor.WiringPiPinNumber, sensor.Name));
 
 				for (Action action : sensor.Actions) {
@@ -148,7 +152,7 @@ public class Motion implements Closeable, GpioPinListenerDigital
 						}
 					}
 					else {
-						log.fine(String.format("MOTION: Skipping inactive action %s on pin %d",
+						log.info(String.format("MOTION: Skipping inactive action %s on pin %d",
 											   action.Name, pinNumber));
 					}
 				}

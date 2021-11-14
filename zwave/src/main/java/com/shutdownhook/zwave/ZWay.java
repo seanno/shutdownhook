@@ -21,8 +21,9 @@ import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
+import com.shutdownhook.toolbox.Worker;
 
-public class ZWay implements Closeable
+public class ZWay extends Worker implements Closeable
 {
 	// +------------------+
 	// | Config and Setup |
@@ -43,6 +44,9 @@ public class ZWay implements Closeable
 		public Boolean AllowReferenceByName = true;
 		public Boolean DebugPrintFetchBody = false;
 
+		public Integer UpdateCatchupIntervalSeconds = (60 * 15); // 0 = no catchup thread
+		public Integer StopWaitSeconds = 10;
+
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
@@ -54,9 +58,24 @@ public class ZWay implements Closeable
 
 		this.gson = new GsonBuilder().setPrettyPrinting().create();
 		this.parser = new JsonParser();
+
+		if (cfg.UpdateCatchupIntervalSeconds == 0) {
+			log.info("No update catchup thread configured");
+		}
+		else {
+			log.info("Starting update catchup thread...");
+			go();
+		}
 	}
 	
 	public void close() {
+
+		if (cfg.UpdateCatchupIntervalSeconds > 0) {
+			log.info("Stopping update catchup thread...");
+			signalStop();
+			waitForStop(cfg.StopWaitSeconds);
+		}
+
 		logout();
 		requests.close();
 	}
@@ -183,6 +202,29 @@ public class ZWay implements Closeable
 		}
 
 		return(devices);
+	}
+
+	// +-----------------------+
+	// | Update Catchup Thread |
+	// +-----------------------+
+
+	@Override
+	public void work() throws Exception {
+
+		while (!sleepyStop(cfg.UpdateCatchupIntervalSeconds)) {
+			try {
+				log.info("requesting catchup update");
+				requestUpdate(null);
+			}
+			catch (Exception e) {
+				log.severe("Exception in zway refresh thread; exiting: " + e.toString());
+			}
+		}
+	}
+	
+	@Override
+	public void cleanup(Exception e) {
+		// nut-n-honey
 	}
 
 	// +----------------+
