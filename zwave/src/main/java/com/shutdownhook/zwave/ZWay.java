@@ -109,6 +109,7 @@ public class ZWay extends Worker implements Closeable
 		
 		if (deviceId == null) {
 			for (Device device : getDevices().values()) {
+				if (device.getProbeType().equalsIgnoreCase("control")) continue;
 				fetch(String.format("devices/%s/command/update", device.getId()));
 			}
 		}
@@ -168,6 +169,12 @@ public class ZWay extends Worker implements Closeable
 		
 		public String getType() {
 			return(json.get("deviceType").getAsString());
+		}
+
+		public String getProbeType() {
+			return(json.has("probeType")
+				   ? json.get("probeType").getAsString()
+				   : "undefined");
 		}
 
 		public String getName() {
