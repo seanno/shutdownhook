@@ -7,6 +7,59 @@ const Alexa = require('ask-sdk-core');
 const AWS = require('aws-sdk');
 const STS = new AWS.STS({ apiVersion: '2011-06-15' });
 
+async function queueSetting(env, screenName, screenSetting, actionClause) {
+
+    var body = {
+        'screenName': screenName,
+        'screenSetting': screenSetting,
+        'source': 'alexa',
+        'intent': Alexa.getIntentName(env),
+        'device': Alexa.getDeviceId(env)
+    }; 
+        
+    var msg = { 
+        MessageBody: JSON.stringify(body),     
+        QueueUrl: 'https://sqs.us-west-2.amazonaws.com/413499603360/shutdown_home_queue'
+    };
+        
+    var error = false;
+        
+    const credentials = await STS.assumeRole({
+        RoleArn: 'arn:aws:iam::413499603360:role/BellevueHouseAlexaLambdaRole',
+        RoleSessionName: 'BellevueHouseSkillRoleSession'
+    }, (err, res) => {
+        if (err) {
+            console.log('AssumeRole FAILED: ', err);
+            throw new Error('Error while assuming role');
+        }
+        return res;
+    }).promise();
+
+    const sqs = new AWS.SQS({
+        apiVersion: '2012-11-05',
+        accessKeyId: credentials.Credentials.AccessKeyId,
+        secretAccessKey: credentials.Credentials.SecretAccessKey,
+        sessionToken: credentials.Credentials.SessionToken
+    });
+
+    await sqs.sendMessage(msg, function(err, data) {
+        if (err) {
+            error = err;
+        }
+    }).promise();
+
+    var speakOutput;
+    
+    if (error) {
+        speakOutput = "Sorry, an error occurred " + actionClause + ". " + error;
+    }
+    else {
+        speakOutput = "OK, " + actionClause;
+    }
+
+    return(speakOutput);
+}
+
 const ScreenSettingIntentHandler = {
     canHandle(handlerInput) {
         return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
@@ -17,48 +70,25 @@ const ScreenSettingIntentHandler = {
         var screenName = Alexa.getSlotValue(env, "screenName");
         var screenSetting = Alexa.getSlotValue(env, "screenSetting");
 
-        var body = {
-            'screenName': screenName,
-            'screenSetting': screenSetting,
-            'source': 'alexa',
-            'intent': Alexa.getIntentName(env),
-            'device': Alexa.getDeviceId(env)
-        }; 
-        
-        var msg = { 
-            MessageBody: JSON.stringify(body),
-            QueueUrl: 'https://sqs.us-west-2.amazonaws.com/413499603360/shutdown_home_queue'
-        };
-        
-        var speakOutput = 'setting ' + screenName + ' to ' + screenSetting;
-        
-        const credentials = await STS.assumeRole({
-            RoleArn: 'arn:aws:iam::413499603360:role/BellevueHouseAlexaLambdaRole',
-            RoleSessionName: 'BellevueHouseSkillRoleSession'
-        }, (err, res) => {
-            if (err) {
-                console.log('AssumeRole FAILED: ', err);
-                throw new Error('Error while assuming role');
-            }
-            return res;
-        }).promise();
+        var actionClause = "setting " + screenName + " to " + screenSetting;
+        var speakOutput = await queueSetting(env, screenName, screenSetting, actionClause);
 
-        const sqs = new AWS.SQS({
-            apiVersion: '2012-11-05',
-            accessKeyId: credentials.Credentials.AccessKeyId,
-            secretAccessKey: credentials.Credentials.SecretAccessKey,
-            sessionToken: credentials.Credentials.SessionToken
-        });
+        return handlerInput.responseBuilder
+            .speak(speakOutput)
+            .getResponse();
+    }
+};
 
-        await sqs.sendMessage(msg, function(err, data) {
-            if (err) {
-                speakOutput = 'Sorry, there was an error ' + speakOutput + '. ' + err;
-            }
-            else {
-                speakOutput = 'OK, ' + speakOutput;
-            }
-        }).promise();
+const SleepIntentHandler = {
+    canHandle(handlerInput) {
+        return Alexa.getRequestType(handlerInput.requestEnvelope) === 'IntentRequest'
+            && Alexa.getIntentName(handlerInput.requestEnvelope) === 'SleepIntent';
+    },
+    async handle(handlerInput) {
 
+        var actionClause = "going to sleep";
+        var speakOutput = await queueSetting(handlerInput.requestEnvelope, "Family Room", "Off", actionClause);
+        
         return handlerInput.responseBuilder
             .speak(speakOutput)
             .getResponse();
@@ -206,6 +236,7 @@ exports.handler = Alexa.SkillBuilders.custom()
     .addRequestHandlers(
         LaunchRequestHandler,
         ScreenSettingIntentHandler,
+        SleepIntentHandler,
         HelloWorldIntentHandler,
         HelpIntentHandler,
         CancelAndStopIntentHandler,
