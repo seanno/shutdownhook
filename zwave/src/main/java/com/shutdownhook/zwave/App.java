@@ -38,21 +38,18 @@ public class App
 				String deviceId = args[0];
 				String arg = (args.length == 1 ? "" : args[1].toLowerCase());
 
-				if (args.length == 1 || arg.equals("metrics")) {
-					JsonObject metrics = zway.getMetrics(deviceId, true);
-					System.out.println(gson.toJson(metrics));
-				}
-				else if (arg.equals("level")) {
-					System.out.println(Integer.toString(zway.getLevel(deviceId, true)));
+				if (args.length == 1 || arg.equals("level")) {
+					int level = zway.findDevice(deviceId).getLevel(true);
+					System.out.println(Integer.toString(level));
 				}
 				else if (arg.equals("exact")) {
-					zway.setLevel(deviceId, Integer.parseInt(args[2]));
+					zway.findDevice(deviceId).setLevel(Integer.parseInt(args[2]));
 				}
 				else if (arg.equals("on")) {
-					zway.turnOn(deviceId);
+					zway.findDevice(deviceId).turnOn();
 				}
 				else if (arg.equals("off")) {
-					zway.turnOff(deviceId);
+					zway.findDevice(deviceId).turnOff();
 				}
 				else {
 					usage();
@@ -66,7 +63,6 @@ public class App
 
 	private static void usage() {
 		System.out.println("List all devices: devices");
-		System.out.println("Device metrics: [deviceId] metrics");
 		System.out.println("Device on: [deviceId] on");
 		System.out.println("Device off: [deviceId] off");
 		System.out.println("Device get level: [deviceId] level");

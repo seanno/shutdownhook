@@ -386,6 +386,24 @@ public class Easy
 		return(sb.toString());
 	}
 
+	// +--------------------+
+	// | Process Mgmt Stuff | 
+	// +--------------------+
+
+	public static void waitForExit() throws Exception {
+
+		final Object shutdownTrigger = new Object();
+		
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+		    synchronized (shutdownTrigger) { shutdownTrigger.notify(); }
+		}));
+
+		synchronized (shutdownTrigger) {
+			try { shutdownTrigger.wait(); }
+			catch (InterruptedException e) { /* nut-n-honey */ }
+		}
+	}
+	
 	// +------+
 	// | Misc |
 	// +------+

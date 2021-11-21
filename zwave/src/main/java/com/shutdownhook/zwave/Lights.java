@@ -142,15 +142,15 @@ public class Lights
 		public List<String> Devices;
 
 		public void on(ZWay zway) throws Exception {
-			for (String deviceId : Devices) zway.turnOn(deviceId);
+			for (String deviceId : Devices) zway.findDevice(deviceId).turnOn();
 		}
 
 		public void off(ZWay zway) throws Exception {
-			for (String deviceId : Devices) zway.turnOff(deviceId);
+			for (String deviceId : Devices) zway.findDevice(deviceId).turnOff();
 		}
 
 		public void setLevel(ZWay zway, int level) throws Exception {
-			for (String deviceId : Devices) zway.setLevel(deviceId, level);
+			for (String deviceId : Devices) zway.findDevice(deviceId).setLevel(level);
 		}
 
 		public int getLevel(ZWay zway) throws Exception {
@@ -162,7 +162,7 @@ public class Lights
 			int maxLevel = 0;
 		
 			for (String deviceId : Devices) {
-				int thisLevel = zway.getLevel(deviceId, refresh);
+				int thisLevel = zway.findDevice(deviceId).getLevel(refresh);
 				if (thisLevel > maxLevel) maxLevel = thisLevel;
 			}
 
