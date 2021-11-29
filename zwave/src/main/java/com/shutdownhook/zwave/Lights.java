@@ -168,6 +168,13 @@ public class Lights
 
 			return(maxLevel);
 		}
+
+		public int getMaxLevel(ZWay zway) throws Exception {
+			for (String deviceId : Devices) {
+				if (!zway.findDevice(deviceId).isBinary()) return(100);
+			}
+			return(1);
+		}
 	}
 
 	public Lights(Config cfg, ZWay zway) throws Exception {

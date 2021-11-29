@@ -123,6 +123,19 @@ public class ZWay extends Worker implements Closeable
 		abstract public void setLevel(int level) throws Exception;
 		abstract public void update() throws Exception;
 
+		public boolean isBinary() {
+
+			switch (getType().toLowerCase()) {
+
+			    case "switchbinary":
+			    case "togglebinary":
+					return(true);
+
+			    default:
+					return(false);
+			}
+		}
+		
 		protected ZWay zway;
 	}
 
@@ -170,7 +183,20 @@ public class ZWay extends Worker implements Closeable
 
 			JsonObject json = zway.fetch(String.format("devices/%s", getId()));
 			long updated = json.getAsJsonObject("data").get("updateTime").getAsLong();
-				
+
+			JsonObject metrics = json.getAsJsonObject("data").getAsJsonObject("metrics");
+
+			// failed devices report last-known values; this can play havoc with
+			// checks like "OnlyIfOff" in motion alerts. Here we just assume that any
+			// failed device is "off" for simplicity.
+			if (metrics.has("isFailed")) {
+				if (metrics.get("isFailed").getAsBoolean()) {
+					String msg = String.format("Device %s is failed; returning 0", getId());
+					ZWay.log.warning(msg);
+					return(0);
+				}
+			}
+
 			if (refresh) {
 
 				update();

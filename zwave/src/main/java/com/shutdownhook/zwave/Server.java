@@ -188,6 +188,7 @@ public class Server
 	private final static String TKN_VLIGHT_NAME = "VLIGHT_NAME";
 	private final static String TKN_VLIGHT_ID = "VLIGHT_ID";
 	private final static String TKN_VLIGHT_BRIGHTNESS = "VLIGHT_BRIGHTNESS";
+	private final static String TKN_VLIGHT_MAX = "VLIGHT_MAX";
 	
 	private final static String RPT_VLIGHTS = "VLIGHTS";
 	private final static String RPT_SETTINGS = "SETTINGS";
@@ -256,8 +257,12 @@ public class Server
 						tokens.put(TKN_VLIGHT_NAME, vlight.Name);
 						tokens.put(TKN_VLIGHT_ID, vlight.Id);
 
+						int max = vlight.getMaxLevel(zway);
 						int level = vlight.getLevel(zway);
+						if (level > max) level = max;
+						
 						tokens.put(TKN_VLIGHT_BRIGHTNESS, Integer.toString(level));
+						tokens.put(TKN_VLIGHT_MAX, Integer.toString(max));
 						
 						return(true);
 					}
