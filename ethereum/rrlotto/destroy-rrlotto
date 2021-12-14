@@ -12,6 +12,8 @@ if [ "$ETH_SECRET" != "" ]; then
 	SECRET_PARAM="--user :$ETH_SECRET"
 fi
 
+SCRIPTDIR=`dirname $0`
+
 # https://docs.soliditylang.org/en/develop/abi-spec.html#function-selector-and-argument-encoding
 # function signature is destroy() - no parameters
 # keccak-256 hash is 83197ef0f31073e7764b516e14f0abf207840079a6cdc8110dfcf177d053da62
@@ -25,15 +27,16 @@ GAS=60000
 
 TX_JSON='{"from":"'$ETH_ACCOUNT'","to":"'$1'","gas":'$GAS',"data":"'$FUNCTION_SIG'"}'
 
-SCRIPTDIR=`dirname $0`
 TX_SIGNED=`$SCRIPTDIR/../scripts/eth-signtx ''''$TX_JSON''''`
 
-curl \
+TX_HASH=`curl \
 	-s \
 	-X POST \
 	-H "Content-Type: application/json" \
 	$SECRET_PARAM \
 	--data '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["'$TX_SIGNED'"],"id":1}' \
-	$ETH_ENDPOINT | jq -r .result
+	$ETH_ENDPOINT | jq -r .result`
 
+echo "Transaction Hash is: $TX_HASH"
 
+$SCRIPTDIR/../scripts/eth-waittx $TX_HASH

@@ -1,0 +1,35 @@
+#!/bin/bash
+
+# $1 = transaction hash
+
+if [ "$ETH_ENDPOINT" = "" ]; then
+   echo Set ETH_ENDPOINT to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+while true; do
+
+	RCPT_JSON=`curl \
+	    -s \
+		-X POST \
+		-H "Content-Type: application/json" \
+		$SECRET_PARAM \
+		--data '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["'$1'"],"id":1}' \
+		$ETH_ENDPOINT`
+
+	if [[ "$RCPT_JSON" == *status* ]]; then
+		echo ""
+		echo "$RCPT_JSON" | jq .
+		exit
+	fi
+
+	echo waiting...
+	sleep 3
+	
+done
+
