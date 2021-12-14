@@ -1,0 +1,22 @@
+#!/bin/sh
+
+# $1 = transaction hash
+
+if [ "$ETH_ENDPOINT" = "" ]; then
+   echo Set ETH_ENDPOINT to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"eth_getTransactionReceipt","params":["'$1'"],"id":1}' \
+	$ETH_ENDPOINT | jq .
+

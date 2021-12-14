@@ -1,0 +1,27 @@
+#!/usr/bin/env node
+
+// $1 = transaction json
+
+if (!process.env.ETH_ENDPOINT || !process.env.ETH_PK) {
+	console.log("Set ETH_ENDPOINT and ETH_PK to use this script");
+	process.exit();
+}
+
+var endpoint = process.env.ETH_ENDPOINT;
+if (process.env.ETH_SECRET) {
+	endpoint = endpoint.replace("://", "://:" + process.env.ETH_SECRET + "@");
+}
+
+var Web3 = require('web3');
+const w3 = new Web3(endpoint);
+
+tx = JSON.parse(process.argv[2]);
+
+w3.eth.accounts.signTransaction(tx, process.env.ETH_PK).then(function(data) {
+	console.log(data.rawTransaction);
+});
+
+
+
+
+

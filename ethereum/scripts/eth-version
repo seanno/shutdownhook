@@ -1,0 +1,33 @@
+#!/bin/sh
+
+if [ "$ETH_ENDPOINT" = "" ]; then
+   echo Set ETH_ENDPOINT to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+WEB_VERSION=`curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"web3_clientVersion","params":[],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+NET_VERSION=`curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"net_version","params":[],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+echo web3_clientVersion: $WEB_VERSION
+echo net_version: $NET_VERSION
+
+
+	 

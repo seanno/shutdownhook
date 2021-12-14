@@ -1,0 +1,47 @@
+#!/bin/sh
+
+# $1 = path to .sol
+
+if [ "$ETH_ENDPOINT" = "" ] || [ "$ETH_ACCOUNT" = "" ]; then
+   echo Set ETH_ENDPOINT, ETH_ACCOUNT to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+SCRIPTDIR=`dirname $0`
+
+solc --gas $1
+echo ""
+
+BYTES=`solc --bin $1 | awk '(NR==4) {print $0}'`
+TX_JSON='{"from":"'$ETH_ACCOUNT'","data":"0x'$BYTES'"}'
+
+GAS_IN_HEX=`curl \
+    -s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"eth_estimateGas","params":['$TX_JSON'],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+echo "===== Dynamic (json-rpc) estimate:"
+echo $(($GAS_IN_HEX))
+
+
+	
+
+
+
+
+
+
+
+
+
+
+
+
