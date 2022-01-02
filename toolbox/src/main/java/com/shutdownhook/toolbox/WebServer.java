@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.Closeable;
+import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -50,6 +51,10 @@ public class WebServer implements Closeable
 		// so hopefully they make sense to people.
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
+
+		// optional directory holding static pages. Each .html file in
+		// this directory will be exposed as a static route at /basename.
+		public String StaticPagesDirectory;
 	}
 
 	// +---------------------------+
@@ -127,8 +132,9 @@ public class WebServer implements Closeable
 		server.createHttpServer(new InetSocketAddress(cfg.Port));
 		server.setExecutor();
 
-		return(server);
+		server.registerStaticRoutes();
 		
+		return(server);
 	}
 
 	public void start() {
@@ -351,6 +357,27 @@ public class WebServer implements Closeable
 		request.Base = "http" + (request.Secure ? "s" : "") + "://" + hostAndPort;
 	}
 
+	private void registerStaticRoutes() throws Exception {
+		
+		if (cfg.StaticPagesDirectory == null) {
+			return;
+		}
+
+		File routesDir = new File(cfg.StaticPagesDirectory);
+		for (File htmlFile : routesDir.listFiles()) {
+
+			String name = htmlFile.getName();
+			int ichLastDot = name.lastIndexOf(".");
+
+			if (ichLastDot != -1 && name.substring(ichLastDot).equalsIgnoreCase(".html")) {
+
+				registerStaticHandler("/" + name.substring(0, ichLastDot),
+									  Easy.stringFromFile(htmlFile.getAbsolutePath()),
+									  "text/html");
+			}
+		}
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
@@ -363,7 +390,7 @@ public class WebServer implements Closeable
 			cfg.SSLCertificateFile = "@localhost.crt";
 			cfg.SSLCertificateKeyFile = "@localhost.key";
 		}
-	
+
 		final WebServer server = WebServer.create(cfg);
 		server.registerStaticHandler("/", args[0], "text/plain");
 		server.runSync();
