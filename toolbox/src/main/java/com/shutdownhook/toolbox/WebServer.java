@@ -52,7 +52,7 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
-		// optional directory holding static pages. Each .html file in
+		// optional directory holding static pages. Each .html or .js file in
 		// this directory will be exposed as a static route at /basename.
 		public String StaticPagesDirectory;
 	}
@@ -77,6 +77,10 @@ public class WebServer implements Closeable
 		public Map<String,String> QueryParams;
 		public Map<String,String> Cookies;
 		public String Body;
+
+		public Map<String,String> parseBodyAsQueryString() {
+			return(WebServer.parseQueryString(Body));
+		}
 	}
 
 	// +----------+
@@ -292,15 +296,7 @@ public class WebServer implements Closeable
 		request.Method = exchange.getRequestMethod();
 
 		// query string
-		request.QueryParams = new HashMap<String,String>();
-		String queryString = exchange.getRequestURI().getRawQuery();
-
-		if (queryString != null && !queryString.isEmpty()) {
-			for (String pair : queryString.split("&")) {
-				String[] kv = pair.split("=");
-				request.QueryParams.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
-			}
-		}
+		request.QueryParams = parseQueryString(exchange.getRequestURI().getRawQuery());
 
 		// cookies
 		request.Cookies = new HashMap<String,String>();
@@ -338,6 +334,20 @@ public class WebServer implements Closeable
 		return(request);
 	}
 
+	private static Map<String,String> parseQueryString(String input) {
+
+		Map<String,String> params = new HashMap<String,String>();
+
+		if (input != null && !input.isEmpty()) {
+			for (String pair : input.split("&")) {
+				String[] kv = pair.split("=");
+				params.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
+			}
+		}
+
+		return(params);
+	}
+
 	private void setBaseUrl(HttpExchange exchange, Request request) {
 
 		request.Secure = (this instanceof SecureServer);
@@ -369,11 +379,20 @@ public class WebServer implements Closeable
 			String name = htmlFile.getName();
 			int ichLastDot = name.lastIndexOf(".");
 
-			if (ichLastDot != -1 && name.substring(ichLastDot).equalsIgnoreCase(".html")) {
+			if (ichLastDot != -1) {
 
-				registerStaticHandler("/" + name.substring(0, ichLastDot),
-									  Easy.stringFromFile(htmlFile.getAbsolutePath()),
-									  "text/html");
+				String ext = name.substring(ichLastDot);
+				String base = name.substring(0, ichLastDot);
+
+				boolean isHtml = ext.equalsIgnoreCase(".html");
+				boolean isJs = ext.equalsIgnoreCase(".js");
+				
+				if (isHtml || isJs) {
+
+					registerStaticHandler("/" + base + (isHtml ? "" : ".js"),
+										  Easy.stringFromFile(htmlFile.getAbsolutePath()),
+										  "text/" + (isHtml ? "html" : "javascript"));
+				}
 			}
 		}
 	}
