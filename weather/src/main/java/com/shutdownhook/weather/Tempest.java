@@ -383,7 +383,8 @@ public class Tempest implements Closeable
 			System.out.println("Usage: java -cp [path_to_jar] \\\n" +
 							   "\tcom.shutdownhook.weather.Tempest \\\n" +
 							   "\t[station_id] \\\n" +
-							   "\t[access_token] ");
+							   "\t[access_token] \\\n" +
+							   "\t[optional_relative_url]");
 			return;
 		}
 		
@@ -394,20 +395,26 @@ public class Tempest implements Closeable
 		Config cfg = new Config();
 		cfg.Stations.add(stationCfg);
 
+		Gson gson = new GsonBuilder().setPrettyPrinting().create();
+				
 		Tempest tempest = null;
 
 		try {
 			tempest = new Tempest(cfg);
 
-			Station station = tempest.getStation(stationCfg.StationId);
-			Observation obs = tempest.getObservation(stationCfg.StationId);
-			Forecast forecast = tempest.getForecast(stationCfg.StationId);
-			
-			Gson gson = new GsonBuilder().setPrettyPrinting().create();
+			if (args.length >= 3) {
+				String json = tempest.getTempestJson(args[0], args[2], new WebRequests.Params());
+				System.out.println(json);
+			}
+			else {
+				Station station = tempest.getStation(stationCfg.StationId);
+				Observation obs = tempest.getObservation(stationCfg.StationId);
+				Forecast forecast = tempest.getForecast(stationCfg.StationId);
 
-			System.out.println("\n" + gson.toJson(station) + "\n");
-			System.out.println("\n" + gson.toJson(obs) + "\n");
-			System.out.println("\n" + gson.toJson(forecast) + "\n");
+				System.out.println("\n" + gson.toJson(station) + "\n");
+				System.out.println("\n" + gson.toJson(obs) + "\n");
+				System.out.println("\n" + gson.toJson(forecast) + "\n");
+			}
 		}
 		finally {
 			
