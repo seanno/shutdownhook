@@ -67,17 +67,30 @@ function rokuLookupAppId(name) {
 
 	var appid = '';
 
+	// first loop looks for exact match
 	rokuAppList.forEach(function(item) {
 
 		var appLower = item.name.toLowerCase();
-
-		if (nameLower.indexOf(appLower) != -1 ||
-			appLower.indexOf(nameLower) != -1) {
-
+		if (appLower == nameLower) {
 			appid = item.id;
 			return;
 		}
 	});
+
+	if (!appid) {
+
+		// second loop looks for partial match
+		rokuAppList.forEach(function(item) {
+
+			var appLower = item.name.toLowerCase();
+			if (nameLower.indexOf(appLower) != -1 ||
+				appLower.indexOf(nameLower) != -1) {
+
+				appid = item.id;
+				return;
+			}
+		});
+	}
 
 	return(appid);
 }
