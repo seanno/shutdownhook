@@ -6,5 +6,6 @@
 	},
 
 	"DataSetTsv": "xor-data.tsv",
-	"TrainingIterations": 250000
+	"TrainingIterations": 100000,
+	"TrainingReportInterval": 2500
 }

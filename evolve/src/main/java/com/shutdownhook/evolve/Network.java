@@ -157,6 +157,10 @@ public class Network
 	}
 
 	public void trainMany(double[][] rgvals, int iterations) {
+		trainMany(rgvals, iterations, null);
+	}
+	
+	public void trainMany(double[][] rgvals, int iterations, TrainManyCallback callback) {
 
 		// all this work is to be sure we cover the training
 		// set in random order, but as evenly as possible
@@ -166,6 +170,7 @@ public class Network
 		int[] runOrder = new int[rgvals.length];
 		for (int i = 0; i < runOrder.length; ++i) runOrder[i] = i;
 
+		int totalRuns = 0;
 		while (iterationsLeft > 0) {
 
 			shuffle(runOrder);
@@ -174,11 +179,113 @@ public class Network
 			if (iterationsNow > iterationsLeft) iterationsNow = iterationsLeft;
 
 			for (int i = 0; i < iterationsNow; ++i) {
+
+				if (callback != null && !callback.call(totalRuns)) return;
+			    ++totalRuns;
+
 				trainOne(rgvals[runOrder[i]]);
 			}
 			
 			iterationsLeft -= iterationsNow;
 		}
+
+		if (callback != null) callback.call(totalRuns);
+	}
+
+	public interface TrainManyCallback {
+		public boolean call(int iterations);
+	}
+
+	// +-------------+
+	// | testVerbose |
+	// +-------------+
+
+	// run tests and return a table with inputs / outputs / expected / errors for each
+
+	public double[][] testVerbose(double[][] rgvals) {
+			
+		int numInputs = numInputs();
+		int numOutputs = numOutputs();
+
+		double[][] r = new double[rgvals.length][numInputs + (numOutputs * 3)];
+		
+		for (int i = 0; i < rgvals.length; ++i) {
+			
+			for (int j = 0; j < numInputs; ++j) {
+				r[i][j] = rgvals[i][j];
+			}
+
+			double[] outputs = forwardPass(rgvals[i]);
+
+			for (int j = 0; j < numOutputs; ++j) {
+				r[i][numInputs + (j * 3)] = outputs[j];
+				r[i][numInputs + (j * 3) + 1] = rgvals[i][j + numInputs];
+				r[i][numInputs + (j * 3) + 2] =	Math.abs(outputs[j] - rgvals[i][j + numInputs]);
+			}
+		}
+
+		return(r);
+	}
+
+	public String[] testVerboseHeaders() {
+
+		int numInputs = numInputs();
+		int numOutputs = numOutputs();
+
+		String[] hdrs = new String[numInputs + (numOutputs * 3)];
+
+		for (int i = 0; i < numInputs; ++i) {
+			hdrs[i] = "in" + Integer.toString(i);
+		}
+
+		for (int i = 0; i < numOutputs; ++i) {
+			String t = Integer.toString(i);
+			hdrs[numInputs + (i * 3)] = "out" + t;
+			hdrs[numInputs + (i * 3) + 1] = "exp" + t;
+			hdrs[numInputs + (i * 3) + 2] = "err" + t;
+		}
+
+		return(hdrs);
+	}
+
+	// +-------------+
+	// | testSummary |
+	// +-------------+
+
+	// run tests and return some stats about errors
+	
+	public TestResultErrorSummary testSummary(double[][] rgvals) {
+
+		int numInputs = numInputs();
+		int numOutputs = numOutputs();
+
+		TestResultErrorSummary r = new TestResultErrorSummary();
+
+		for (int i = 0; i < rgvals.length; ++i) {
+			
+			double[] outputs = forwardPass(rgvals[i]);
+
+			for (int j = 0; j < numOutputs; ++j) {
+
+				double err = Math.abs(outputs[j] - rgvals[i][j + numInputs]);
+
+				if (err < r.Min) r.Min = err;
+				if (err > r.Max) r.Max = err;
+				r.Sum += err;
+			}
+		}
+
+		r.Avg = (r.Sum / (rgvals.length * numOutputs));
+
+		return(r);
+	}
+
+	public static class TestResultErrorSummary
+	{
+		public double Max = Double.MIN_VALUE;
+		public double Min = Double.MAX_VALUE;
+		public double Sum = 0.0;
+		public double Avg;
 	}
 
 	// +--------------+
@@ -194,7 +301,7 @@ public class Network
 		public String DataSetTsv;
 
 		public int TrainingIterations;
-		public boolean TrainOnly = false;
+		public int TrainingReportInterval = 0; // 0 means never
 
 		// 0 means test with the full training set
 		public int HoldBackPercentage = 0;
@@ -207,8 +314,7 @@ public class Network
 	public static class TrainAndTestResults
 	{
 		public Network Network;
-		public double[][] TestSet;
-		public double[][] TestOutputs;
+		public double[][] TestOutput;
 	}
 	
 	public static TrainAndTestResults trainAndTest(TrainAndTestConfig cfg)
@@ -226,9 +332,10 @@ public class Network
 		}
 
 		int holdback = (sampleCount * cfg.HoldBackPercentage / 100);
-		if (holdback > 0) shuffle(dataSetLines, firstLine);
 
-		// train
+		// set up train and test sets
+
+		if (holdback > 0) shuffle(dataSetLines, firstLine);
 
 		int trainSetSize = sampleCount - holdback;
 		double[][] trainSet = new double[trainSetSize][];
@@ -237,33 +344,33 @@ public class Network
 			trainSet[i] = splitToDoubles(dataSetLines.get(i + firstLine));
 		}
 
-		TrainAndTestResults results = new TrainAndTestResults();
-		results.Network = new Network(cfg.Network);
-		results.Network.trainMany(trainSet, cfg.TrainingIterations);
+		final double[][] testSet = (holdback > 0 ? new double[holdback][] : trainSet);
 
-		// test
-
-		if (!cfg.TrainOnly) {
-
-			double[][] testSet = null;
-
-			if (holdback > 0) {
-				testSet = new double[holdback][];
-				for (int i = 0; i < holdback; ++i) {
-					testSet[i] = splitToDoubles(dataSetLines.get(i + firstLine + trainSetSize));
-				}
-			}
-			else {
-				testSet = trainSet;
-			}
-
-			results.TestSet = testSet;
-			results.TestOutputs = new double[testSet.length][];
-			
-			for (int i = 0; i < testSet.length; ++i) {
-				results.TestOutputs[i] = results.Network.forwardPass(testSet[i]);
+		if (holdback > 0) {
+			for (int i = 0; i < holdback; ++i) {
+				testSet[i] = splitToDoubles(dataSetLines.get(i + firstLine + trainSetSize));
 			}
 		}
+
+		// actually train ...
+		
+		TrainAndTestResults results = new TrainAndTestResults();
+		results.Network = new Network(cfg.Network);
+		results.Network.trainMany(trainSet, cfg.TrainingIterations, (iterations) -> {
+				
+			if (cfg.TrainingReportInterval > 0 &&
+				iterations % cfg.TrainingReportInterval == 0) {
+
+				TestResultErrorSummary r = results.Network.testSummary(testSet);
+				log.info(String.format("ITERATION\t%7d\t%04.3f\t%04.3f\t%04.3f",
+									   iterations, r.Min, r.Max, r.Avg));
+			}
+
+			return(true);
+		});
+
+		// ... and actually test
+		results.TestOutput = results.Network.testVerbose(testSet);
 		
 		return(results);
 	}
@@ -293,50 +400,23 @@ public class Network
 
 		TrainAndTestResults results = trainAndTest(cfg);
 
-		if (results.TestOutputs == null) {
-			return;
+		String[] hdrs = results.Network.testVerboseHeaders();
+		for (int i = 0; i < hdrs.length; ++i) {
+			if (i > 0) System.out.print("\t");
+			System.out.print(hdrs[i]);
 		}
 
-		int numInputs = results.Network.numInputs();
-		int numOutputs = results.Network.numOutputs();
-			
-		printHeaders(numInputs, numOutputs);
+		System.out.println("");
 
-		for (int i = 0; i < results.TestOutputs.length; ++i) {
-
-			double[] vals = results.TestSet[i];
-			double[] outputs = results.TestOutputs[i];
-
-			for (int j = 0; j < numInputs; ++j) {
-				System.out.print(String.format("%s%04.3f", (j > 0 ? "\t" : ""), vals[j]));
+		for (int i = 0; i < results.TestOutput.length; ++i) {
+			double[] vals = results.TestOutput[i];
+			for (int j = 0; j < vals.length; ++j) {
+				if (j > 0) System.out.print("\t");
+				System.out.print(String.format("%04.3f", vals[j]));
 			}
 
-			for (int j = 0; j < numOutputs; ++j) {
-				System.out.println(String.format("\t%04.3f\t%04.3f\t%04.3f",
-												 outputs[j],
-												 vals[j + numInputs],
-												 Math.abs(outputs[j] - vals[j + numInputs])));
-			}
+			System.out.println("");
 		}
-
-	}
-
-	private static void printHeaders(int numInputs, int numOutputs) {
-
-		StringBuilder sb = new StringBuilder();
-		
-		for (int i = 0; i < numInputs; ++i) {
-			if (i > 0) sb.append("\t");
-			sb.append("in").append(Integer.toString(i));
-		}
-
-		for (int i = 0; i < numOutputs; ++i) {
-			sb.append("\tout").append(Integer.toString(i));
-			sb.append("\texp").append(Integer.toString(i));
-			sb.append("\terr").append(Integer.toString(i));
-		}
-
-		System.out.println(sb.toString());
 	}
 
 	// +--------------+
