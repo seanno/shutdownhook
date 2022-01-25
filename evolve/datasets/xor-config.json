@@ -1,0 +1,10 @@
+{
+	"Network": {
+
+		"Layers": [ 2, 8, 1 ],
+		"LearningRate": 0.05
+	},
+
+	"DataSetTsv": "xor-data.tsv",
+	"TrainingIterations": 250000
+}
