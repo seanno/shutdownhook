@@ -50,6 +50,7 @@ public class Matrix
 
 	public int getRows() { return(rows); }
 	public int getCols() { return(cols); }
+	public double[][] getCells() { return(cells); }
 
 	public double getCell(int row, int col) { return(cells[row][col]); }
 	public void putCell(int row, int col, double val) { cells[row][col] = val; }

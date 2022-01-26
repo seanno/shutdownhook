@@ -32,9 +32,21 @@ public class Network
 		public double LearningRate = 0.01;
 		public String ActivationFunction = null;
 
+		public NetworkState State = null;
+		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
+
+		public String toJson() {
+			return(new Gson().toJson(this));
+		}
+	}
+
+	public static class NetworkState
+	{
+		public double[][][] Weights;
+		public double[][][] Biases;
 	}
 	
 	public Network(Config cfg) throws IllegalArgumentException {
@@ -53,16 +65,25 @@ public class Network
 		
 		for (int i = 1; i < cfg.Layers.length; ++i) {
 
-			Matrix m = new Matrix(cfg.Layers[i], cfg.Layers[i-1]);
-			m.randomize();
-			weights.add(m);
+			Matrix w;
+			Matrix b;
+			
+			if (cfg.State == null) {
+				w = new Matrix(cfg.Layers[i], cfg.Layers[i-1]);
+				w.randomize();
 
-			Matrix b = new Matrix(cfg.Layers[i], 1);
-			b.randomize();
+				b = new Matrix(cfg.Layers[i], 1);
+				b.randomize();
+			}
+			else {
+				w = new Matrix(cfg.State.Weights[i-1]);
+				b = new Matrix(cfg.State.Biases[i-1]);
+			}
+			
+			weights.add(w);
 			biases.add(b);
 
-			log.fine(String.format("Added (%dx%d) weights & bias",
-								   cfg.Layers[i], cfg.Layers[i-1]));
+			log.fine(String.format("Added (%dx%d) weights & bias", w.getRows(), w.getCols()));
 		}
 	}
 
@@ -74,6 +95,28 @@ public class Network
 	public int numInputs() { return(cfg.Layers[0]); }
 	public int numOutputs() { return(cfg.Layers[cfg.Layers.length - 1]); }
 
+	public Config getState() {
+		
+		Config stateCfg = new Config();
+		stateCfg.Layers = cfg.Layers;
+		stateCfg.LearningRate = cfg.LearningRate;
+		stateCfg.ActivationFunction = cfg.ActivationFunction;
+
+		stateCfg.State = new NetworkState();
+		
+		stateCfg.State.Weights = new double[weights.size()][][];
+		for (int i = 0; i < weights.size(); ++i) {
+			stateCfg.State.Weights[i] = weights.get(i).getCells();
+		}
+
+		stateCfg.State.Biases = new double[biases.size()][][];
+		for (int i = 0; i < biases.size(); ++i) {
+			stateCfg.State.Biases[i] = biases.get(i).getCells();
+		}
+
+		return(stateCfg);
+	}
+	
 	// +--------------------+
 	// | ActivationFunction |
 	// +--------------------+
@@ -305,7 +348,9 @@ public class Network
 
 		// 0 means test with the full training set
 		public int HoldBackPercentage = 0;
-		
+
+		public String FinalNetworkStatePath = null;
+			
 		public static TrainAndTestConfig fromJson(String json) {
 			return(new Gson().fromJson(json, TrainAndTestConfig.class));
 		}
@@ -313,8 +358,11 @@ public class Network
 
 	public static class TrainAndTestResults
 	{
+		// the resulting network
 		public Network Network;
-		public double[][] TestOutput;
+
+		// see "testVerbose" for format of this table
+		public double[][] TestOutput; 
 	}
 	
 	public static TrainAndTestResults trainAndTest(TrainAndTestConfig cfg)
@@ -416,6 +464,11 @@ public class Network
 			}
 
 			System.out.println("");
+		}
+
+		if (cfg.FinalNetworkStatePath != null) {
+			Config stateCfg = results.Network.getState();
+			Easy.stringToFile(cfg.FinalNetworkStatePath, stateCfg.toJson());
 		}
 	}
 
