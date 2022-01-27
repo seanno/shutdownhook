@@ -1,7 +1,7 @@
 {
 	"Network": {
 
-		"Layers": [ 20, 25, 25, 1 ],
+		"Layers": [ 20, 40, 40, 1 ],
 		"LearningRate": 0.01
 	},
 
