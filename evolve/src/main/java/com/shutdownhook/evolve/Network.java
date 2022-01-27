@@ -178,7 +178,7 @@ public class Network
 
 		// backprop
 		
-		Matrix errors = new Matrix(vals, cfg.Layers[0], vals.length);
+		Matrix errors = new Matrix(vals, numInputs(), numInputs() + numOutputs());
 		errors.subtract(results.get(results.size() - 1));
 
 		for (int i = weights.size() - 1; i >= 0; --i) {
@@ -250,7 +250,9 @@ public class Network
 		int numInputs = numInputs();
 		int numOutputs = numOutputs();
 
-		double[][] r = new double[rgvals.length][numInputs + (numOutputs * 3)];
+		int extraFields = rgvals[0].length - (numInputs + numOutputs);
+		
+		double[][] r = new double[rgvals.length][numInputs + (numOutputs * 3) + extraFields];
 		
 		for (int i = 0; i < rgvals.length; ++i) {
 			
@@ -264,6 +266,11 @@ public class Network
 				r[i][numInputs + (j * 3)] = outputs[j];
 				r[i][numInputs + (j * 3) + 1] = rgvals[i][j + numInputs];
 				r[i][numInputs + (j * 3) + 2] =	Math.abs(outputs[j] - rgvals[i][j + numInputs]);
+			}
+
+			for (int j = 0; j < extraFields; ++j) {
+				r[i][numInputs + (numOutputs * 3) + j] =
+					rgvals[i][numInputs + numOutputs + j];
 			}
 		}
 
@@ -387,7 +394,7 @@ public class Network
 
 		int trainSetSize = sampleCount - holdback;
 		double[][] trainSet = new double[trainSetSize][];
-		
+
 		for (int i = 0; i < trainSetSize; ++i) {
 			trainSet[i] = splitToDoubles(dataSetLines.get(i + firstLine));
 		}
@@ -481,7 +488,7 @@ public class Network
 		Random rand = new Random();
 		
 		for (int i = startLine; i < list.size(); ++i) {
-			int j = rand.nextInt((list.size() - startLine) + startLine);
+			int j = rand.nextInt(list.size() - startLine) + startLine;
 			T temp = list.get(i);
 			list.set(i, list.get(j));
 			list.set(j, temp);
@@ -510,6 +517,6 @@ public class Network
 
 	private Random rand;
 
-	private final static Logger log = Logger.getLogger(Server.class.getName());
+	private final static Logger log = Logger.getLogger(Network.class.getName());
 }
 
