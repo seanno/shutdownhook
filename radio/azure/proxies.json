@@ -10,7 +10,7 @@
                 "route": "/"
             },
 			
-            "backendUri": "https://shutdownradio.azurewebsites.net/home"
+            "backendUri": "https://localhost/home"
         }
     }
 }
