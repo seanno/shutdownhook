@@ -161,8 +161,11 @@
 
 	  $(document).ready(function() {
 
-		  $("#channelName").val(Cookies.get("channelName"));
-		  $("#who").val(Cookies.get("who"));
+		  const queryChannel = queryParam("channel");
+		  const queryWho = queryParam("who");
+		  
+		  $("#channelName").val(queryChannel ? queryChannel : Cookies.get("channelName"));
+		  $("#who").val(queryWho ? queryWho : Cookies.get("who"));
 			  
 		  $("#setChannel").click(function() {
 			  channelName = $("#channelName").val();
@@ -193,6 +196,14 @@
 
 	  function htmlEscape(input) {
 		  return($("<div/>").text(input).html());
+	  }
+
+	  function queryParam(key) {
+		  for (elt of window.location.search.substring(1).split("&")) {
+			  const nv = elt.split("=");
+			  if (nv[0] == key) return(decodeURIComponent(nv[1]));
+		  }
+		  return(false);
 	  }
 
 	</script>
