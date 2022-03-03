@@ -59,6 +59,12 @@
 	  <artifactId>azure-cosmos</artifactId>
 	</dependency>
 
+    <dependency>
+      <groupId>com.microsoft.bot</groupId>
+      <artifactId>bot-integration-core</artifactId>
+      <version>4.14.1</version>
+    </dependency>
+
 	<dependency>
 	  <groupId>com.google.code.gson</groupId>
 	  <artifactId>gson</artifactId>
