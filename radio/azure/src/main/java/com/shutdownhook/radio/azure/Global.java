@@ -35,6 +35,19 @@ public class Global
 		return(radio);
 	}
 
+	public static boolean booleanConfig(String name, boolean defaultValue) {
+		
+		boolean val = defaultValue;
+
+		String env = System.getenv(name);
+		if (env == null || env.trim().isEmpty()) return(val);
+		
+		try { val = Boolean.parseBoolean(env); }
+		catch (Exception e) { /* eat it */ }
+
+		return(val);
+	}
+
 	private static Radio radio = null;
 	private static Store store = null;
 	

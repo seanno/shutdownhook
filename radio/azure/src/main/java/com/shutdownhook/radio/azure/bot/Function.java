@@ -5,6 +5,7 @@
 
 package com.shutdownhook.radio.azure.bot;
 
+import java.net.URI;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
@@ -33,8 +34,8 @@ public class Function {
 	// | getBot |
 	// +--------+
 
-	private Bot getBot() {
-		return(RadioBot.singleton());
+	private Bot getBot(URI uri) {
+		return(RadioBot.singleton(uri));
 	}
 
 	// +------------------+
@@ -46,17 +47,18 @@ public class Function {
 	    @HttpTrigger(name = "req", methods = {HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS)
 		final HttpRequestMessage<Optional<String>> request, final ExecutionContext context) {
 
-        context.getLogger().info("botRequest for: " + request.getUri().toString());
+		URI uri = request.getUri();
+        context.getLogger().info("botRequest for: " + uri.toString());
 		HttpResponseMessage.Builder response = request.createResponseBuilder(HttpStatus.OK);
 		
 		try {
             Activity activity = getObjectMapper().readValue(request.getBody().get(),
-															Activity.class);;
+															Activity.class);
 															
-            String authHeader = request.getHeaders().get("Authorization");
+            String authHeader = request.getHeaders().get("authorization");
 
 			CompletableFuture<InvokeResponse> future = 
-				Adapter.getAdapter().processIncomingActivity(authHeader, activity, getBot());
+				Adapter.getAdapter().processIncomingActivity(authHeader, activity, getBot(uri));
 
 			future.handle((invokeResponse, exInvoke) -> {
 
