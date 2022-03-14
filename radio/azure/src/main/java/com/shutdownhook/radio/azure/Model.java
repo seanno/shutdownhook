@@ -49,9 +49,14 @@ public class Model
 	{
 		public String Id;
 		public String Title;
+		public String ThumbnailUrl;
 		public Instant Added;
 		public String AddedBy;
 		public boolean Played;
 		public int DurationSeconds;
+
+		public String getVideoUrl() {
+			return("https://www.youtube.com/watch?v=" + Id);
+		}
 	}
 }

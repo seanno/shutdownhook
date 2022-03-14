@@ -112,4 +112,18 @@ public class EasyTest
 		String sig = Easy.hmac256("abc", Easy.base64Encode("def"));
 		Assert.assertEquals("OX9Gc0Hk14xHSGfvMmHNtGwOEDUempiZY+bLLc5A7l0=", sig);
 	}
+
+	@Test
+	public void testHtmlDecode() throws Exception {
+		testOneHtmlDecode("yo", "yo");
+		testOneHtmlDecode("yo&", "yo&");
+		testOneHtmlDecode("&gt;", ">");
+		testOneHtmlDecode("&gt;&lt;&#36;&#x24;&#X24;", "><$$$");
+		testOneHtmlDecode("", "");
+		testOneHtmlDecode("&", "&");
+	}
+
+	private void testOneHtmlDecode(String input, String expected) throws Exception {
+		Assert.assertEquals(expected, Easy.htmlDecode(input));
+	}
 }

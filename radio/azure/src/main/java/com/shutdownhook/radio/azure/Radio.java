@@ -115,7 +115,27 @@ public class Radio
 		return(playlist);
 	}
 
-	public void addVideo(String channelName, String videoUrlOrId, String who) throws Exception {
+	public List<Model.Video> searchVideos(String query, int maxResults) throws Exception {
+
+		List<Model.Video> videos = new ArrayList<Model.Video>();
+		
+		List<YouTube.VideoInfo> infos = YouTube.search(query, maxResults);
+		for (YouTube.VideoInfo info : infos) {
+
+			Model.Video video = new Model.Video();
+			videos.add(video);
+			
+			video.Id = info.Id;
+			video.Title = info.Title;
+			video.ThumbnailUrl = info.ThumbnailUrl;
+			video.DurationSeconds = info.DurationSeconds;
+		}
+
+		return(videos);
+	}
+
+	public Model.Video addVideo(String channelName, String videoUrlOrId,
+								String who) throws Exception {
 
 		YouTube.VideoInfo info = YouTube.getVideoInfo(videoUrlOrId);
 
@@ -130,9 +150,12 @@ public class Radio
 		video.Played = false;
 		video.Id = info.Id;
 		video.Title = info.Title;
+		video.ThumbnailUrl = info.ThumbnailUrl;
 		video.DurationSeconds = info.DurationSeconds;
 
 		store.savePlaylist(playlist);
+
+		return(video);
 	}
 
 	public String getStaticHtml(String name) throws Exception {

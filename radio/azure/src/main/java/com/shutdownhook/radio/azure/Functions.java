@@ -72,9 +72,18 @@ public class Functions {
 			String name = request.getQueryParameters().get("channel");
 			String video = request.getQueryParameters().get("video");
 			String who = request.getQueryParameters().get("who");
-				
+
+			String channelUrl = String.format("home?channel=%s&who=%s",
+											  Easy.urlEncode(name),
+											  Easy.urlEncode(who));
+
 			Global.getRadio().addVideo(name, video, who);
-			response.body("OK");
+
+			response.header("Content-Type", "text/html");
+			response.body("<html><title>Added</title><body><h3>" +
+						  "Added OK! You can close this window or " +
+						  "<a href=\"" + channelUrl + "\">start listening</a>!" +
+						  "</h3></body></html>");
 		});
 
 		return(r);
