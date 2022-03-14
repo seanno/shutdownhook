@@ -201,7 +201,7 @@
 	  function queryParam(key) {
 		  for (elt of window.location.search.substring(1).split("&")) {
 			  const nv = elt.split("=");
-			  if (nv[0] == key) return(decodeURIComponent(nv[1]));
+			  if (nv[0] == key) return(decodeURIComponent(nv[1].replace(/\+/g, " ")));
 		  }
 		  return(false);
 	  }

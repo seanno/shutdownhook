@@ -80,10 +80,10 @@ public class Functions {
 			Global.getRadio().addVideo(name, video, who);
 
 			response.header("Content-Type", "text/html");
-			response.body("<html><title>Added</title><body><h3>" +
+			response.body("<html><title>Added</title><body>" +
 						  "Added OK! You can close this window or " +
-						  "<a href=\"" + channelUrl + "\">start listening</a>!" +
-						  "</h3></body></html>");
+						  "<a href=\"" + channelUrl + "\">start listening</a>." +
+						  "</body></html>");
 		});
 
 		return(r);
