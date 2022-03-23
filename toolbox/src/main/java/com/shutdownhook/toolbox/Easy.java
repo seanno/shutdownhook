@@ -630,7 +630,7 @@ public class Easy
 		return(sb.toString());
 	}
 	
-	public static String exMsg(Exception e, String msg, boolean includeStack) {
+	public static String exMsg(Throwable e, String msg, boolean includeStack) {
 
 		String log = String.format("Exception (%s): %s%s",
 								   e.toString(), msg,
@@ -638,7 +638,7 @@ public class Easy
 		return(log);
 	}
 	
-	public static String getStackTrace(Exception e) {
+	public static String getStackTrace(Throwable e) {
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter(sw);
 		e.printStackTrace(pw);

@@ -28,27 +28,39 @@ import com.microsoft.bot.builder.InvokeResponse;
 import com.microsoft.bot.connector.authentication.AuthenticationException;
 import com.microsoft.bot.schema.Activity;
 
-public class Function {
+import com.shutdownhook.toolbox.Easy;
 
-	// +--------+
-	// | getBot |
-	// +--------+
+public class Functions {
 
-	private Bot getBot(URI uri) {
-		return(RadioBot.singleton(uri));
-	}
+	// +-------------------+
+	// | Function Handlers |
+	// +-------------------+
 
-	// +------------------+
-	// | Function Handler |
-	// +------------------+
-	
     @FunctionName("bot")
     public HttpResponseMessage bot(
 	    @HttpTrigger(name = "req", methods = {HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS)
 		final HttpRequestMessage<Optional<String>> request, final ExecutionContext context) {
 
-		URI uri = request.getUri();
-        context.getLogger().info("botRequest for: " + uri.toString());
+		return(base(request, context, RadioBot.singleton(request.getUri())));
+	}
+
+    @FunctionName("wumpus")
+    public HttpResponseMessage wumpus(
+	    @HttpTrigger(name = "req", methods = {HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS)
+		final HttpRequestMessage<Optional<String>> request, final ExecutionContext context) {
+
+		return(base(request, context, WumpusBot.singleton()));
+	}
+
+	// +--------------+
+	// | Base Handler |
+	// +--------------+
+
+	private HttpResponseMessage base(final HttpRequestMessage<Optional<String>> request,
+									 final ExecutionContext context,
+									 final Bot bot) {
+
+        context.getLogger().info("botRequest for: " + request.getUri().toString());
 		HttpResponseMessage.Builder response = request.createResponseBuilder(HttpStatus.OK);
 		
 		try {
@@ -58,7 +70,7 @@ public class Function {
             String authHeader = request.getHeaders().get("authorization");
 
 			CompletableFuture<InvokeResponse> future = 
-				Adapter.getAdapter().processIncomingActivity(authHeader, activity, getBot(uri));
+				Adapter.getAdapter().processIncomingActivity(authHeader, activity, bot);
 
 			future.handle((invokeResponse, exInvoke) -> {
 
@@ -72,7 +84,7 @@ public class Function {
 							response.status(HttpStatusType.custom(invokeResponse.getStatus()));
 						}
 						catch (Exception exResponse) {
-							context.getLogger().warning("botRequest response ex: " + exResponse.toString());
+							context.getLogger().warning(Easy.exMsg(exResponse, "botRequest response ex", false));
 							response.status(HttpStatus.INTERNAL_SERVER_ERROR);
 						}
 					}
@@ -87,14 +99,14 @@ public class Function {
 						response.status(HttpStatus.INTERNAL_SERVER_ERROR);
 					}
 					
-					context.getLogger().warning("botRequest invoke ex: " + exInvoke.toString());
+					context.getLogger().warning(Easy.exMsg(exInvoke, "botRequest invoke", false));
                 }
 
 				return(null);
 			});
 		}
 		catch (Exception e) {
-			context.getLogger().warning("botRequest ex: " + e.toString());
+			context.getLogger().warning(Easy.exMsg(e, "botRequest", false));
 			response.status(HttpStatus.INTERNAL_SERVER_ERROR);
 		}
 

@@ -32,6 +32,7 @@ public class Wumpus
 
 	public Wumpus(WumpusState state) {
 		this.s = state;
+		if (s.hazards == null) newGame();
 	}
 
 	private WumpusState s;
@@ -76,11 +77,11 @@ public class Wumpus
 
     private void newGame() {
 
-		s = new WumpusState();
+		if (s == null) s = new WumpusState();
 
 		s.numArrows = STARTING_ARROWS;
 		s.currRoom = randomRoom();
- 
+		
 		s.hazards = new ArrayList<Set<Hazard>>();
 		for (int i = 0; i < rooms.length; i++) {
 			s.hazards.add(new HashSet<Hazard>());
@@ -128,6 +129,13 @@ public class Wumpus
 		String cleanInput = input.trim().toLowerCase();
 		char firstChar = cleanInput.charAt(0);
 
+		// just a room number is shortcut for move
+		if (Character.isDigit(firstChar)) {
+			cleanInput = "move " + cleanInput;
+			firstChar = cleanInput.charAt(0);
+		}
+
+		// shhh
 		if (cleanInput.equals("xyzzy")) {
 			try { return(serializeState()); }
 			catch (Exception e) { return("Exception: " + e.toString()); }
@@ -135,6 +143,10 @@ public class Wumpus
 
 		if (firstChar == 'h') {
 			return(help());
+		}
+
+		if (firstChar == 'l') {
+			return(null);
 		}
 		
 		if (firstChar == 'q' || firstChar == 'e' || firstChar == 'r') {
@@ -172,15 +184,17 @@ public class Wumpus
 	// | help |
 	// +------+
 
-	private String help() {
-		return("Welcome to Hunt the Wumpus! There are many versions of this,\n" +
-			   "game; ours follows the rules at\n" +
+	public String help() {
+		return("Welcome to Hunt the Wumpus! There are many versions of this " +
+			   "game; ours follows the rules at " +
 			   "https://rosettacode.org/wiki/Hunt_the_Wumpus.\n" +
-			   "Good luck! Commands can be shortened to their first letter:\n" +
+			   "Good luck! Commands can be shortened to their first letter; " +
+			   "just entering a number implies a move:\n" +
 			   "- [s]hoot ROOM_NUMBER\n" +
 			   "- [m]ove ROOM_NUMBER\n" +
+			   "- [l]ook around\n" +
 			   "- [r]estart the game\n" +
-			   "- [h]help");
+			   "- [h]elp");
 	}
 	
 	private String confused() {
@@ -364,6 +378,7 @@ public class Wumpus
 							 ? new Wumpus()
 							 : Wumpus.fromSerializedState(args[1]));
 
+			System.out.println(wumpus.help());
 			System.out.println("");
 			System.out.println(wumpus.prompt());
 			System.out.print("> ");
@@ -376,8 +391,12 @@ public class Wumpus
 				String line = scanner.nextLine();
 				
 				System.out.println("");
-				System.out.println(wumpus.action(line));
-				System.out.println("");
+
+				String result = wumpus.action(line);
+				if (result != null) {
+					System.out.println(result);
+					System.out.println("");
+				}
 				
 				System.out.println(wumpus.prompt());
 				System.out.print("> ");

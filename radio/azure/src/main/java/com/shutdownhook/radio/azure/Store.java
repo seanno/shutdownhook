@@ -5,49 +5,26 @@
 
 package com.shutdownhook.radio.azure;
 
-import java.io.Closeable;
 import java.util.logging.Logger;
 
-import com.azure.cosmos.CosmosClientBuilder;
 import com.azure.cosmos.CosmosClient;
 import com.azure.cosmos.CosmosDatabase;
 import com.azure.cosmos.CosmosContainer;
 import com.azure.cosmos.models.CosmosItemResponse;
 import com.azure.cosmos.models.PartitionKey;
-import com.azure.identity.DefaultAzureCredentialBuilder;
 
 // documented as internal but thrown by readItem, doh
 import com.azure.cosmos.implementation.NotFoundException;
 
-public class Store
+public class Store extends Cosmos
 {
-	// +-------+
-	// | Setup |
-	// +-------+
-
-	public static class Config
-	{
-		public String Endpoint;
-		public String Database;
-		public String Container;
+	public Store(Cosmos.Config cfg) throws Exception {
+		super(cfg);
 	}
 
-	public Store(Config cfg) throws Exception {
-
-		this.cfg = cfg;
-		
-		this.client = new CosmosClientBuilder()
-			.endpoint(cfg.Endpoint)
-			.credential(new DefaultAzureCredentialBuilder().build())
-			.buildClient();
-
-		this.database = client.getDatabase(cfg.Database);
-		this.container = database.getContainer(cfg.Container);
-	}
-
-	public void close() {
-		if (client != null) client.close();
-	}
+	// +----------+
+	// | Channels |
+	// +----------+
 	
 	public Model.Channel getChannel(String channelName) throws Exception {
 
@@ -68,6 +45,10 @@ public class Store
 		channel.id = getCosmosId(channel.Name, CHANNEL_SUFFIX);
 		container.upsertItem(channel);
 	}
+
+	// +-----------+
+	// | Playlists |
+	// +-----------+
 
 	public Model.Playlist getPlaylist(String channelName) throws Exception {
 
@@ -100,11 +81,6 @@ public class Store
 	private final static String CHANNEL_SUFFIX = "_ch";
 	private final static String PLAYLIST_SUFFIX = "_pl";
 	
-	private Config cfg;
-	private CosmosClient client;
-	private CosmosDatabase database;
-	private CosmosContainer container;
-
 	private final static Logger log = Logger.getLogger(Store.class.getName());
 }
 
