@@ -16,6 +16,7 @@ import com.microsoft.bot.builder.ConversationState;
 import com.microsoft.bot.builder.MessageFactory;
 import com.microsoft.bot.builder.TurnContext;
 import com.microsoft.bot.builder.StatePropertyAccessor;
+import com.microsoft.bot.connector.Channels;
 import com.microsoft.bot.schema.Activity;
 import com.microsoft.bot.schema.ChannelAccount;
 import com.microsoft.bot.schema.ResourceResponse;
@@ -61,8 +62,8 @@ public class WumpusBot extends ActivityHandler {
 			Wumpus wumpus = new Wumpus(wumpusState);
 			
 			List<Activity> activities = new ArrayList<Activity>();
-			activities.add(md(wumpus.help()));
-			activities.add(md(wumpus.prompt()));
+			activities.add(md(wumpus.help(), turnContext));
+			activities.add(md(wumpus.prompt(), turnContext));
 
 			conversationState.saveChanges(turnContext).join();
 
@@ -78,6 +79,19 @@ public class WumpusBot extends ActivityHandler {
 	@Override
     protected CompletableFuture<Void> onMessageActivity(TurnContext turnContext) {
 
+		// this "play" trigger is for channels that need a poke to start
+		// things off; this will trigger the "onMemberAdded" activity.
+		// twilio is a special case because they never seem to get onMemberAdded
+		// no matter what; so let it pass (wumpus will turn 'p' into help)
+		
+		final String msg = turnContext.getActivity().getText();
+
+		if (msg.toLowerCase().trim().equals("play") &&
+			!turnContext.getActivity().getChannelId().toLowerCase().contains("sms")) {
+			
+			return(CompletableFuture.completedFuture(null));
+		}
+
 		StatePropertyAccessor<WumpusState> wumpusAccessor = conversationState.createProperty("wumpus");
 		CompletableFuture<WumpusState> wumpusFuture = wumpusAccessor.get(turnContext, WumpusState::new);
 
@@ -87,10 +101,10 @@ public class WumpusBot extends ActivityHandler {
 			
 			List<Activity> activities = new ArrayList<Activity>();
 			
-			String result = wumpus.action(turnContext.getActivity().getText());
+			String result = wumpus.action(msg);
 			result = ((result == null) ? "" : result + "\n");
 			
-			activities.add(md(result + wumpus.prompt()));
+			activities.add(md(result + wumpus.prompt(), turnContext));
 
 			conversationState.saveChanges(turnContext).join();
 
@@ -103,8 +117,23 @@ public class WumpusBot extends ActivityHandler {
 	// | Members & Helpers |
 	// +-------------------+
 
-	private Activity md(String input) {
-		return(MessageFactory.text(input.replaceAll("\n", "\n\n")));
+	private Activity md(String input, TurnContext turn) {
+
+		String finalMsg = null;
+		
+		switch (turn.getActivity().getChannelId()) {
+		    case Channels.MSTEAMS:
+		    case Channels.EMULATOR:
+		    case Channels.WEBCHAT:
+				finalMsg = input.replaceAll("\n", "\n\n");
+				break;
+
+		    default:
+				finalMsg = input;
+				break;
+		}
+		
+		return(MessageFactory.text(finalMsg));
 	}
 	
 	private Storage storage;

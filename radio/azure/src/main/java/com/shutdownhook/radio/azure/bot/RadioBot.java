@@ -23,6 +23,7 @@ import com.microsoft.bot.builder.Bot;
 import com.microsoft.bot.builder.MessageFactory;
 import com.microsoft.bot.builder.TurnContext;
 import com.microsoft.bot.connector.Async;
+import com.microsoft.bot.connector.Channels;
 import com.microsoft.bot.schema.ActionTypes;
 import com.microsoft.bot.schema.Activity;
 import com.microsoft.bot.schema.ActivityTypes;
@@ -121,7 +122,7 @@ public class RadioBot extends ActivityHandler {
 		try { markdown = Easy.stringFromResource("help.md"); }
 		catch (IOException e) { /* won't happen */ }
 
-		if (getChannelType(ctx).equals(BotChannelType.TEAMS)) {
+		if (ctx.Turn.getActivity().getChannelId().equals(Channels.MSTEAMS)) {
 			
 			String myId = ctx.Turn.getActivity().getRecipient().getId();
 			
@@ -484,29 +485,6 @@ public class RadioBot extends ActivityHandler {
 		return(sb.toString());
 	}
 
-	// +---------------+
-	// | Channel Types |
-	// +---------------+
-
-	// this isn't meant to be exhaustive, just enough for us to pick the right
-	// message formats for the channels we know about.
-	
-	public static enum BotChannelType
-	{
-		TEAMS,
-		SLACK,
-		OTHER
-	}
-
-	private BotChannelType getChannelType(BotContext ctx) {
-		
-		JsonNode channelData = getChannelData(ctx);
-		if (channelData == null) return(BotChannelType.OTHER);
-		if (channelData.has("teamsChannelId")) return(BotChannelType.TEAMS);
-		if (channelData.has("SlackMessage")) return(BotChannelType.SLACK);
-		return(BotChannelType.OTHER);
-	}
-	
 	private String channelUrlFmt;
 	private String addUrlFmt;
 

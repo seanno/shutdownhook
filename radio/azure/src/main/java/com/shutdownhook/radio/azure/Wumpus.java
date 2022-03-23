@@ -141,7 +141,7 @@ public class Wumpus
 			catch (Exception e) { return("Exception: " + e.toString()); }
 		}
 
-		if (firstChar == 'h') {
+		if (firstChar == 'h' || firstChar == 'p') {
 			return(help());
 		}
 

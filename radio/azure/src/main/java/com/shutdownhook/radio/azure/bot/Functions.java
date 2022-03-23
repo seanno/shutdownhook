@@ -41,7 +41,7 @@ public class Functions {
 	    @HttpTrigger(name = "req", methods = {HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS)
 		final HttpRequestMessage<Optional<String>> request, final ExecutionContext context) {
 
-		return(base(request, context, RadioBot.singleton(request.getUri())));
+		return(base(request, context, RadioBot.singleton(request.getUri()), null));
 	}
 
     @FunctionName("wumpus")
@@ -49,7 +49,7 @@ public class Functions {
 	    @HttpTrigger(name = "req", methods = {HttpMethod.POST}, authLevel = AuthorizationLevel.ANONYMOUS)
 		final HttpRequestMessage<Optional<String>> request, final ExecutionContext context) {
 
-		return(base(request, context, WumpusBot.singleton()));
+		return(base(request, context, WumpusBot.singleton(), "_wumpus"));
 	}
 
 	// +--------------+
@@ -58,7 +58,8 @@ public class Functions {
 
 	private HttpResponseMessage base(final HttpRequestMessage<Optional<String>> request,
 									 final ExecutionContext context,
-									 final Bot bot) {
+									 final Bot bot,
+									 final String configSuffix) {
 
         context.getLogger().info("botRequest for: " + request.getUri().toString());
 		HttpResponseMessage.Builder response = request.createResponseBuilder(HttpStatus.OK);
@@ -70,7 +71,7 @@ public class Functions {
             String authHeader = request.getHeaders().get("authorization");
 
 			CompletableFuture<InvokeResponse> future = 
-				Adapter.getAdapter().processIncomingActivity(authHeader, activity, bot);
+				Adapter.getAdapter(configSuffix).processIncomingActivity(authHeader, activity, bot);
 
 			future.handle((invokeResponse, exInvoke) -> {
 
