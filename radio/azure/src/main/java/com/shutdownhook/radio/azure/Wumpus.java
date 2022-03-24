@@ -351,7 +351,7 @@ public class Wumpus
 		.enable(SerializationFeature.INDENT_OUTPUT)
 		.findAndRegisterModules(); 
 
-	private static final int STARTING_ARROWS = 3;
+	private static final int STARTING_ARROWS = 5;
 
     private static int[][] rooms =
 	{{334, 20}, {609, 220}, {499, 540}, {169, 540}, {62, 220},
