@@ -15,7 +15,7 @@ public class Logs
 	public static void log(String msg) {
 
 		String trust = System.getProperty("com.sun.jndi.ldap.object.trustURLCodebase");
-		if (!"true".equals(trust.toLowerCase().trim())) {
+		if (trust == null || !"true".equals(trust.toLowerCase().trim())) {
 			System.out.println("needs -Dcom.sun.jndi.ldap.object.trustURLCodebase=true");
 			return;
 		}
