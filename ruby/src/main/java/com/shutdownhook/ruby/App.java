@@ -28,7 +28,7 @@ public class App
 		public String HomeHtmlPath = "@home.html";
 		
 		public Boolean AllowOverride = false;
-		public String OverrideMarker = "x-rubyip=";
+		public String OverrideMarker = "x-rubyip";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -79,24 +79,9 @@ public class App
 				
 			public void handle(Request request, Response response) throws Exception {
 
-				String ip = request.RemoteAddress;
-
-				if (cfg.AllowOverride) {
-
-					int ichStart = request.Referrer.indexOf(cfg.OverrideMarker);
-					if (ichStart != -1) {
-						ichStart += cfg.OverrideMarker.length();
-						int ichMac = request.Referrer.indexOf("&", ichStart);
-						if (ichMac == -1) ichMac = request.Referrer.length();
-
-						String newIP = request.Referrer.substring(ichStart, ichMac);
-						
-						log.fine(String.format("Overriding ip %s with %s", ip, newIP));
-						ip = newIP;
-					}
-				}
-				
+				String ip = getClientIP(cfg, request);
 				String js = "";
+				
 				try {
 					if (ruby.inRange(ip)) js = rejectJS;
 				}
@@ -108,6 +93,47 @@ public class App
 				response.setJS(js);
 			}
 		});
+	}
+
+	private static String getClientIP(Config cfg, Request request) {
+
+		// the "real" one
+		
+		String ip = request.RemoteAddress;
+
+		if (!cfg.AllowOverride) {
+			return(ip);
+		}
+
+		// look in query string
+		
+		String qsIP = request.QueryParams.get(cfg.OverrideMarker);
+		if (qsIP != null && !qsIP.isEmpty()) {
+			
+			log.fine(String.format("Overriding ip %s with %s in QS", ip, qsIP));
+			return(qsIP);
+		}
+
+		// and referrer
+		
+		String referrer = request.Referrer;
+		if (referrer != null) {
+			int ichStart = referrer.indexOf(cfg.OverrideMarker + "=");
+			if (ichStart != -1) {
+				ichStart += cfg.OverrideMarker.length() + 1;
+				int ichMac = referrer.indexOf("&", ichStart);
+				if (ichMac == -1) ichMac = referrer.length();
+
+				String refIP = referrer.substring(ichStart, ichMac);
+						
+				log.fine(String.format("Overriding ip %s with %s in REF", ip, refIP));
+				return(refIP);
+			}
+		}
+
+		// nope
+
+		return(ip);
 	}
 
 	private final static Logger log = Logger.getLogger(App.class.getName());
