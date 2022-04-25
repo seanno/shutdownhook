@@ -73,6 +73,8 @@ public class WebServer implements Closeable
 		public String Base;
 		public String Path;
 		public String Method;
+		public String RemoteAddress;
+		public String Referrer;
 		public boolean Secure;
 		public Map<String,String> QueryParams;
 		public Map<String,String> Cookies;
@@ -96,6 +98,7 @@ public class WebServer implements Closeable
 		public void setJson(String s) { Status = 200; Body = s; ContentType = "application/json"; }
 		public void setText(String s) { Status = 200; Body = s; ContentType = "text/plain"; }
 		public void setHtml(String s) { Status = 200; Body = s; ContentType = "text/html"; }
+		public void setJS(String s) { Status = 200; Body = s; ContentType = "text/javascript"; }
 
 		public void redirect(String url) {
 			Status = 302;
@@ -201,6 +204,18 @@ public class WebServer implements Closeable
 		});
 	}
 
+	public void registerEmptyHandler(String urlPrefix,
+									 final int status) {
+
+		registerHandler(urlPrefix, new Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				response.Status = status;
+				response.ContentType = "text/plain";
+				response.Body = "";
+			}
+		});
+	}
+
 	public void registerHandler(String urlPrefix, final Handler handler) {
 
 		server.createContext(urlPrefix, new HttpHandler() {
@@ -294,6 +309,8 @@ public class WebServer implements Closeable
 		
 		request.Path = exchange.getRequestURI().toString();
 		request.Method = exchange.getRequestMethod();
+		request.RemoteAddress = exchange.getRemoteAddress().getAddress().getHostAddress();
+		request.Referrer = exchange.getRequestHeaders().getFirst("Referer");
 
 		// query string
 		request.QueryParams = parseQueryString(exchange.getRequestURI().getRawQuery());
