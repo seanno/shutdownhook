@@ -18,17 +18,18 @@ import org.junit.AfterClass;
 
 public class SqlTest
 {
-	private static String SQLITE_TEMP_FILE =
-		"/tmp/xyz" + Integer.toString(new Random().nextInt(20000));
-		
-	private static String SQLITE_CXN_STRING =
-		"jdbc:sqlite:" + SQLITE_TEMP_FILE;
-
+	private static String SQLITE_TEMP_FILE;
+	private static String SQLITE_CXN_STRING;
 	private static SqlStore sql;
 	
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 		Global.init();
+
+		String tmp = "xyz" + Integer.toString(new Random().nextInt(20000));
+		SQLITE_TEMP_FILE = File.createTempFile(tmp, ".sql").getCanonicalPath();
+		SQLITE_CXN_STRING = "jdbc:sqlite:" + SQLITE_TEMP_FILE;
+		
 		sql = new SqlStore(new SqlStore.Config(SQLITE_CXN_STRING));
 	}
 	

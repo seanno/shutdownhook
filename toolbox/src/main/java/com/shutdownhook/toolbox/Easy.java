@@ -8,6 +8,7 @@ package com.shutdownhook.toolbox;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -95,7 +96,9 @@ public class Easy
 
 		String homeDir = System.getProperty("user.home");
 		
-		return(new FileInputStream(path.replaceAll("~", homeDir)));
+		return(new FileInputStream(new File(path)
+								   .getCanonicalPath()
+								   .replaceAll("~", homeDir)));
 	}
 
 	public static String stringFromSmartyPath(String path) throws IOException {
