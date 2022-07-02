@@ -426,7 +426,7 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 		String msg = String.format(DISCOVER_MSG_FMT, cfg.Address, cfg.Port,
 								   cfg.Search, cfg.MxDelaySeconds);
 
-		log.fine("Sending discover request:\n" + msg.replaceAll("\r\n", " | "));
+		log.fine("Sending discover request: " + msg.replaceAll("\r\n", " | "));
 		
 		byte[] rgb = msg.getBytes(StandardCharsets.UTF_8);
 
