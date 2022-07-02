@@ -60,11 +60,20 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 		public String UniqueServiceName;
 		public String Location;
 		public Instant Expires;
+
 		public Map<String,String> All;
-		public String MessageSourceAddress;
+		
+		public InetAddress MessageSourceAddress;
+		public Integer MessageSourcePort;
 
 		public boolean isExpired() {
 			return(Expires != null && Expires.isBefore(Instant.now()));
+		}
+
+		@Override
+		public String toString() {
+			return(String.format("ServiceType: %s\nLocation: %s\nExpires: %s\nSource: %s\n",
+								 ServiceType, Location, Expires, MessageSourceAddress));
 		}
 	}
 
@@ -185,8 +194,7 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 
 				try {
 					sock.receive(dgram);
-					String msg = new String(dgram.getData(), StandardCharsets.UTF_8);
-					handleMessage(msg, dgram.getAddress().toString());
+					handleMessage(dgram);
 				}
 				catch (SocketTimeoutException te) {
 					// loop
@@ -216,11 +224,14 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 		// nut-n-honey
 	}
 
-	private void handleMessage(String msg, String sourceAddress) {
+	private void handleMessage(DatagramPacket dgram) {
+
+		String msg = new String(dgram.getData(), StandardCharsets.UTF_8);
+													  
 		String[] lines = msg.split("\r\n");
 		String line1 = lines[0].toLowerCase();
 
-		ServiceInfo info = allocateServiceInfo(lines, sourceAddress);
+		ServiceInfo info = allocateServiceInfo(lines, dgram.getAddress(), dgram.getPort());
 
 		if (line1.startsWith(CMD_MSEARCH)) {
 			// M-SEARCH
@@ -280,11 +291,13 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 		if (handler != null) handler.alive(info);
 	}
 
-	private ServiceInfo allocateServiceInfo(String[] lines, String sourceAddress) {
+	private ServiceInfo allocateServiceInfo(String[] lines, InetAddress addr, int port) {
 
 		ServiceInfo info = new ServiceInfo();
-		info.MessageSourceAddress = sourceAddress;
 		info.All = new HashMap<String,String>();
+
+		info.MessageSourceAddress = addr;
+		info.MessageSourcePort = port;
 
 		for (int i = 1; i < lines.length; ++i) {
 			
@@ -458,12 +471,21 @@ public class SimpleServiceDiscovery extends Worker implements Closeable
 
 	public static void main(String[] args) throws Exception {
 
-		Easy.setSimpleLogFormat("FINE");
+		Easy.setSimpleLogFormat("INFO");
 		
 		Config cfg = new Config();
 		if (args.length > 0) cfg.Search = args[0];
 
-		SimpleServiceDiscovery ssdp = new SimpleServiceDiscovery(cfg);
+		SimpleServiceDiscovery ssdp =
+			new SimpleServiceDiscovery(cfg, new NotificationHandler() {
+				public void alive(ServiceInfo info) {
+					System.out.println(">>> ALIVE:\n" + info.toString());
+				}
+					
+				public void gone(ServiceInfo info) {
+					System.out.println("<<< GONE:\n" + info.toString());
+				}
+			});
 
 		try {
 			System.out.println("Enter to resend discovery request, ^C to exit...");
