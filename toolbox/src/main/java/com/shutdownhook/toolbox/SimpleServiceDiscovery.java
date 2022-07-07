@@ -66,6 +66,7 @@ public class SimpleServiceDiscovery implements Closeable
 		default public void alive(ServiceInfo info) { }
 		default public void gone(ServiceInfo info) { }
 		default public void msearch(ServiceInfo info) { }
+		default public void discovering() { }
 	}
 
 	// +----------------+
@@ -86,16 +87,18 @@ public class SimpleServiceDiscovery implements Closeable
 		public Integer ReceiveTimeoutSeconds = 1;
 	}
 
-	public SimpleServiceDiscovery(Config cfg,
-								  NotificationHandler handler) throws IOException {
-
+	public SimpleServiceDiscovery(Config cfg) {
 		this.cfg = cfg;
-		this.handler = handler;
 		this.discoveryFlag = new AtomicBoolean(true);
+	}
+
+	public void go(NotificationHandler handler) throws IOException {
+
+		this.handler = handler;
 
 		this.notificationWorker = new SsdpWorker(this, SsdpSocketType.NOTIFICATION);
 	    this.discoveryWorker = new SsdpWorker(this, SsdpSocketType.DISCOVERY);
-
+		
 		log.info("Starting worker threads...");
 		
 		this.notificationWorker.go();
@@ -103,6 +106,8 @@ public class SimpleServiceDiscovery implements Closeable
 	}
 
 	public void close() {
+
+		if (discoveryWorker == null) return;
 		
 		log.info("Signaling stop for worker threads...");
 		
@@ -196,9 +201,9 @@ public class SimpleServiceDiscovery implements Closeable
 					}
 				}
 			}
-			catch (Exception eouter) {
+			catch (Exception eOuter) {
 				log.info(String.format("Outer exception in SsdpWorker (%s): %s",
-									   type, eouter.toString()));
+									   type, eOuter.toString()));
 			}
 			finally {
 				log.info(String.format("Exiting SsdpWorker (%s)...", type));
@@ -258,8 +263,6 @@ public class SimpleServiceDiscovery implements Closeable
 
 			String msg = String.format(DISCOVER_MSG_FMT, svc.cfg.Address, svc.cfg.Port,
 									   svc.cfg.Search, svc.cfg.MxDelaySeconds);
-
-			log.fine("Sending discover request: " + msg.replaceAll("\r\n", " | "));
 		
 			byte[] rgb = msg.getBytes(StandardCharsets.UTF_8);
 
@@ -268,6 +271,10 @@ public class SimpleServiceDiscovery implements Closeable
 								   rgb.length,
 								   InetAddress.getByName(svc.cfg.Address),
 								   svc.cfg.Port);
+
+			log.fine("Sending discover request: " + msg.replaceAll("\r\n", " | "));
+
+			svc.handler.discovering();
 
 			forEachUsefulInterface(new UsefulInterfaceCallback() {
 				public void handle(NetworkInterface iface) throws IOException {
@@ -453,16 +460,17 @@ public class SimpleServiceDiscovery implements Closeable
 		Config cfg = new Config();
 		if (args.length > 0) cfg.Search = args[0];
 
-		SimpleServiceDiscovery ssdp =
-			new SimpleServiceDiscovery(cfg, new NotificationHandler() {
-				public void alive(ServiceInfo info) {
-					System.out.println(">>> ALIVE:\n" + info.toString());
-				}
+		SimpleServiceDiscovery ssdp = new SimpleServiceDiscovery(cfg);
+
+		ssdp.go(new NotificationHandler() {
+			public void alive(ServiceInfo info) {
+				System.out.println(">>> ALIVE:\n" + info.toString());
+			}
 					
-				public void gone(ServiceInfo info) {
-					System.out.println("<<< GONE:\n" + info.toString());
-				}
-			});
+			public void gone(ServiceInfo info) {
+				System.out.println("<<< GONE:\n" + info.toString());
+			}
+		});
 
 		try {
 			System.out.println("Enter to resend discovery request, ^C to exit...");
@@ -482,11 +490,11 @@ public class SimpleServiceDiscovery implements Closeable
 	// +---------------------+
 	
 	final private Config cfg;
-	final private NotificationHandler handler;
 	final private AtomicBoolean discoveryFlag;
 
-	final private SsdpWorker notificationWorker;
-	final private SsdpWorker discoveryWorker;
+	private NotificationHandler handler;
+	private SsdpWorker notificationWorker;
+	private SsdpWorker discoveryWorker;
 	
 	private final static String MAX_AGE = "max-age";
 	

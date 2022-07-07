@@ -42,55 +42,61 @@ public class SimpleServiceDiscoveryTest
 		ConcurrentHashMap<String,SimpleServiceDiscovery.ServiceInfo> infos =
 			new ConcurrentHashMap<String,SimpleServiceDiscovery.ServiceInfo>();
 		
-		SimpleServiceDiscovery ssdp =
-			new SimpleServiceDiscovery(cfg, new SimpleServiceDiscovery.NotificationHandler() {
+		SimpleServiceDiscovery ssdp = new SimpleServiceDiscovery(cfg);
+		
+		ssdp.go(new SimpleServiceDiscovery.NotificationHandler() {
 
-				public void msearch(SimpleServiceDiscovery.ServiceInfo info) {
+			public void msearch(SimpleServiceDiscovery.ServiceInfo info) {
 
-					System.out.println("TEST/MSEARCH: " + info.toString());
+				System.out.println("TEST/MSEARCH: " + info.toString());
 
-					if (!SSDP_ST.equals(info.ServiceType)) return;
+				if (!SSDP_ST.equals(info.ServiceType)) return;
 					
-					String msg =
-						"HTTP/1.0 200 OK\r\n" +
-						"Cache-Control: max-age=1800\r\n" +
-						"Location: " + SSDP_LOCATION + "\r\n" +
-						"ST: " + SSDP_ST + "\r\n" +
-						"USN: " + SSDP_USN + "\r\n" +
-						"\r\n";
+				String msg =
+					"HTTP/1.0 200 OK\r\n" +
+					"Cache-Control: max-age=1800\r\n" +
+					"Location: " + SSDP_LOCATION + "\r\n" +
+					"ST: " + SSDP_ST + "\r\n" +
+					"USN: " + SSDP_USN + "\r\n" +
+					"\r\n";
 
-					byte[] rgb = msg.getBytes(StandardCharsets.UTF_8);
+				byte[] rgb = msg.getBytes(StandardCharsets.UTF_8);
 
-					DatagramPacket dgram =
-						new DatagramPacket(rgb, rgb.length,
-										   info.MessageSourceAddress,
-										   info.MessageSourcePort);
+				DatagramPacket dgram =
+					new DatagramPacket(rgb, rgb.length,
+									   info.MessageSourceAddress,
+									   info.MessageSourcePort);
 
-					try {
-						sock.send(dgram);
-					}
-					catch (Exception e) {
-						Assert.fail(e.toString());
-					}
+				try {
+					sock.send(dgram);
 				}
-
-				public void alive(SimpleServiceDiscovery.ServiceInfo info) {
-					System.out.println("TEST/ALIVE: " + info.toString());
-					infos.put(info.UniqueServiceName, info);
+				catch (Exception e) {
+					Assert.fail(e.toString());
 				}
+			}
 
-				public void gone(SimpleServiceDiscovery.ServiceInfo info) {
-					System.out.println("TEST/GONE: " + info.toString());
-					infos.remove(info.UniqueServiceName);
-				}
+			public void alive(SimpleServiceDiscovery.ServiceInfo info) {
+				System.out.println("TEST/ALIVE: " + info.toString());
+				infos.put(info.UniqueServiceName, info);
+			}
 
-			});
+			public void gone(SimpleServiceDiscovery.ServiceInfo info) {
+				System.out.println("TEST/GONE: " + info.toString());
+				infos.remove(info.UniqueServiceName);
+			}
+
+		});
+
+		SimplerServiceDiscovery ssdpER = new SimplerServiceDiscovery(cfg);
+		ssdpER.go(null);
 
 		try {
 			Thread.sleep(500);
 			Assert.assertTrue(infos.containsKey(SSDP_USN));
+			Assert.assertEquals(1, ssdpER.get(SSDP_ST).size());
 		}
 		finally {
+			ssdpER.close();
 			sock.close();
 			ssdp.close();
 		}
