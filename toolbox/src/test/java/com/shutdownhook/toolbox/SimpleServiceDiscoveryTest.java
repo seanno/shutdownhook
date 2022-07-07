@@ -8,7 +8,7 @@ package com.shutdownhook.toolbox;
 import java.net.DatagramPacket;
 import java.net.DatagramSocket;
 import java.nio.charset.StandardCharsets;
-import java.util.List;
+import java.util.concurrent.ConcurrentHashMap;
 
 import org.junit.Assert;
 import org.junit.Test;
@@ -39,10 +39,15 @@ public class SimpleServiceDiscoveryTest
 
 		DatagramSocket sock = new DatagramSocket();
 		
+		ConcurrentHashMap<String,SimpleServiceDiscovery.ServiceInfo> infos =
+			new ConcurrentHashMap<String,SimpleServiceDiscovery.ServiceInfo>();
+		
 		SimpleServiceDiscovery ssdp =
 			new SimpleServiceDiscovery(cfg, new SimpleServiceDiscovery.NotificationHandler() {
 
 				public void msearch(SimpleServiceDiscovery.ServiceInfo info) {
+
+					System.out.println("TEST/MSEARCH: " + info.toString());
 
 					if (!SSDP_ST.equals(info.ServiceType)) return;
 					
@@ -69,12 +74,21 @@ public class SimpleServiceDiscoveryTest
 					}
 				}
 
+				public void alive(SimpleServiceDiscovery.ServiceInfo info) {
+					System.out.println("TEST/ALIVE: " + info.toString());
+					infos.put(info.UniqueServiceName, info);
+				}
+
+				public void gone(SimpleServiceDiscovery.ServiceInfo info) {
+					System.out.println("TEST/GONE: " + info.toString());
+					infos.remove(info.UniqueServiceName);
+				}
+
 			});
 
 		try {
 			Thread.sleep(500);
-			List<SimpleServiceDiscovery.ServiceInfo> infos = ssdp.get(SSDP_ST);
-			Assert.assertEquals(1, infos.size());
+			Assert.assertTrue(infos.containsKey(SSDP_USN));
 		}
 		finally {
 			sock.close();
