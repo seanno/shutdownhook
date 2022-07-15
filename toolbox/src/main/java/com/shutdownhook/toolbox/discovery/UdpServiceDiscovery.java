@@ -62,8 +62,15 @@ public class UdpServiceDiscovery implements Closeable
 		public Integer DedupMaxMessages = 100;
 	}
 
-	public UdpServiceDiscovery(Config cfg) {
+	public UdpServiceDiscovery(Config cfg) throws IllegalArgumentException {
+
+		if (cfg.Address == null || cfg.Port == null) {
+			throw new IllegalArgumentException("Config requires Address and Port");
+		}
+
 		this.cfg = cfg;
+		if (isBroadcast()) cfg.UnicastResponsesOnly = true;
+		
 		this.discoveryFlag = new AtomicBoolean(true);
 
 		this.dedupLock = new Object();
@@ -71,13 +78,8 @@ public class UdpServiceDiscovery implements Closeable
 		this.dedupList = new LinkedList<DedupItem>();
 	}
 
-	public void go(DiscoveryHandler handler) throws IOException,
-													IllegalArgumentException {
+	public void go(DiscoveryHandler handler) throws IOException {
 
-		if (cfg.Address == null || cfg.Port == null) {
-			throw new IllegalArgumentException("Config requires Address and Port");
-		}
-		
 		this.handler = handler;
 
 		this.notificationWorker = new UdpWorker(this, SocketType.NOTIFICATION);
@@ -138,7 +140,10 @@ public class UdpServiceDiscovery implements Closeable
 
 			if (type.equals(SocketType.DISCOVERY)) {
 
-				this.sock = new MulticastSocket();
+				this.sock = (svc.isBroadcast()
+							 ? new MulticastSocket(svc.cfg.Port)
+							 : new MulticastSocket());
+				
 				this.nextDiscovery = Instant.MIN;
 			}
 			else {
@@ -164,6 +169,7 @@ public class UdpServiceDiscovery implements Closeable
 				sock.setSoTimeout(svc.cfg.ReceiveTimeoutSeconds * 1000);
 				sock.setReuseAddress(true);
 				sock.setLoopbackMode(false);
+				if (svc.isBroadcast()) sock.setBroadcast(true);
 
 				if (type.equals(SocketType.NOTIFICATION)) {
 					joinGroups(sock);
@@ -344,6 +350,14 @@ public class UdpServiceDiscovery implements Closeable
 
 			return(false);
 		}
+	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	private boolean isBroadcast() {
+		return(cfg.Address.equals("255.255.255.255"));
 	}
 
 	// +------------+
