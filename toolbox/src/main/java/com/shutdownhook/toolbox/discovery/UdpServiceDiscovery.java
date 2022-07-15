@@ -20,7 +20,10 @@ import java.nio.channels.IllegalBlockingModeException;
 import java.nio.charset.StandardCharsets;
 import java.time.Instant;
 import java.util.Enumeration;
+import java.util.HashSet;
+import java.util.LinkedList;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;		
 import java.util.logging.Logger;
@@ -33,37 +36,48 @@ public class UdpServiceDiscovery implements Closeable
 	// +------------------+
 	// | DiscoveryHandler |
 	// +------------------+
-	
+
 	public interface DiscoveryHandler {
 		public String getDiscoveryMessage(); 
 		public void receiveMessage(String msg, InetAddress addr, int port);
+		default public void discovering() { }
 	}
 
 	// +----------------+
 	// | Config & Setup |
 	// +----------------+
 
-	public static final int SSDP_PORT = 1900;
-	public static final int WS_DISCOVERY_PORT = 3702;
-	
 	public static class Config
 	{
-		public String Address = "239.255.255.250";
-		public Integer Port = SSDP_PORT;
+		public String Address = null;
+		public Integer Port = null;
 
 		public Integer DiscoveryIntervalSeconds = 60 * 20; // 0 == no auto-discovery
+		public Boolean UnicastResponsesOnly = false; // true == don't listen for multicasts
 
 		public Integer StopWaitSeconds = 10;
 		public Integer ReceiveTimeoutSeconds = 1;
+
+		public Integer DedupThresholdSeconds = 2; // 0 == no de-duping
+		public Integer DedupMaxMessages = 100;
 	}
 
 	public UdpServiceDiscovery(Config cfg) {
 		this.cfg = cfg;
 		this.discoveryFlag = new AtomicBoolean(true);
+
+		this.dedupLock = new Object();
+		this.dedupHash = new HashSet<String>();
+		this.dedupList = new LinkedList<DedupItem>();
 	}
 
-	public void go(DiscoveryHandler handler) throws IOException {
+	public void go(DiscoveryHandler handler) throws IOException,
+													IllegalArgumentException {
 
+		if (cfg.Address == null || cfg.Port == null) {
+			throw new IllegalArgumentException("Config requires Address and Port");
+		}
+		
 		this.handler = handler;
 
 		this.notificationWorker = new UdpWorker(this, SocketType.NOTIFICATION);
@@ -71,7 +85,7 @@ public class UdpServiceDiscovery implements Closeable
 		
 		log.info("Starting worker threads...");
 		
-		this.notificationWorker.go();
+		if (!cfg.UnicastResponsesOnly) this.notificationWorker.go();
 		this.discoveryWorker.go();
 	}
 
@@ -84,7 +98,7 @@ public class UdpServiceDiscovery implements Closeable
 		notificationWorker.signalStop();
 		discoveryWorker.signalStop();
 		
-		notificationWorker.waitForStop(cfg.StopWaitSeconds);
+		if (!cfg.UnicastResponsesOnly) notificationWorker.waitForStop(cfg.StopWaitSeconds);
 		discoveryWorker.waitForStop(cfg.StopWaitSeconds);
 	}
 
@@ -149,6 +163,7 @@ public class UdpServiceDiscovery implements Closeable
 
 				sock.setSoTimeout(svc.cfg.ReceiveTimeoutSeconds * 1000);
 				sock.setReuseAddress(true);
+				sock.setLoopbackMode(false);
 
 				if (type.equals(SocketType.NOTIFICATION)) {
 					joinGroups(sock);
@@ -161,10 +176,14 @@ public class UdpServiceDiscovery implements Closeable
 						for (int ib = 0; ib < rgb.length; ++ib) rgb[ib] = 0;
 						sock.receive(dgram);
 
-						System.out.println("MSG ON THREAD: " + type.toString());
-						svc.handler.receiveMessage(
-						    new String(dgram.getData(), StandardCharsets.UTF_8),
-						    dgram.getAddress(), dgram.getPort());
+						String msg = new String(dgram.getData(), StandardCharsets.UTF_8).trim();
+
+						if (svc.isDuplicate(msg)) {
+							log.fine("Skipping duplicate message");
+							continue;
+						}
+						
+						svc.handler.receiveMessage(msg, dgram.getAddress(), dgram.getPort());
 					}
 					catch (SocketTimeoutException te) {
 						// all cool, just loop
@@ -237,6 +256,7 @@ public class UdpServiceDiscovery implements Closeable
 								   svc.cfg.Port);
 
 			log.fine("Sending discover request: " + msg.replaceAll("\r\n", " | "));
+			svc.handler.discovering();
 
 			forEachUsefulInterface(new UsefulInterfaceCallback() {
 				public void handle(NetworkInterface iface) throws IOException {
@@ -278,35 +298,57 @@ public class UdpServiceDiscovery implements Closeable
 		
 	}
 		
+	// +--------------+
+	// | Dedup Helper |
+	// +--------------+
+
+	public static class DedupItem
+	{
+		public String Hash;
+		public Instant Expires;
+	}
+	
+	private boolean isDuplicate(String msg) {
+
+		if (cfg.DedupThresholdSeconds == 0) return(false);
+		
+		String hash = Easy.sha256(msg);
+		Instant now = Instant.now();
+
+		synchronized(dedupLock) {
+
+			// get rid of expired messages
+			while (dedupList.size() > 0 && dedupList.getLast().Expires.isBefore(now)) {
+				dedupHash.remove(dedupList.getLast().Hash);
+				dedupList.removeLast();
+			}
+
+			// return a hit 
+			if (dedupHash.contains(hash)) {
+				return(true);
+			}
+
+			// add the miss
+			DedupItem item = new DedupItem();
+			item.Hash = hash;
+			item.Expires = now.plusSeconds(cfg.DedupThresholdSeconds);
+
+			dedupHash.add(hash);
+			dedupList.addFirst(item);
+
+			// trim if needed
+			if (dedupList.size() > cfg.DedupMaxMessages) {
+				dedupHash.remove(dedupList.getLast().Hash);
+				dedupList.removeLast();
+			}
+
+			return(false);
+		}
+	}
+
 	// +------------+
 	// | Entrypoint |
 	// +------------+
-
-	private final static String SSDP_FMT =
-		"M-SEARCH * HTTP/1.1\r\n" +
-		"Host: 239.255.255.250:1900\r\n" +
-		"Man: \"ssdp:discover\"\r\n" +
-		"ST: ssdp:all\r\n" +
-		"Mx: 4\r\n" +
-		"X_ID: %s\r\n" +
-		"\r\n";
-
-	private final static String WSDISCOVERY_FMT =
-		"<?xml version=\"1.0\" encoding=\"UTF-8\"?>\r\n" + 
-        "<soap:Envelope xmlns:soap=\"http://www.w3.org/2003/05/soap-envelope\" " +
-		"    xmlns:tds=\"http://www.onvif.org/ver10/device/wsdl\" " +
-		"    xmlns:tns=\"http://schemas.xmlsoap.org/ws/2005/04/discovery\" " +
-		"    xmlns:wsa=\"http://schemas.xmlsoap.org/ws/2004/08/addressing\">\r\n" + 
-        "   <soap:Header>\r\n" + 
-        "      <wsa:Action>http://schemas.xmlsoap.org/ws/2005/04/discovery/Probe</wsa:Action>\r\n" + 
-        "      <wsa:MessageID>urn:uuid:%s</wsa:MessageID>\r\n" + 
-        "      <wsa:To>urn:schemas-xmlsoap-org:ws:2005:04:discovery</wsa:To>\r\n" + 
-        "   </soap:Header>\r\n" + 
-        "   <soap:Body>\r\n" + 
-        "      <tns:Probe>\r\n" + 
-        "      </tns:Probe>\r\n" + 
-        "   </soap:Body>\r\n" + 
-        "</soap:Envelope>\r\n";
 
 	public static void main(String[] args) throws Exception {
 
@@ -316,14 +358,14 @@ public class UdpServiceDiscovery implements Closeable
 			(args.length == 0 || args[0].equalsIgnoreCase("ssdp"));
 
 		Config cfg = new Config();
-		cfg.Port = (ssdp ? SSDP_PORT : WS_DISCOVERY_PORT);
+		cfg.Address = (ssdp ? Ssdp.SSDP_ADDR : Wsd.WSD_ADDR);
+		cfg.Port = (ssdp ? Ssdp.SSDP_PORT : Wsd.WSD_PORT);
 
 		UdpServiceDiscovery discovery = new UdpServiceDiscovery(cfg);
 
 		discovery.go(new DiscoveryHandler() {
 			public String getDiscoveryMessage() {
-				return(String.format(ssdp ? SSDP_FMT : WSDISCOVERY_FMT,
-									 UUID.randomUUID().toString()));
+				return(ssdp ? Ssdp.getStandardProbe() : Wsd.getStandardProbe());
 			}
 				
 			public void receiveMessage(String msg, InetAddress addr, int port) {
@@ -355,6 +397,10 @@ public class UdpServiceDiscovery implements Closeable
 	private DiscoveryHandler handler;
 	private UdpWorker notificationWorker;
 	private UdpWorker discoveryWorker;
+
+	private Object dedupLock;
+	private Set<String> dedupHash;
+	private LinkedList<DedupItem> dedupList;
 	
 	private final static Logger log =
 		Logger.getLogger(UdpServiceDiscovery.class.getName());
