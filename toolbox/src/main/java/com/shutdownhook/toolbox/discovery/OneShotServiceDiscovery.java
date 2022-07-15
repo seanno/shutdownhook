@@ -18,21 +18,29 @@ import com.shutdownhook.toolbox.discovery.ServiceDiscovery.ServiceInfoHandler;
 
 public class OneShotServiceDiscovery 
 {
-	public static enum ServiceType
-	{
-		SSDP,
-		WSD
-	}
-	
-	public static Set<ServiceInfo> search(ServiceType serviceType, int searchTimeSeconds) 
-		throws IOException, InterruptedException {
+	public static Set<ServiceInfo> ssdp(int searchTimeSeconds) throws IOException, InterruptedException {
 
 		ServiceDiscovery disco = null;
 
 		try {
-			disco = (serviceType == ServiceType.SSDP
-		        ? new Ssdp(new Ssdp.Config()) : new Wsd(new Wsd.Config()));
-			
+			Ssdp.Config cfg = new Ssdp.Config();
+			cfg.UnicastResponsesOnly = true;
+			disco = new Ssdp(cfg);
+			return(search(disco, searchTimeSeconds));
+		}
+		finally {
+			if (disco != null) disco.close();
+		}
+	}
+
+	public static Set<ServiceInfo> wsd(int searchTimeSeconds) throws IOException, InterruptedException {
+
+		ServiceDiscovery disco = null;
+
+		try {
+			Wsd.Config cfg = new Wsd.Config();
+			cfg.UnicastResponsesOnly = true;
+			disco = new Wsd(cfg);
 			return(search(disco, searchTimeSeconds));
 		}
 		finally {
@@ -64,10 +72,10 @@ public class OneShotServiceDiscovery
 
 		Easy.setSimpleLogFormat("INFO");
 
-		ServiceType serviceType = (args.length == 0 ? ServiceType.SSDP : ServiceType.valueOf(args[0]));
+		boolean isSsdp = (args.length == 0 || args[0].equalsIgnoreCase("ssdp"));
 		int searchTimeSeconds = (args.length == 1 ? 8 : Integer.parseInt(args[1]));
-			
-		Set<ServiceInfo> infos = search(serviceType, searchTimeSeconds);
+
+		Set<ServiceInfo> infos = (isSsdp ? ssdp(searchTimeSeconds) : wsd(searchTimeSeconds));
 		for (ServiceInfo info : infos) System.out.println(info.toString());
 	}
 	
