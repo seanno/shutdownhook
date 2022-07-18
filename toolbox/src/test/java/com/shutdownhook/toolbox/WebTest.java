@@ -166,7 +166,9 @@ public class WebTest
 			WebRequests.Params params = new WebRequests.Params();
 			params.addQueryParam("echo", "bananafishbones");
 
-			params.ResponseBodyPath = "/tmp/" + UUID.randomUUID().toString() + ".txt";
+			params.ResponseBodyPath =
+				File.createTempFile(UUID.randomUUID().toString(), ".txt").getCanonicalPath();
+				
 			File f = new File(params.ResponseBodyPath);
 
 			try {
