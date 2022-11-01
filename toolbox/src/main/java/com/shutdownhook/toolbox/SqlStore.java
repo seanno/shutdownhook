@@ -21,6 +21,10 @@ public class SqlStore
 
 	public static class Config
 	{
+		public Config() {
+			// nut-n-honey
+		}
+		
 		public Config(String connectionString) {
 			this.ConnectionString = connectionString;
 		}
@@ -44,6 +48,17 @@ public class SqlStore
 	
 	public Connection getConnection() throws SQLException {
 		return(DriverManager.getConnection(cfg.ConnectionString));
+	}
+
+	// +--------+
+	// | Return |
+	// +--------+
+
+	// Convenience class to wrap return values from anon handler classes
+	
+	public static class Return<T>
+	{
+		public T Value = null;
 	}
 
 	// +-------+
@@ -144,6 +159,17 @@ public class SqlStore
 		}
 	}
 	
+	// +---------------------+
+	// | Convenience Helpers |
+	// +---------------------+
+
+	public static Integer getNullableInt(ResultSet rs, String field)
+		throws SQLException {
+		
+		int i = rs.getInt(field);
+		return(rs.wasNull() ? null : i);
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+

@@ -647,6 +647,25 @@ public class Easy
 		e.printStackTrace(pw);
 		return(sw.toString());
 	}
+
+	public static void configureLoggingProperties(String smartyPath) {
+
+		InputStream stm = null;
+		
+		try {
+			stm = streamFromSmartyPath(smartyPath);
+			LogManager.getLogManager().readConfiguration(stm);
+		}
+		catch (IOException e) {
+			System.err.println(exMsg(e, "configureLoggingProperties", false));
+		}
+		finally {
+			if (stm != null) {
+				try { stm.close(); }
+				catch (Exception e2) { System.err.println(e2.toString()); }
+			}
+		}
+	}
 	
 	public static void setSimpleLogFormat() {
 		setSimpleLogFormat("WARNING");
