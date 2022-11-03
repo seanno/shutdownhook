@@ -10,9 +10,10 @@ import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
 
-import com.shutdownhook.s2rsvc.wiki.WikiShows;
+import com.shutdownhook.s2rsvc.FixupParser;
+import com.shutdownhook.s2rsvc.SyntaxParser;
+import com.shutdownhook.s2rsvc.WikiShows;
 import com.shutdownhook.s2rsvc.tvdb.Lookup;
-import com.shutdownhook.s2rsvc.syntax.SyntaxParser;
 	
 public class SearchParser implements Closeable
 {
@@ -24,6 +25,9 @@ public class SearchParser implements Closeable
 	{
 		public WikiShows.Config Wiki;
 		public Lookup.Config TVDB;
+
+		public String FixupPath = "@defaultFixups.tsv";
+		public Integer FixupRefreshSeconds = 60 * 60 * 24; // 24 hrs
 	}
 
 	public SearchParser(Config cfg) throws Exception {
@@ -31,6 +35,7 @@ public class SearchParser implements Closeable
 		this.wikiShows = new WikiShows(cfg.Wiki);
 		this.tvdbLookup = new Lookup(cfg.TVDB);
 		this.syntaxParser = new SyntaxParser();
+		this.fixupParser = new FixupParser(cfg.FixupPath, cfg.FixupRefreshSeconds);
 	}
 
 	public void close() {
@@ -106,6 +111,9 @@ public class SearchParser implements Closeable
 			srch = new ParsedSearch();
 			srch.Search = trimmed;
 		}
+
+		// last chance manual tweaks!
+		fixupParser.fixup(srch);
 		
 		return(srch);
 	}
@@ -118,6 +126,7 @@ public class SearchParser implements Closeable
 	private WikiShows wikiShows;
 	private Lookup tvdbLookup;
 	private SyntaxParser syntaxParser;
+	private FixupParser fixupParser;
 
 	private final static Logger log = Logger.getLogger(SearchParser.class.getName());
 }

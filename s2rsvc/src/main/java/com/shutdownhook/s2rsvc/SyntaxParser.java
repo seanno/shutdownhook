@@ -3,7 +3,7 @@
 ** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
-package com.shutdownhook.s2rsvc.syntax;
+package com.shutdownhook.s2rsvc;
 
 import java.util.logging.Logger;
 import java.util.regex.Matcher;

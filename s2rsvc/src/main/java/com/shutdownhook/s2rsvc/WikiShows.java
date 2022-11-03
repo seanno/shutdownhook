@@ -3,7 +3,7 @@
 ** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
-package com.shutdownhook.s2rsvc.wiki;
+package com.shutdownhook.s2rsvc;
 
 import java.io.Closeable;
 import java.io.IOException;

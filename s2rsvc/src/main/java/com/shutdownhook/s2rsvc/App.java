@@ -15,9 +15,6 @@ import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebServer;
 import com.shutdownhook.toolbox.WebServer.*;
 
-import com.shutdownhook.s2rsvc.wiki.WikiShows;
-import com.shutdownhook.s2rsvc.tvdb.Lookup;
-
 public class App 
 {
 	public static class Config
