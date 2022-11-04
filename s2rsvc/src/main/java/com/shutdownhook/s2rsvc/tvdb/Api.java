@@ -63,7 +63,7 @@ public class Api implements Closeable
 		WebRequests.Response response = shortUrlRequests.fetch(url);
 		if (response.Status == 404) return(null);
 		
-		if (response.Status != 302) {
+		if (response.Status < 300 || response.Status > 399) {
 			response.throwException(url);
 		}
 

@@ -50,13 +50,13 @@ public class SearchParser implements Closeable
 	public static class ParsedSearch
 	{
 		public String Search;
-		public Integer Season;
-		public Integer Number;
+		public String Season;
+		public String Number;
 		public String Channel;
 
 		@Override
 		public String toString() {
-			return(String.format("%s|%d|%d|%s", Search, Season, Number, Channel));
+			return(String.format("%s|%s|%s|%s", Search, Season, Number, Channel));
 		}
 	}
 
@@ -65,7 +65,8 @@ public class SearchParser implements Closeable
 	// +-------+
 
 	public ParsedSearch parse(String input) {
-		
+
+		String method = "";
 		ParsedSearch srch = null;
 		String trimmed = input.trim();
 
@@ -73,7 +74,16 @@ public class SearchParser implements Closeable
 			// If we see a TVDB short url, just use that. 
 			srch = tvdbLookup.parseSearch(trimmed);
 			if (srch != null) {
-				log.info("<PARSED> via tvdb: " + srch.toString());
+				method = "tvdb";
+
+				if (srch.Channel == null) {
+					// see if wiki has the channel
+					ParsedSearch wikiSrch = wikiShows.parseSearch(srch.Search);
+					if (wikiSrch != null && wikiSrch.Channel != null) {
+						method += " + wiki";
+						srch.Channel = wikiSrch.Channel;
+					}
+				}
 			}
 			else {
 				// do a precheck to parse out structure if we see it
@@ -82,7 +92,7 @@ public class SearchParser implements Closeable
 				if (preSrch == null) {
 					// just match original input against wiki
 					srch = wikiShows.parseSearch(trimmed);
-					if (srch != null) log.info("<PARSED> via wiki only: " + srch.toString());
+					if (srch != null) method = "wiki only";
 				}
 				else {
 					// found some syntax, try it against wiki
@@ -91,13 +101,13 @@ public class SearchParser implements Closeable
 					if (srch == null) {
 						// nope just syntax
 						srch = preSrch;
-						log.info("<PARSED> via syntax only: " + srch.toString());
+						method = "syntax only";
 					}
 					else {
 						// yep combine them
 						srch.Season = preSrch.Season;
 						srch.Number = preSrch.Number;
-						log.info("<PARSED> via wiki + syntax: " + srch.toString());
+						method = "wiki + syntax";
 					}
 				}
 			}
@@ -110,11 +120,13 @@ public class SearchParser implements Closeable
 		if (srch == null) {
 			srch = new ParsedSearch();
 			srch.Search = trimmed;
+			method = "default";
 		}
 
 		// last chance manual tweaks!
-		fixupParser.fixup(srch);
-		
+		if (fixupParser.fixup(srch)) method += " (fixup)";
+
+		log.info(String.format("<PARSED> %s [%s] to %s", method, input, srch));
 		return(srch);
 	}
 

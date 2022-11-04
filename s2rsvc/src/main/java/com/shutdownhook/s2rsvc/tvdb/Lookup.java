@@ -7,9 +7,11 @@ package com.shutdownhook.s2rsvc.tvdb;
 
 import java.io.Closeable;
 import java.time.Instant;
-import java.util.logging.Logger;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 import com.google.gson.Gson;
 
@@ -94,8 +96,8 @@ public class Lookup implements Closeable
 				if (s != null) {
 					srch = new ParsedSearch();
 					srch.Search = s.Name;
-					srch.Season = e.Season;
-					srch.Number = e.Number;
+					srch.Season = e.Season.toString();
+					srch.Number = e.Number.toString();
 					srch.Channel = findRokuChannel(s.NetworkId);
 				}
 			}
@@ -109,9 +111,26 @@ public class Lookup implements Closeable
 				srch.Channel = findRokuChannel(s.NetworkId);
 			}
 		}
+
+		if (srch != null) {
+			finalTweaks(srch);
+			log.info("TVDB Output: " + srch.toString());
+		}
 		
 		return(srch);
 	}
+
+	// +-------------+
+	// | finalTweaks |
+	// +-------------+
+
+	private void finalTweaks(ParsedSearch srch) {
+		Matcher m = REGEX_YEARSUFFIX.matcher(srch.Search);
+		if (m.matches()) srch.Search = m.group(1);
+	}
+	
+    private static Pattern REGEX_YEARSUFFIX =
+		Pattern.compile("^(.+)\\s+\\([12][0123456789]{3}\\)$");
 
 	// +-----------------+
 	// | findRokuChannel |

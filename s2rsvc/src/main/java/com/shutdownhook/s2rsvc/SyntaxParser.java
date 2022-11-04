@@ -23,7 +23,7 @@ public class SyntaxParser
 		if (m.matches()) {
 			ParsedSearch srch = new ParsedSearch();
 			srch.Search = m.group(1);
-			srch.Season = Integer.parseInt(m.group(2));
+			srch.Season = m.group(2);
 			return(srch);
 		}
 
@@ -31,8 +31,8 @@ public class SyntaxParser
 		if (m.matches()) {
 			ParsedSearch srch = new ParsedSearch();
 			srch.Search = m.group(1);
-			srch.Season = Integer.parseInt(m.group(2));
-			srch.Number = Integer.parseInt(m.group(3));
+			srch.Season = m.group(2);
+			srch.Number = m.group(3);
 			return(srch);
 		}
 
