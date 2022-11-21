@@ -17,12 +17,12 @@ import com.google.gson.Gson;
 
 import com.shutdownhook.toolbox.CachingProxy;
 
-import com.shutdownhook.s2rsvc.SearchParser.ParsedSearch;
+import com.shutdownhook.s2rsvc.RokuSearchInfo;
 import com.shutdownhook.s2rsvc.tvdb.Model.Episode;
 import com.shutdownhook.s2rsvc.tvdb.Model.Series;
 import com.shutdownhook.s2rsvc.tvdb.Model.ShortUrlInfo;
 
-public class Lookup implements Closeable
+public class Lookup implements RokuSearchInfo.Parser
 {
 	// +----------------+
 	// | Config & Setup |
@@ -56,6 +56,10 @@ public class Lookup implements Closeable
 		this.shortUrlProxy = new ShortUrlCachingProxy(cfg.ShortUrlProxy, db, api);
 	}
 
+	// +-----------------------+
+	// | RokuSearchInfo.Parser |
+	// +-----------------------+
+
 	public void close() {
 		episodeProxy.close();
 		seriesProxy.close();
@@ -63,16 +67,12 @@ public class Lookup implements Closeable
 		api.close();
 	}
 
-	// +-------------+
-	// | parseSearch |
-	// +-------------+
-
-	public ParsedSearch parseSearch(String input) throws Exception {
+	public RokuSearchInfo parse(String input) throws Exception {
 
 		// If we find a TV Time URL, figure out series/episode/etc.
 		// If we don't know what it is, return NULL to move on.
 
-		int ich = input.indexOf("https://tvtime.com");
+		int ich = input.indexOf(TVTIME_URL_MARKER);
 		if (ich == -1) return(null);
 
 		int cch = input.length();
@@ -87,51 +87,60 @@ public class Lookup implements Closeable
 		ShortUrlInfo info = getShortUrlInfo(url);
 		if (info == null) return(null);
 
-		ParsedSearch srch = null;
-		
+		RokuSearchInfo rokuInfo = null;
+
+		// query by episode 
 		if (info.EpisodeId != null) {
 			Episode e = getEpisode(info.EpisodeId);
 			if (e != null) {
 				Series s = getSeries(e.SeriesId);
 				if (s != null) {
-					srch = new ParsedSearch();
-					srch.Search = s.Name;
-					srch.Season = e.Season.toString();
-					srch.Number = e.Number.toString();
-					srch.Channel = findRokuChannel(s.NetworkId);
+					rokuInfo = new RokuSearchInfo();
+					rokuInfo.Search = s.Name;
+					rokuInfo.Season = e.Season.toString();
+					rokuInfo.Number = e.Number.toString();
+					rokuInfo.Channel = findRokuChannel(s.NetworkId);
 				}
 			}
 		}
 		
-		if (srch == null && info.SeriesId != null) {
+		// query by series
+		if (rokuInfo == null && info.SeriesId != null) {
 			Series s = getSeries(info.SeriesId);
 			if (s != null) {
-				srch = new ParsedSearch();
-				srch.Search = s.Name;
-				srch.Channel = findRokuChannel(s.NetworkId);
+				rokuInfo = new RokuSearchInfo();
+				rokuInfo.Search = s.Name;
+				rokuInfo.Channel = findRokuChannel(s.NetworkId);
 			}
 		}
 
-		if (srch != null) {
-			finalTweaks(srch);
-			log.info("TVDB Output: " + srch.toString());
+		// neither of those worked but it is our url, see what we can salvage
+		if (rokuInfo == null) {
+			int ichMarker = input.toLowerCase().indexOf(ON_TVTIME_MARKER);
+			if (ichMarker != -1) {
+				rokuInfo = new RokuSearchInfo();
+				rokuInfo.Search = input.substring(0, ichMarker).trim();
+			}
+		}
+
+		// finaly hacky fixups to the info, all based on observation
+		if (rokuInfo != null) {
+			finalTweaks(rokuInfo);
+			log.info("TVDB Parser found: " + rokuInfo.toString());
 		}
 		
-		return(srch);
+		return(rokuInfo);
 	}
 
 	// +-------------+
 	// | finalTweaks |
 	// +-------------+
 
-	private void finalTweaks(ParsedSearch srch) {
-		Matcher m = REGEX_YEARSUFFIX.matcher(srch.Search);
-		if (m.matches()) srch.Search = m.group(1);
+	private void finalTweaks(RokuSearchInfo info) {
+		Matcher m = REGEX_YEARSUFFIX.matcher(info.Search);
+		if (m.matches()) info.Search = m.group(1);
 	}
 	
-    private static Pattern REGEX_YEARSUFFIX =
-		Pattern.compile("^(.+)\\s+\\([12][0123456789]{3}\\)$");
-
 	// +-----------------+
 	// | findRokuChannel |
 	// +-----------------+
@@ -255,6 +264,16 @@ public class Lookup implements Closeable
 	}
 
 	// +-------------------+
+	// | Private Constants |
+	// +-------------------+
+
+	private static String TVTIME_URL_MARKER = "https://tvtime.com";
+	private static String ON_TVTIME_MARKER = " on tv time";
+
+	private static Pattern REGEX_YEARSUFFIX =
+		Pattern.compile("^(.+)\\s+\\([12][0123456789]{3}\\)$");
+
+	// +-------------------+
 	// | Members & Helpers |
 	// +-------------------+
 
@@ -267,6 +286,8 @@ public class Lookup implements Closeable
 	private ShortUrlCachingProxy shortUrlProxy;
 
 	private Map<String,String> rokuChannelMap;
+
+
 
 	private final static Logger log = Logger.getLogger(Lookup.class.getName());
 }

@@ -13,15 +13,18 @@ import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
 
-import com.shutdownhook.s2rsvc.SearchParser.ParsedSearch;
-
-public class FixupParser
+public class FixupRefiner implements RokuSearchInfo.Refiner
 {
-	public FixupParser(String fixupPath, int refreshSeconds) {
-		this.fixupPath = fixupPath;
-		this.refreshSeconds = refreshSeconds;
+	public static class Config
+	{
+		public String TsvPath = "@defaultFixups.tsv";
+		public Integer RefreshSeconds = 60 * 60 * 24; // 24 hrs
 	}
 
+	public FixupRefiner(Config cfg) {
+		this.cfg = cfg;
+	}
+	
 	// +-------------------+
 	// | Fixup File Format |
 	// +-------------------+
@@ -43,34 +46,33 @@ public class FixupParser
 	private static int NUMBER_IDX = 3;
 	private static int CHANNEL_IDX = 4;
 
-	// +-------+
-	// | fixup |
-	// +-------+
-
-	public boolean fixup(ParsedSearch inputSearch) {
-
-		boolean ret = false;
-		
-		try {
-			String[] fields = getFixups(inputSearch.Search.toLowerCase());
-			if (fields == null) return(false);
-
-			log.info("FixupParser tweaking input: " + inputSearch);
-			ret = true;
-
-			inputSearch.Search = fixupField(fields[SEARCH_IDX], inputSearch.Search);
-			inputSearch.Season = fixupField(fields[SEASON_IDX], inputSearch.Season);
-			inputSearch.Number = fixupField(fields[NUMBER_IDX], inputSearch.Number);
-			inputSearch.Channel = fixupField(fields[CHANNEL_IDX], inputSearch.Channel);
-		}
-		catch (Exception e) {
-			log.severe(Easy.exMsg(e, "FixupParser.fixup", true));
-		}
-
-		return(ret);
+	// +------------------------+
+	// | RokuSearchInfo.Refiner |
+	// +------------------------+
+	
+	public void close() {
+		// nut-n-honey
 	}
 
-	private String fixupField(String directive, String current) {
+	public void refine(RokuSearchInfo info) throws Exception {
+
+		try {
+			String[] fields = getFixups(info.Search.toLowerCase());
+			if (fields == null) return;
+
+			info.Search = fixup(fields[SEARCH_IDX], info.Search);
+			info.Season = fixup(fields[SEASON_IDX], info.Season);
+			info.Number = fixup(fields[NUMBER_IDX], info.Number);
+			info.Channel = fixup(fields[CHANNEL_IDX], info.Channel);
+
+			log.info("FixupRefiner updated info: " + info.toString());
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "FixupRefiner.refine", true));
+		}
+	}
+
+	private String fixup(String directive, String current) {
 		if (directive.equals(LEAVE_DIRECTIVE)) return(current);
 		if (directive.equals(DELETE_DIRECTIVE)) return(null);
 		return(directive);
@@ -86,7 +88,7 @@ public class FixupParser
 			return(fixups.get(input));
 		}
 
-		String fixupContents = Easy.stringFromSmartyPath(fixupPath);
+		String fixupContents = Easy.stringFromSmartyPath(cfg.TsvPath);
 		fixups = new HashMap<String,String[]>();
 		
 		for (String line : fixupContents.split("\n")) {
@@ -103,7 +105,7 @@ public class FixupParser
 			fixups.put(fields[0].toLowerCase(), fields);
 		}
 
-		fixupsExpire = Instant.now().plusSeconds(refreshSeconds);
+		fixupsExpire = Instant.now().plusSeconds(cfg.RefreshSeconds);
 		return(fixups.get(input));
 	}
 
@@ -111,11 +113,11 @@ public class FixupParser
 	// | Helpers & Members |
 	// +-------------------+
 
-	private String fixupPath;
-	private int refreshSeconds;
+	private Config cfg;
 
 	private Map<String,String[]> fixups;
 	private Instant fixupsExpire;
 	
-	private final static Logger log = Logger.getLogger(FixupParser.class.getName());
+	private final static Logger log =
+		Logger.getLogger(FixupRefiner.class.getName());
 }

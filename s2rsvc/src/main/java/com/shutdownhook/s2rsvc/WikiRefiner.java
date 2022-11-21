@@ -20,9 +20,7 @@ import org.jsoup.nodes.Element;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Worker;
 
-import com.shutdownhook.s2rsvc.SearchParser.ParsedSearch;
-
-public class WikiShows implements Closeable
+public class WikiRefiner implements RokuSearchInfo.Refiner 
 {
 	// +----------------+
 	// | Config & Setup |
@@ -39,36 +37,39 @@ public class WikiShows implements Closeable
 		}
 	}
 
-	public WikiShows(Config cfg) throws Exception {
+	public WikiRefiner(Config cfg) throws Exception {
 		this.cfg = cfg;
 		this.showLock = new Object();
 		
-		this.refreshThread = new WikiShowsRefreshThread(this);
+		this.refreshThread = new WikiRefreshThread(this);
 		this.refreshThread.go();
-	}
-
-	public void close() {
-		this.refreshThread.waitForStop(cfg.StopWaitSeconds);
 	}
 
 	public Config getConfig() {
 		return(cfg);
 	}
 	
-	// +-------------+
-	// | parseSearch |
-	// +-------------+
+	// +------------------------+
+	// | RokuSearchInfo.Refiner |
+	// +------------------------+
 
-	public ParsedSearch parseSearch(String input) throws Exception {
+	public void close() {
+		this.refreshThread.waitForStop(cfg.StopWaitSeconds);
+	}
 
-		String channel = lookup(input);
-		if (channel == null) return(null);
+	public void refine(RokuSearchInfo info) throws Exception {
 
-		ParsedSearch srch = new ParsedSearch();
-		srch.Search = input;
-		srch.Channel = channel;
-
-		return(srch);
+		if (info.Channel != null) return;
+		
+		String channel = lookup(info.Search);
+		
+		if (channel != null) {
+			
+			log.info(String.format("WikiRefiner found channel %s for %s",
+								   channel, info.Search));
+			
+			info.Channel = channel;
+		}
 	}
 
 	// +--------+
@@ -93,34 +94,34 @@ public class WikiShows implements Closeable
 		return(localShowMap.get(query.toLowerCase()));
 	}
 
-	// +------------------------+
-	// | WikiShowsRefreshThread |
-	// +------------------------+
+	// +-------------------+
+	// | WikiRefreshThread |
+	// +-------------------+
 
-	public static class WikiShowsRefreshThread extends Worker
+	public static class WikiRefreshThread extends Worker
 	{
-		public WikiShowsRefreshThread(WikiShows wikiShows) {
-			this.wikiShows = wikiShows;
+		public WikiRefreshThread(WikiRefiner refiner) {
+			this.refiner = refiner;
 		}
 		
 		public void work() throws Exception {
 
 			do {
 				try {
-					wikiShows.updateShowMap();
+					refiner.updateShowMap();
 				}
 				catch (Exception e) {
-					log.severe(Easy.exMsg(e, "wikiShowsRefreshThread", true));
+					log.severe(Easy.exMsg(e, "wikiRefreshThread", true));
 				}
 			}
-			while (!sleepyStop(wikiShows.getConfig().RefreshIntervalSeconds));
+			while (!sleepyStop(refiner.getConfig().RefreshIntervalSeconds));
 		}
 		
 		public void cleanup(Exception e) {
 			// nut-n-honey
 		}
 
-		private WikiShows wikiShows;
+		private WikiRefiner refiner;
 	}
 
 	// +-----------------+
@@ -167,10 +168,10 @@ public class WikiShows implements Closeable
 	// +-------------------+
 
 	private Config cfg;
-	private WikiShowsRefreshThread refreshThread;
+	private WikiRefreshThread refreshThread;
 
 	private Map<String,String> showMap;
 	private Object showLock;
 	
-	private final static Logger log = Logger.getLogger(WikiShows.class.getName());
+	private final static Logger log = Logger.getLogger(WikiRefiner.class.getName());
 }

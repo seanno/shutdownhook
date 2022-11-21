@@ -19,7 +19,7 @@ public class App
 {
 	public static class Config
 	{
-		public SearchParser.Config Parser;
+		public SearchController.Config Controller;
 		public WebServer.Config Server;
 
 		public String LoggingConfigPath = "@logging.properties";
@@ -43,17 +43,17 @@ public class App
 	public static void registerSearchHandler(final WebServer server, final Config cfg)
 		throws Exception {
 
-		final SearchParser parser = new SearchParser(cfg.Parser);
+		final SearchController controller = new SearchController(cfg.Controller);
 		final Gson gson = new GsonBuilder().setPrettyPrinting().create();
 		
 		server.registerHandler("/search", new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 
 				String input = request.QueryParams.get("input");
-				SearchParser.ParsedSearch srch = parser.parse(input);
+				RokuSearchInfo info = controller.parse(input);
 					
 				response.ContentType = "text/plain";
-				response.Body = srch.toString();
+				response.Body = info.toString();
 			}
 		});
 	}
