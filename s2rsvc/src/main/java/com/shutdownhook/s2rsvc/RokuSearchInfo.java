@@ -24,12 +24,12 @@ public class RokuSearchInfo
 
 	public interface Parser extends Closeable {
 		// return an info if you were able to parse, otherwise null
-		public RokuSearchInfo parse(String input) throws Exception;
+		public RokuSearchInfo parse(String input, UserChannelSet channels) throws Exception;
 	}
 
 	public interface Refiner extends Closeable {
 		// do your best to improve things in place
-		public void refine(RokuSearchInfo info) throws Exception;
+		public void refine(RokuSearchInfo info, UserChannelSet channels) throws Exception;
 	}
 }
 

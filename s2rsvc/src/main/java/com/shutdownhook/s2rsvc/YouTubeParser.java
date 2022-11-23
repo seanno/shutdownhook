@@ -17,7 +17,7 @@ public class YouTubeParser implements RokuSearchInfo.Parser
 		// nut-n-honey
 	}
 
-	public RokuSearchInfo parse(String input) throws Exception {
+	public RokuSearchInfo parse(String input, UserChannelSet channels) throws Exception {
 
 		RokuSearchInfo info = tryMarker(input, URL_MARKER_1);
 		if (info == null) info = tryMarker(input, URL_MARKER_2);

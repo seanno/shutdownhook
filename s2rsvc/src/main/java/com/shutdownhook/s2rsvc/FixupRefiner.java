@@ -9,6 +9,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
@@ -54,7 +55,7 @@ public class FixupRefiner implements RokuSearchInfo.Refiner
 		// nut-n-honey
 	}
 
-	public void refine(RokuSearchInfo info) throws Exception {
+	public void refine(RokuSearchInfo info, UserChannelSet channels) throws Exception {
 
 		try {
 			String[] fields = getFixups(info.Search.toLowerCase());
@@ -63,7 +64,9 @@ public class FixupRefiner implements RokuSearchInfo.Refiner
 			info.Search = fixup(fields[SEARCH_IDX], info.Search);
 			info.Season = fixup(fields[SEASON_IDX], info.Season);
 			info.Number = fixup(fields[NUMBER_IDX], info.Number);
-			info.Channel = fixup(fields[CHANNEL_IDX], info.Channel);
+
+			String proposedChannel = fixup(fields[CHANNEL_IDX], info.Channel);
+			if (channels.ok(proposedChannel)) info.Channel = proposedChannel;
 
 			log.info("FixupRefiner updated info: " + info.toString());
 		}

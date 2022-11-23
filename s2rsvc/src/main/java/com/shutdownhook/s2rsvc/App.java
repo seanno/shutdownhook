@@ -6,6 +6,8 @@
 package com.shutdownhook.s2rsvc;
 
 import java.io.IOException;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -50,7 +52,10 @@ public class App
 			public void handle(Request request, Response response) throws Exception {
 
 				String input = request.QueryParams.get("input");
-				RokuSearchInfo info = controller.parse(input);
+				String channelsParam = request.QueryParams.get("channels");
+				UserChannelSet channels = UserChannelSet.fromCSV(channelsParam);
+				
+				RokuSearchInfo info = controller.parse(input, channels);
 					
 				response.ContentType = "text/plain";
 				response.Body = info.toString();

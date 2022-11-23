@@ -6,6 +6,7 @@
 package com.shutdownhook.s2rsvc;
 
 import java.io.Closeable;
+import java.util.Set;
 import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
@@ -20,9 +21,10 @@ public class SearchController implements Closeable
 
 	public static class Config
 	{
-		public WikiRefiner.Config Wiki;
-		public Lookup.Config TVDB;
-		public FixupRefiner.Config Fixups;
+		public WikiRefiner.Config Wiki = new WikiRefiner.Config();
+		public Lookup.Config TVDB = new Lookup.Config();
+		public FixupRefiner.Config Fixups = new FixupRefiner.Config();
+		public RokuSearchRefiner.Config Roku = new RokuSearchRefiner.Config();
 	}
 
 	public SearchController(Config cfg) throws Exception {
@@ -33,11 +35,13 @@ public class SearchController implements Closeable
 		this.syntaxParser = new SyntaxParser();
 
 		this.wikiRefiner = new WikiRefiner(cfg.Wiki);
+		this.rokuRefiner = new RokuSearchRefiner(cfg.Roku);
 		this.fixupRefiner = new FixupRefiner(cfg.Fixups);
 	}
 
 	public void close() {
 		safeClose(fixupRefiner);
+		safeClose(rokuRefiner);
 		safeClose(wikiRefiner);
 		safeClose(syntaxParser);
 		safeClose(youtubeParser);
@@ -53,7 +57,11 @@ public class SearchController implements Closeable
 	// | parse |
 	// +-------+
 
-	public RokuSearchInfo parse(String input) {
+	public RokuSearchInfo parse(String input, String channelsCSV) {
+		return(parse(input, UserChannelSet.fromCSV(channelsCSV)));
+	}
+	
+	public RokuSearchInfo parse(String input, UserChannelSet channels) {
 
 		// 1. PARSE
 		
@@ -61,9 +69,9 @@ public class SearchController implements Closeable
 		RokuSearchInfo info = null;
 		
 		try {
-			info = tvdbParser.parse(input);
-			if (info == null) info = youtubeParser.parse(input);
-			if (info == null) info = syntaxParser.parse(input);
+			info = tvdbParser.parse(input, channels);
+			if (info == null) info = youtubeParser.parse(input, channels);
+			if (info == null) info = syntaxParser.parse(input, channels);
 		}
 		catch (Exception eParse) {
 			log.warning(Easy.exMsg(eParse, "parsers", true));
@@ -78,8 +86,9 @@ public class SearchController implements Closeable
 
 		// 2. REFINE
 
-		tryRefine(info, wikiRefiner, "wikiRefiner");
-		tryRefine(info, fixupRefiner, "fixupRefiner");
+		tryRefine(info, channels, wikiRefiner, "wikiRefiner");
+		tryRefine(info, channels, rokuRefiner, "rokuRefiner");
+		tryRefine(info, channels, fixupRefiner, "fixupRefiner");
 
 		// 3. RETURN
 		
@@ -88,10 +97,11 @@ public class SearchController implements Closeable
 	}
 
 	private void tryRefine(RokuSearchInfo info,
+						   UserChannelSet channels,
 						   RokuSearchInfo.Refiner refiner,
 						   String tag) {
 
-		try { refiner.refine(info); }
+		try { refiner.refine(info, channels); }
 		catch (Exception e) { log.warning(Easy.exMsg(e, tag, true)); }
 	}
 
@@ -106,6 +116,7 @@ public class SearchController implements Closeable
 	private RokuSearchInfo.Parser syntaxParser;
 
 	private RokuSearchInfo.Refiner wikiRefiner;
+	private RokuSearchInfo.Refiner rokuRefiner;
 	private RokuSearchInfo.Refiner fixupRefiner;
 
 	private final static Logger log =

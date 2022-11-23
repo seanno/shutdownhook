@@ -19,7 +19,7 @@ public class SyntaxParser implements RokuSearchInfo.Parser
 		// nut-n-honey
 	}
 
-	public RokuSearchInfo parse(String input) throws Exception {
+	public RokuSearchInfo parse(String input, UserChannelSet channels) throws Exception {
 
 		// ends with "season x"
 		Matcher m = REGEX_SEASON.matcher(input);

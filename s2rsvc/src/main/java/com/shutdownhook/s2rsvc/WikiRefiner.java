@@ -57,7 +57,7 @@ public class WikiRefiner implements RokuSearchInfo.Refiner
 		this.refreshThread.waitForStop(cfg.StopWaitSeconds);
 	}
 
-	public void refine(RokuSearchInfo info) throws Exception {
+	public void refine(RokuSearchInfo info, UserChannelSet channels) throws Exception {
 
 		if (info.Channel != null) return;
 		

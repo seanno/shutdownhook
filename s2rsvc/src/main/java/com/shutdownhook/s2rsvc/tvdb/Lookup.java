@@ -18,6 +18,7 @@ import com.google.gson.Gson;
 import com.shutdownhook.toolbox.CachingProxy;
 
 import com.shutdownhook.s2rsvc.RokuSearchInfo;
+import com.shutdownhook.s2rsvc.UserChannelSet;
 import com.shutdownhook.s2rsvc.tvdb.Model.Episode;
 import com.shutdownhook.s2rsvc.tvdb.Model.Series;
 import com.shutdownhook.s2rsvc.tvdb.Model.ShortUrlInfo;
@@ -67,7 +68,7 @@ public class Lookup implements RokuSearchInfo.Parser
 		api.close();
 	}
 
-	public RokuSearchInfo parse(String input) throws Exception {
+	public RokuSearchInfo parse(String input, UserChannelSet channels) throws Exception {
 
 		// If we find a TV Time URL, figure out series/episode/etc.
 		// If we don't know what it is, return NULL to move on.
@@ -99,7 +100,7 @@ public class Lookup implements RokuSearchInfo.Parser
 					rokuInfo.Search = s.Name;
 					rokuInfo.Season = e.Season.toString();
 					rokuInfo.Number = e.Number.toString();
-					rokuInfo.Channel = findRokuChannel(s.NetworkId);
+					rokuInfo.Channel = findRokuChannel(s.NetworkId, channels);
 				}
 			}
 		}
@@ -110,7 +111,7 @@ public class Lookup implements RokuSearchInfo.Parser
 			if (s != null) {
 				rokuInfo = new RokuSearchInfo();
 				rokuInfo.Search = s.Name;
-				rokuInfo.Channel = findRokuChannel(s.NetworkId);
+				rokuInfo.Channel = findRokuChannel(s.NetworkId, channels);
 			}
 		}
 
@@ -145,10 +146,12 @@ public class Lookup implements RokuSearchInfo.Parser
 	// | findRokuChannel |
 	// +-----------------+
 
-	public String findRokuChannel(String networkId) {
+	public String findRokuChannel(String networkId, UserChannelSet channels) {
 
-		return(cfg.RokuChannelMap.containsKey(networkId) ?
-			   cfg.RokuChannelMap.get(networkId) : null);
+		String rokuChannel = cfg.RokuChannelMap.get(networkId);
+		if (!channels.ok(rokuChannel)) return(null);
+
+		return(rokuChannel);
 	}
 
 	// +------------+
