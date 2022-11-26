@@ -21,8 +21,16 @@ public class SyntaxParser implements RokuSearchInfo.Parser
 
 	public RokuSearchInfo parse(String input, UserChannelSet channels) throws Exception {
 
+		String cleanInput = input;
+
+		// clean up weird chrome share format; pick out just the selected text
+		Matcher m = REGEX_CHROME_SHARE.matcher(cleanInput);
+		if (m.matches()) {
+			cleanInput = m.group(1);
+		}
+		
 		// ends with "season x"
-		Matcher m = REGEX_SEASON.matcher(input);
+		m = REGEX_SEASON.matcher(cleanInput);
 		if (m.matches()) {
 			RokuSearchInfo info = new RokuSearchInfo();
 			info.Search = m.group(1);
@@ -32,7 +40,7 @@ public class SyntaxParser implements RokuSearchInfo.Parser
 		}
 
 		// ends with "SxEy"
-		m = REGEX_SEASON_EPISODE.matcher(input);
+		m = REGEX_SEASON_EPISODE.matcher(cleanInput);
 		if (m.matches()) {
 			RokuSearchInfo info = new RokuSearchInfo();
 			info.Search = m.group(1);
@@ -42,7 +50,38 @@ public class SyntaxParser implements RokuSearchInfo.Parser
 			return(info);
 		}
 
+		if (!input.equals(cleanInput)) {
+			RokuSearchInfo info = new RokuSearchInfo();
+			info.Search = cleanInput;
+			log.info("SyntaxParser cleaned input: " + info.toString());
+			return(info);
+		}
+		
 		return(null);
+	}
+
+	// +------------+
+	// | Entrypoint |
+	// +------------+
+
+	public static void main(String[] args) throws Exception {
+
+		SyntaxParser parser = null;
+
+		try {
+			parser = new SyntaxParser();
+
+			String input = args[0];
+			String channelsParam = (args.length >= 2 ? args[1] : null);
+			UserChannelSet channels = UserChannelSet.fromCSV(channelsParam);
+
+			RokuSearchInfo info = parser.parse(input, channels);
+			System.out.println(info == null ? "null" : info.toString());
+		}
+		finally {
+			
+			if (parser != null) parser.close();
+		}
 	}
 
 	// +-------------------+
@@ -55,6 +94,9 @@ public class SyntaxParser implements RokuSearchInfo.Parser
 	
     private static Pattern REGEX_SEASON_EPISODE =
 		Pattern.compile("^(.+)\\s+[sS](\\d+)[eE](\\d+)$");
+
+	private static Pattern REGEX_CHROME_SHARE =
+		Pattern.compile("\\\"([^\\\"]+)\\\"\\s+[hH][tT][tT][pP].+");
 
 	private final static Logger log = Logger.getLogger(SyntaxParser.class.getName());
 }
