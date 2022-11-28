@@ -52,13 +52,18 @@ public class App
 			public void handle(Request request, Response response) throws Exception {
 
 				String input = request.QueryParams.get("input");
+				String version = request.QueryParams.get("v");
+
 				String channelsParam = request.QueryParams.get("channels");
 				UserChannelSet channels = UserChannelSet.fromCSV(channelsParam);
 				
 				RokuSearchInfo info = controller.parse(input, channels);
+
+				String body = ((version == null || version.equals("1")) ?
+							   info.toV1().toString() : info.toString());
 					
 				response.ContentType = "text/plain";
-				response.Body = info.toString();
+				response.Body = body;
 			}
 		});
 	}

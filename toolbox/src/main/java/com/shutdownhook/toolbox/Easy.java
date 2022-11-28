@@ -1,6 +1,6 @@
 /*
 ** Read about this code at http://shutdownhook.com
-n** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
+** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
 package com.shutdownhook.toolbox;
@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Base64;
+import java.util.Iterator;
 import java.util.Locale;
 import java.util.HashMap;
 import java.util.Map;
@@ -613,6 +614,23 @@ public class Easy
 		}
 	}
 	
+	// +---------+
+	// | Strings |
+	// +---------+
+
+	public static String join(Iterable iterable, String sep) {
+		
+		StringBuilder sb = new StringBuilder();
+
+		Iterator iter = iterable.iterator();
+		while (iter.hasNext()) {
+			if (sb.length() > 0) sb.append(sep);
+			sb.append(iter.next().toString());
+		}
+
+		return(sb.toString());
+	}
+
 	// +------+
 	// | Misc |
 	// +------+

@@ -39,12 +39,13 @@ public class YouTubeParser implements RokuSearchInfo.Parser
 			if (ichEnd == '/' || ichEnd == '?' || ichEnd == '&') break;
 			++ichEnd;
 		}
-		
+
+		// note we always add this even if YouTube isn't in the channel set. We *know* this
+		// is a YouTube identifier and so it won't be playable without the app --- by pushing
+		// it through anyways we will cause the Roku to pop up the "add channel" dealie
 		RokuSearchInfo info = new RokuSearchInfo();
 		info.Search = input;
-		info.Channel = CHANNEL_ID;
-		info.ContentId = input.substring(ich, ichEnd);
-		info.MediaType = MEDIA_TYPE;
+		info.addChannelTarget(CHANNEL_ID, input.substring(ich, ichEnd), MEDIA_TYPE, null);
 		
 		log.info("YouTube parser: " + info.toString());
 		return(info);

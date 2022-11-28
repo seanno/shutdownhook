@@ -100,7 +100,7 @@ public class Lookup implements RokuSearchInfo.Parser
 					rokuInfo.Search = s.Name;
 					rokuInfo.Season = e.Season.toString();
 					rokuInfo.Number = e.Number.toString();
-					rokuInfo.Channel = findRokuChannel(s.NetworkId, channels);
+					setRokuChannel(rokuInfo, s.NetworkId, channels);
 				}
 			}
 		}
@@ -111,7 +111,7 @@ public class Lookup implements RokuSearchInfo.Parser
 			if (s != null) {
 				rokuInfo = new RokuSearchInfo();
 				rokuInfo.Search = s.Name;
-				rokuInfo.Channel = findRokuChannel(s.NetworkId, channels);
+				setRokuChannel(rokuInfo, s.NetworkId, channels);
 			}
 		}
 
@@ -142,16 +142,13 @@ public class Lookup implements RokuSearchInfo.Parser
 		if (m.matches()) info.Search = m.group(1);
 	}
 	
-	// +-----------------+
-	// | findRokuChannel |
-	// +-----------------+
+	// +----------------+
+	// | setRokuChannel |
+	// +----------------+
 
-	public String findRokuChannel(String networkId, UserChannelSet channels) {
-
+	public void setRokuChannel(RokuSearchInfo info, String networkId, UserChannelSet channels) {
 		String rokuChannel = cfg.RokuChannelMap.get(networkId);
-		if (!channels.ok(rokuChannel)) return(null);
-
-		return(rokuChannel);
+		info.addChannelTarget(rokuChannel, null, null, channels);
 	}
 
 	// +------------+

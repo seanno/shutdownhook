@@ -40,6 +40,7 @@ public class FixupRefiner implements RokuSearchInfo.Refiner
 
 	private static String LEAVE_DIRECTIVE = "-";
 	private static String DELETE_DIRECTIVE = "x";
+	private static String ADD_CHANNEL_DIRECTIVE = "+";
 		
 	private static int INPUT_IDX = 0;
 	private static int SEARCH_IDX = 1;
@@ -65,8 +66,7 @@ public class FixupRefiner implements RokuSearchInfo.Refiner
 			info.Season = fixup(fields[SEASON_IDX], info.Season);
 			info.Number = fixup(fields[NUMBER_IDX], info.Number);
 
-			String proposedChannel = fixup(fields[CHANNEL_IDX], info.Channel);
-			if (channels.ok(proposedChannel)) info.Channel = proposedChannel;
+			handleChannels(info, fields[CHANNEL_IDX], channels);
 
 			log.info("FixupRefiner updated info: " + info.toString());
 		}
@@ -79,6 +79,34 @@ public class FixupRefiner implements RokuSearchInfo.Refiner
 		if (directive.equals(LEAVE_DIRECTIVE)) return(current);
 		if (directive.equals(DELETE_DIRECTIVE)) return(null);
 		return(directive);
+	}
+
+	private void handleChannels(RokuSearchInfo info, String directive, UserChannelSet userChannels) {
+		
+		if (directive.equals(LEAVE_DIRECTIVE)) {
+			return;
+		}
+		
+		if (directive.equals(DELETE_DIRECTIVE)) {
+			info.Channels.clear();
+			return;
+		}
+
+		String channelString = directive;
+		if (channelString.startsWith(ADD_CHANNEL_DIRECTIVE)) {
+			// append this one
+			channelString = channelString.substring(1);
+		}
+		else {
+			// replace existing with this one
+			info.Channels.clear();
+		}
+
+		String[] channelFields = channelString.split(":");
+		info.addChannelTarget(channelFields[0],
+							  channelFields.length > 1 ? channelFields[1] : null,
+							  channelFields.length > 2 ? channelFields[2] : null,
+							  userChannels);
 	}
 
 	// +--------------+

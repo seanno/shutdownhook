@@ -59,16 +59,14 @@ public class WikiRefiner implements RokuSearchInfo.Refiner
 
 	public void refine(RokuSearchInfo info, UserChannelSet channels) throws Exception {
 
-		if (info.Channel != null) return;
-		
 		String channel = lookup(info.Search);
 		
 		if (channel != null) {
 			
 			log.info(String.format("WikiRefiner found channel %s for %s",
 								   channel, info.Search));
-			
-			info.Channel = channel;
+
+			info.addChannelTarget(channel, null, null, channels);
 		}
 	}
 

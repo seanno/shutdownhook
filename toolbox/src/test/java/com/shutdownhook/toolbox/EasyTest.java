@@ -11,6 +11,8 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Assert;
@@ -23,6 +25,26 @@ public class EasyTest
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 		Global.init();
+	}
+
+	// +---------+
+	// | Strings |
+	// +---------+
+
+	@Test
+	public void testJoin() throws Exception {
+
+		List<String> l = new ArrayList<String>();
+		String j = Easy.join(l, ",");
+		Assert.assertEquals("", j);
+		
+		l.add("foo");
+		j = Easy.join(l, ",");
+		Assert.assertEquals("foo", j);
+
+		l.add("bar");
+		j = Easy.join(l, "COWFISH");
+		Assert.assertEquals("fooCOWFISHbar", j);
 	}
 
 	// +----+

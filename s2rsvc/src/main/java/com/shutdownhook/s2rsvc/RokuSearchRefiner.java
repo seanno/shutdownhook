@@ -7,7 +7,10 @@ package com.shutdownhook.s2rsvc;
 
 import java.io.Closeable;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.logging.Logger;
@@ -59,7 +62,7 @@ public class RokuSearchRefiner implements RokuSearchInfo.Refiner
 
 	public void refine(RokuSearchInfo info, UserChannelSet channels) throws Exception {
 
-		if (info.Channel != null) return;
+		if (info.Search.trim().toLowerCase().startsWith("http")) return;
 		
 		RokuResult result = cache.getItem(info.Search);
 
@@ -68,22 +71,23 @@ public class RokuSearchRefiner implements RokuSearchInfo.Refiner
 			result.content.viewOptions != null) {
 
 			for (RokuContentViewOption viewOption : result.content.viewOptions) {
-				
-				if (viewOption.channelId != null && channels.ok(viewOption.channelId)) {
 
-					info.Channel = viewOption.channelId;
+				if (viewOption.channelId != null) {
 
-					if (info.Channel.equals(cfg.RokuChannelId) && result.content.meta != null) {
-						info.ContentId = result.content.meta.id;
-						info.MediaType = result.content.meta.mediaType;
+					String contentId = null;
+					String mediaType = null;
+
+					if (viewOption.channelId.equals(cfg.RokuChannelId) && result.content.meta != null) {
+						contentId = result.content.meta.id;
+						mediaType = result.content.meta.mediaType;
 					}
-					
-					log.info(String.format("RokuSearchRefiner found channel %s (%s/%s) for %s",
-										   info.Channel, info.ContentId,
-										   info.MediaType, info.Search));
-					break;
+
+					info.addChannelTarget(viewOption.channelId, contentId, mediaType, channels);
 				}
 			}
+					
+			log.info(String.format("RokuSearchRefiner found channel options %s for %s",
+								   Easy.join(info.Channels, ","), info.Search));
 		}
 	}
 

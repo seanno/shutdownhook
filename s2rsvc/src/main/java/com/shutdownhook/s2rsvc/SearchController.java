@@ -86,8 +86,8 @@ public class SearchController implements Closeable
 
 		// 2. REFINE
 
-		tryRefine(info, channels, wikiRefiner, "wikiRefiner");
 		tryRefine(info, channels, rokuRefiner, "rokuRefiner");
+		tryRefine(info, channels, wikiRefiner, "wikiRefiner");
 		tryRefine(info, channels, fixupRefiner, "fixupRefiner");
 
 		// 3. RETURN
