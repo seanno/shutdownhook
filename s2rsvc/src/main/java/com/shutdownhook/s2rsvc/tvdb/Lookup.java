@@ -148,7 +148,7 @@ public class Lookup implements RokuSearchInfo.Parser
 
 	public void setRokuChannel(RokuSearchInfo info, String networkId, UserChannelSet channels) {
 		String rokuChannel = cfg.RokuChannelMap.get(networkId);
-		info.addChannelTarget(rokuChannel, null, null, channels);
+		if (rokuChannel != null) info.addChannelTarget(rokuChannel, null, null, channels);
 	}
 
 	// +------------+
