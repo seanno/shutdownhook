@@ -25,13 +25,14 @@ public class SearchController implements Closeable
 		public Lookup.Config TVDB = new Lookup.Config();
 		public FixupRefiner.Config Fixups = new FixupRefiner.Config();
 		public RokuSearchRefiner.Config Roku = new RokuSearchRefiner.Config();
+		public UrlParser.Config Urls = new UrlParser.Config();
 	}
 
 	public SearchController(Config cfg) throws Exception {
 		this.cfg = cfg;
 
 		this.tvdbParser = new Lookup(cfg.TVDB);
-		this.youtubeParser = new YouTubeParser();
+		this.urlParser = new UrlParser(cfg.Urls);
 		this.syntaxParser = new SyntaxParser();
 
 		this.wikiRefiner = new WikiRefiner(cfg.Wiki);
@@ -44,7 +45,7 @@ public class SearchController implements Closeable
 		safeClose(rokuRefiner);
 		safeClose(wikiRefiner);
 		safeClose(syntaxParser);
-		safeClose(youtubeParser);
+		safeClose(urlParser);
 		safeClose(tvdbParser);
 	}
 
@@ -70,7 +71,7 @@ public class SearchController implements Closeable
 		
 		try {
 			info = tvdbParser.parse(input, channels);
-			if (info == null) info = youtubeParser.parse(input, channels);
+			if (info == null) info = urlParser.parse(input, channels);
 			if (info == null) info = syntaxParser.parse(input, channels);
 		}
 		catch (Exception eParse) {
@@ -112,7 +113,7 @@ public class SearchController implements Closeable
 	private Config cfg;
 
 	private RokuSearchInfo.Parser tvdbParser;
-	private RokuSearchInfo.Parser youtubeParser;
+	private RokuSearchInfo.Parser urlParser;
 	private RokuSearchInfo.Parser syntaxParser;
 
 	private RokuSearchInfo.Refiner wikiRefiner;
