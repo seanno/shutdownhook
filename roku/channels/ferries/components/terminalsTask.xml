@@ -1,0 +1,106 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="TerminalsTask" extends="Task">
+
+  <interface>
+	<field id="ferries" type="assocarray" /> 
+  </interface>
+
+  <script type="text/brightscript">
+	<![CDATA[
+
+    sub init()
+	    m.top.functionName = "getContent"
+	end sub
+
+    sub getContent() 
+
+	    namesNode = createObject("RoSGNode", "ContentNode")
+	    camerasMap = {}
+
+        terminalsNode = getTerminalsJson()
+		for each terminalNode in terminalsNode.FeedContentList
+
+            ' find cameras
+            camerasArray = createObject("roArray", 0, true)
+            for each cameraNode in terminalNode.FerryCameras
+			    if (cameraNode.IsActive = True) then 
+				    camera = {}
+					camera.url = cameraNode.ImgURL
+					camera.width = cameraNode.ImgWidth
+					camera.height = cameraNode.ImgHeight
+					camera.title = cameraNode.Title
+					camerasArray.push(camera)
+				end if
+			end for
+			
+			' if any cameras, add to the list
+			if (camerasArray.Count() > 0) then 
+		        nameNode = namesNode.createChild("ContentNode")
+				nameNode.title = terminalNode.Terminal.TerminalName
+				camerasMap[terminalNode.Terminal.TerminalName] = camerasArray
+			end if
+         
+		end for
+
+        ferries = {}
+		ferries.namesNode = namesNode
+		ferries.camerasMap = camerasMap
+
+        m.top.ferries = ferries
+
+	end sub
+
+    function getTerminalsJson()
+
+		http = createObject("roUrlTransfer")
+		http.SetCertificatesFile("common:/certs/ca-bundle.crt")
+		http.InitClientCertificates()
+		http.setUrl("https://www.wsdot.com/ferries/vesselwatch/Terminals.ashx")
+
+		terminalsStr = http.getToString()
+		terminalsJson = ParseJson(fixupDateJavascript(terminalsStr))
+
+		return(terminalsJson)
+
+    end function
+
+    function fixupDateJavascript(inputStr)
+  
+        startMarker = "new Date("
+		endMarker = ")"
+
+        ichWalk = 1
+		cch = Len(inputStr)
+		newStr = ""
+
+        while (ichWalk <= cch)
+
+            ' find next occurrece of marker, or end of string
+			ichLast = ichWalk
+			ichWalk = Instr(ichWalk, inputStr, startMarker)
+			if (ichWalk = 0) then
+			    ' add the rest of the string
+				ichWalk = cch + 1
+				newStr = newStr + Mid(inputStr, ichLast, ichWalk - ichLast)
+			else
+			    ' add chunk before marker and replacement
+				newStr = newStr + Mid(inputStr, ichLast, ichWalk - ichLast) + "0"
+
+                ' skip to end marker or end of string
+				ichWalk = Instr(ichWalk + Len(startMarker), inputStr, endMarker)
+				if (ichWalk = 0) then
+				    ichWalk = cch + 1
+				else
+				    ichWalk = ichWalk + Len(endMarker)
+				end if
+			end if
+		end while
+
+        return(newStr)
+  
+    end function
+
+	]]>
+  </script>
+  
+</component>

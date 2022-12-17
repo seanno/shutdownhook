@@ -1,0 +1,133 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Ferries" extends="Scene"> 
+
+  <children>
+
+	<LayoutGroup
+		id="ferriesLayout"
+		translation="[ 100, 70 ]"
+		layoutDirection="horiz" >
+	  
+	  <LabelList id="terminalsList" />
+	  <Poster id="ferryImage" width="1100" />
+
+	</LayoutGroup>
+
+	<Timer
+		id="cycleTimer"
+		repeat="true"
+		duration="20" />
+
+  </children>
+  
+  <!-- BrightScript -->
+  <script type="text/brightscript" >
+	<![CDATA[
+
+        function init()
+
+		    terminalsList = m.top.findNode("terminalsList")
+			terminalsList.observeField("itemSelected", "onItemSelected")
+			terminalsList.observeField("itemFocused", "onItemFocused")
+
+            m.terminalsTask = createObject("RoSGNode", "TerminalsTask")
+			m.terminalsTask.observeField("ferries", "onContentReady")
+			m.terminalsTask.control = "RUN"
+
+        end function
+
+        function onContentReady()
+		
+		    terminalsList = m.top.findNode("terminalsList")
+			terminalsList.content = m.terminalsTask.ferries.namesNode
+
+            terminalsList.setFocus(true)
+			onItemSelected()
+
+		    cycleTimer = m.top.findNode("cycleTimer")
+			cycleTimer.observeField("fire", "onTimer")
+			cycleTimer.control = "START"
+
+		end function
+
+        function onKeyEvent(key as String, press as Boolean) as Boolean
+
+            if (not press) then return(false)
+
+            if (key = "right") then
+				cycleImage(true)
+			    return(true)
+			end if
+
+            if (key = "left") then
+				cycleImage(false)
+			    return(true)
+			end if
+
+			return(false)
+
+		end function
+
+        function onItemSelected()
+		    m.lastImageIndex = -1
+			cycleImage(true)
+		end function
+
+        function onItemFocused()
+		    m.lastImageIndex = -1
+		end function
+
+        function onTimer()
+		    cycleImage(true)
+		end function
+
+        function cycleImage(fwd)
+
+            ' get the next image info
+
+            terminalsList = m.top.findNode("terminalsList")
+
+            terminalIndex = terminalsList.itemSelected
+			if (terminalIndex = -1) then terminalIndex = terminalsList.itemFocused
+			if (terminalIndex = -1) then return(false)
+
+			terminalName = terminalsList.content.getChild(terminalIndex).title
+			selectedCameras = m.terminalsTask.ferries.camerasMap[terminalName]
+
+            if (fwd) then m.lastImageIndex = m.lastImageIndex + 1
+            if (not fwd) then m.lastImageIndex = m.lastImageIndex - 1
+
+            if (m.lastImageIndex >= selectedCameras.Count()) then m.lastImageIndex = 0
+			if (m.lastImageIndex < 0) then m.lastImageIndex = selectedCameras.Count() - 1
+
+			camera = selectedCameras[m.lastImageIndex]
+			? camera.title
+
+            ' update the image
+
+            ferryImage = m.top.findNode("ferryImage")
+			ferryImage.height = (ferryImage.width * camera.height) / camera.width
+			ferryImage.uri = cacheBust(camera.url)
+
+            return(true)
+
+		end function
+
+        function cacheBust(url) 
+
+            rnd = Str(Rnd(0))
+			rnd = Mid(rnd, InStr(1, rnd, ".") + 1)
+
+            marker = "&"
+			if (InStr(1, url, "?") = 0) then marker = "?"
+            newUrl = url + marker + "r=" + rnd
+
+            return(newUrl)
+
+		end function
+
+	]]>
+  </script>
+  <!-- End BrightScript -->
+
+</component>
