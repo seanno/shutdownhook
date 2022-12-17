@@ -42,7 +42,7 @@
 			terminalsList.content = m.terminalsTask.ferries.namesNode
 
             terminalsList.setFocus(true)
-			onItemSelected()
+			cycleImage(true)
 
 		    cycleTimer = m.top.findNode("cycleTimer")
 			cycleTimer.observeField("fire", "onTimer")
@@ -53,6 +53,8 @@
         function onKeyEvent(key as String, press as Boolean) as Boolean
 
             if (not press) then return(false)
+
+            ? "onKeyEvent press: " + key
 
             if (key = "right") then
 				cycleImage(true)
@@ -69,26 +71,30 @@
 		end function
 
         function onItemSelected()
-		    m.lastImageIndex = -1
+            ? "onItemSelected"
 			cycleImage(true)
 		end function
 
         function onItemFocused()
+            ? "onItemFocused"
 		    m.lastImageIndex = -1
 		end function
 
         function onTimer()
+            ? "onTimer"
 		    cycleImage(true)
 		end function
 
         function cycleImage(fwd)
 
+            ? "cycleImage; m.lastImageIndex = ";
+			? m.lastImageIndex
+
             ' get the next image info
 
             terminalsList = m.top.findNode("terminalsList")
 
-            terminalIndex = terminalsList.itemSelected
-			if (terminalIndex = -1) then terminalIndex = terminalsList.itemFocused
+			terminalIndex = terminalsList.itemFocused
 			if (terminalIndex = -1) then return(false)
 
 			terminalName = terminalsList.content.getChild(terminalIndex).title

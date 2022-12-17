@@ -21,9 +21,9 @@ mm_icon_focus_sd=pkg:/images/channel-poster_sd.png
 ###  Splash Screen + Loading Screen Artwork 
 #### Image sizes are FHD: 1920x1080px | HD: 1280x720px | SD: 720x480px
 
-splash_screen_fhd=pkg:/images/splash-screen_fhd.jpg
-splash_screen_hd=pkg:/images/splash-screen_hd.jpg
-splash_screen_sd=pkg:/images/splash-screen_sd.jpg
+splash_screen_fhd=pkg:/images/splash-screen_fhd.png
+splash_screen_hd=pkg:/images/splash-screen_hd.png
+splash_screen_sd=pkg:/images/splash-screen_sd.png
 
 splash_color=#000000
 splash_min_time=1
