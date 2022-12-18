@@ -1,0 +1,43 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="RegistryTask" extends="Task">
+
+  <interface>
+	<field id="terminal" type="string" />
+	<function name="getTerminal" />
+  </interface>
+
+  <script type="text/brightscript">
+	<![CDATA[
+
+    sub init()
+	    m.top.functionName = "storeTerminal"
+	end sub
+
+    function getTerminal()
+
+        terminal = ""
+        reg = createObject("roRegistrySection", "ferries")
+		if (reg.exists("terminal")) then terminal = reg.Read("terminal")
+
+        ? "getTerminal: " + terminal
+        return(terminal)
+
+	end function
+
+    function storeTerminal()
+	    
+		terminal = m.top.terminal
+		if (terminal = invalid or terminal = "") then return(false)
+
+        reg = createObject("roRegistrySection", "ferries")
+		reg.Write("terminal", terminal)
+		reg.Flush()
+
+        return(true)
+
+	end function
+
+	]]>
+  </script>
+  
+</component>

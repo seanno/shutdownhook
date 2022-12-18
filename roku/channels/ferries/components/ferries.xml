@@ -18,6 +18,10 @@
 		repeat="true"
 		duration="20" />
 
+	<TerminalsTask id="terminalsTask" />
+	<RegistryTask id="registryTask" />
+		
+
   </children>
   
   <!-- BrightScript -->
@@ -30,9 +34,11 @@
 			terminalsList.observeField("itemSelected", "onItemSelected")
 			terminalsList.observeField("itemFocused", "onItemFocused")
 
-            m.terminalsTask = createObject("RoSGNode", "TerminalsTask")
+            m.terminalsTask = m.top.findNode("TerminalsTask")
 			m.terminalsTask.observeField("ferries", "onContentReady")
 			m.terminalsTask.control = "RUN"
+
+            m.registryTask = m.top.findNode("RegistryTask")
 
         end function
 
@@ -41,6 +47,8 @@
 		    terminalsList = m.top.findNode("terminalsList")
 			terminalsList.content = m.terminalsTask.ferries.namesNode
 
+            savedTerminalName = m.registryTask.callFunc("getTerminal")
+			terminalsList.jumpToItem = lookupTerminalIndex(savedTerminalName)
             terminalsList.setFocus(true)
 			cycleImage(true)
 
@@ -49,6 +57,17 @@
 			cycleTimer.control = "START"
 
 		end function
+
+        function lookupTerminalIndex(terminalName as String) 
+
+            terminalsList = m.top.findNode("terminalsList")
+			for i = 0 to terminalsList.content.getChildCount() - 1
+			    if (terminalsList.content.getChild(i).title = terminalName) then return(i)
+			end for
+
+            return(0)
+		    
+        end function
 
         function onKeyEvent(key as String, press as Boolean) as Boolean
 
@@ -70,35 +89,40 @@
 
 		end function
 
+        function onItemFocused()
+
+            terminalsList = m.top.findNode("terminalsList")
+			terminalIndex = terminalsList.itemFocused
+            terminalName = terminalsList.content.getChild(terminalIndex).title
+
+            if (terminalName <> m.lastTerminalName) then 
+			    m.lastTerminalName = terminalName
+		        m.lastImageIndex = -1
+
+                m.registryTask.terminal = terminalName
+				m.registryTask.control = "RUN"
+			end if
+
+		end function
+
         function onItemSelected()
-            ? "onItemSelected"
 			cycleImage(true)
 		end function
 
-        function onItemFocused()
-            ? "onItemFocused"
-		    m.lastImageIndex = -1
-		end function
-
         function onTimer()
-            ? "onTimer"
 		    cycleImage(true)
 		end function
 
         function cycleImage(fwd)
 
             ? "cycleImage; m.lastImageIndex = ";
-			? m.lastImageIndex
+			? m.lastImageIndex;
+			? "; m.terminalName = ";
+			? m.lastTerminalName
 
             ' get the next image info
 
-            terminalsList = m.top.findNode("terminalsList")
-
-			terminalIndex = terminalsList.itemFocused
-			if (terminalIndex = -1) then return(false)
-
-			terminalName = terminalsList.content.getChild(terminalIndex).title
-			selectedCameras = m.terminalsTask.ferries.camerasMap[terminalName]
+			selectedCameras = m.terminalsTask.ferries.camerasMap[m.lastTerminalName]
 
             if (fwd) then m.lastImageIndex = m.lastImageIndex + 1
             if (not fwd) then m.lastImageIndex = m.lastImageIndex - 1
