@@ -11,8 +11,11 @@ build_version=00001
 
 ui_resolutions=fhd
 
+# I don't actually have targets but will open main page
+supports_input_launch=1
+
 ###  Main Menu Icons / Channel Poster Artwork 
-#### Image sizes are FHD: 540x405px | HD: 290x218px | SD: 214x144px
+#### Image sizes are FHD: 540x405px | HD: 290x218px | SD: 246x140px
 
 mm_icon_focus_fhd=pkg:/images/channel-poster_fhd.png
 mm_icon_focus_hd=pkg:/images/channel-poster_hd.png
