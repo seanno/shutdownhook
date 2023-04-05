@@ -1,6 +1,6 @@
 
 const RSS_URL = "https://rss.upi.com/news/top_news.rss";
-const PROMPT_ASK = "write a haiku summarizing this topic: ";
+const PROMPT_ASK = "write a funny haiku summarizing this topic: ";
 
 const dotenv = require('dotenv');
 const rss = require('./rss.js');
