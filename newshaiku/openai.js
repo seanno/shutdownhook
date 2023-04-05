@@ -3,7 +3,7 @@ const fetch = require('node-fetch');
 
 const COMPLETE_URL = "https://api.openai.com/v1/chat/completions";
 const DEFAULT_MODEL = "gpt-3.5-turbo";
-const DEFAULT_TEMP = 0.25;
+const DEFAULT_TEMP = 0.5;
 
 const buildRequest = (prompt) => {
   return({
