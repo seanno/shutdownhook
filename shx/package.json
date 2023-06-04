@@ -9,6 +9,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
-    "node-jose": "^2.2.0"
+    "node-jose": "^2.2.0",
+    "qrcode": "^1.5.3"
   }
 }
