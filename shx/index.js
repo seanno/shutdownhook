@@ -1,5 +1,5 @@
 //
-// Read about this code at http://shutdownhook.com
+// Read about this code at https://shutdownhook.com/2023/06/05/nerdsplaining-smart-health-cards/
 // MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 //
 
