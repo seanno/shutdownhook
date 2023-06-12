@@ -1,0 +1,177 @@
+
+//
+// GameState.js
+// Manage state of a baseball game.
+// Note that "innings" are really half-innings.
+//
+
+export default class GameState {
+
+  constructor() {
+	this.reset();
+  }
+
+  // +------+
+  // | outs |
+  // +------+
+
+  out() {
+	if (this.winner()) return;
+	this.actions.push(GameState.#OUT_ACTION);
+
+	this.outs++;
+	if (this.outs === 3 && !this.winner()) {
+	  this.outs = 0;
+	  this.innings.push(0);
+	}
+  }
+
+  // +------+
+  // | runs |
+  // +------+
+
+  run() {
+	if (this.winner()) return;
+	this.actions.push(GameState.#RUN_ACTION);
+	this.innings[this.innings.length - 1]++;
+  }
+
+  runsInInning(team, inning) {
+
+	const i = (team === GameState.HOME ? 1 : 0) + ((inning - 1) * 2);
+	return(i < this.innings.length ? this.innings[i] : undefined);
+  }
+
+  // +------+
+  // | undo |
+  // +------+
+
+  undo() {
+
+	if (this.actions.length === 0) return;
+	const undoAction = this.actions.pop();
+
+	if (undoAction === GameState.#OUT_ACTION) {
+	  if (this.outs > 0) {
+		// easy
+		this.outs--;
+	  }
+	  else {
+		// need to back up to the last half inning. There can't be
+		// runs in this inning if we're doing this, so don't worry
+		// about that.
+		this.outs = 2;
+		this.innings.pop();
+	  }
+	}
+	else {
+	  // there *must* be a run in this inning if this undo action is a run,
+	  // so just decrement runs in the current inning
+	  this.innings[this.innings.length - 1]--;
+	}
+  }
+  
+  // +-------+
+  // | reset |
+  // +-------+
+
+  reset() {
+
+	this.homeTeam = GameState.#HOME_TEAM;
+	this.visitingTeam = GameState.#VISITING_TEAMS[Math.floor(Math.random() *
+															GameState.#VISITING_TEAMS.length)];
+
+	this.innings = [ 0 ]; // top of the first
+	this.outs = 0;
+
+	this.actions = [];
+  }
+
+  // +---------------+
+  // | Current State |
+  // +---------------+
+
+  static HOME = "home";
+  static VISITOR = "visitor";
+
+  winner() {
+	if (this.innings.length < 18) return(undefined);
+	
+	const v = this.score(GameState.VISITOR);
+	const h = this.score(GameState.HOME);
+
+	if (v === h) return(undefined);
+	if (h > v) return(GameState.HOME);
+	if (this.outs < 3) return(undefined);
+	
+	return(GameState.VISITOR);
+  }
+
+  score(team) {
+
+	let i = (team === GameState.VISITOR ? 0 : 1);
+	let score = 0;
+	
+	while (i < this.innings.length) {
+	  i += 2;
+	  score += this.innings[i];
+	}
+
+	return(score);
+  }
+
+  currentInning() {
+	
+	return(Math.floor(this.innings.length / 2) + 1);
+  }
+
+  teamAtBat() {
+	return((this.innings.length % 2 === 1) ? GameState.VISITOR : GameState.HOME);
+  }
+
+  teamName(team) {
+	return(team === GameState.HOME ? this.homeTeam : this.visitingTeam);
+  }
+
+  // +-------------------+
+  // | Private Constants |
+  // +-------------------+
+
+  static #OUT_ACTION = "out";
+  static #RUN_ACTION = "run";
+
+  static #HOME_TEAM = "Mariners";
+
+  static #VISITING_TEAMS = [
+	"Orioles",
+	"Red Sox",
+	"White Sox",
+	"Guardians",
+	"Tigers",
+	"Astros",
+	"Royals",
+	"Angels",
+	"Twins",
+	"Yankees",
+	"Athletics",
+	"Rays",
+	"Rangers",
+	"Blue Jays",
+	"Diamondbacks",
+	"Braves",
+	"Cubs",
+	"Reds",
+	"Rockies",
+	"Dodgers",
+	"Marlins",
+	"Brewers",
+	"Mets",
+	"Phillies",
+	"Pirates",
+	"Padres",
+	"Giants",
+	"Cardinals",
+	"Nationals"
+  ];
+  
+}
