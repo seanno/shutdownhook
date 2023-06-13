@@ -2,7 +2,8 @@
 .container {
 	display: grid;
 	background-color: #54796d;
-	padding: 4px;
+	padding: 8px;
+	margin: 8px;
 }
 
 .container div {

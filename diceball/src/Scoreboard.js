@@ -1,10 +1,9 @@
 
-import GameState from "./lib/GameState.js";
 import styles from './Scoreboard.module.css';
 
-export default function Scoreboard({ game }) {
+export default function Scoreboard({ helpers }) {
 
-  const currentInning = game.currentInning();
+  const currentInning = helpers.currentInning;
   const totalInnings = (currentInning > 9 ? currentInning : 9);
 
   const inningElts = [];
@@ -13,9 +12,13 @@ export default function Scoreboard({ game }) {
 	let visitClass = styles.visitingInning;
 	let homeClass = styles.homeInning;
 
-	if (i === currentInning && game.outs < 3) {
-	  if (game.teamAtBat() === GameState.VISITOR) visitClass += " " + styles.atbat;
-	  else homeClass += " " + styles.atbat;
+	if (!helpers.winner && i === currentInning && helpers.outs < 3) {
+	  if (helpers.teamAtBat === helpers.VISITOR) {
+		visitClass += " " + styles.atbat;
+	  }
+	  else {
+		homeClass += " " + styles.atbat;
+	  }
 	}
 
 	inningElts.push(
@@ -25,20 +28,33 @@ export default function Scoreboard({ game }) {
 
 	inningElts.push(
 	  <div key={'vti'+i} className={visitClass} style={{ gridColumn: i + 1 }}>
-		{ game.runsInInning(GameState.VISITOR, i) }
+		{ helpers.runsInInning(helpers.VISITOR, i) }
 	  </div>);
 
 	inningElts.push(
 	  <div key={'hti'+i} className={homeClass} style={{ gridColumn: i + 1 }}>
-		{ game.runsInInning(GameState.HOME, i) }
+		{ helpers.runsInInning(helpers.HOME, i) }
 	  </div>);
   }
 
   return (
     <div className={styles.container}>
-	  <div className={styles.homeTeam}>{game.teamName(GameState.HOME)}</div>
-	  <div className={styles.visitingTeam}>{game.teamName(GameState.VISITOR)}</div>
+	  <div className={styles.homeTeam}>{helpers.homeTeamName}</div>
+	  <div className={styles.visitingTeam}>{helpers.visitingTeamName}</div>
 	  { inningElts }
+
+	  <div className={styles.headerInning} style={{ gridColumn: totalInnings + 3 }}>
+		R
+	  </div>
+
+	  <div className={styles.visitingInning} style={{ gridColumn: totalInnings + 3 }}>
+		{helpers.score(helpers.VISITOR)}
+	  </div>
+
+	  <div className={styles.homeInning} style={{ gridColumn: totalInnings + 3 }}>
+		{helpers.score(helpers.HOME)}
+	  </div>
+
     </div>
   );
 }
