@@ -631,6 +631,10 @@ public class Easy
 		return(sb.toString());
 	}
 
+	public static Boolean nullOrEmpty(String s) {
+		return(s == null || s.isEmpty());
+	}
+
 	// +------+
 	// | Misc |
 	// +------+

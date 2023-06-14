@@ -239,7 +239,7 @@ public class WebTest
     @Test
     public void sslRequestGoodCertDefaultConfig() throws Exception
 	{
-		WebRequests.Response response = requestsDefaultSSL.fetch("https://yahoo.com");
+		WebRequests.Response response = requestsDefaultSSL.fetch("https://google.com");
 		Assert.assertEquals(200, response.Status);
 		Assert.assertNull(response.Ex);
 	}
@@ -247,7 +247,7 @@ public class WebTest
     @Test
     public void sslRequestGoodCertExtendedConfig() throws Exception
 	{
-		WebRequests.Response response = requests.fetch("https://yahoo.com");
+		WebRequests.Response response = requests.fetch("https://google.com");
 		Assert.assertEquals(200, response.Status);
 		Assert.assertNull(response.Ex);
 	}
