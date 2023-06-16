@@ -494,6 +494,16 @@ public class Easy
 		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
+	public static String base64urlEncode(String input) {
+		try { return(Base64.getUrlEncoder().encodeToString(input.getBytes("UTF-8"))); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
+	}
+
+	public static String base64urlDecode(String input) throws IllegalArgumentException {
+		try { return(new String(Base64.getUrlDecoder().decode(input), "UTF-8")); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
+	}
+
 	public static String urlEncode(String input) {
 		try { return(URLEncoder.encode(input, "UTF-8")); }
 		catch (UnsupportedEncodingException e) { return(null); } // won't happen
