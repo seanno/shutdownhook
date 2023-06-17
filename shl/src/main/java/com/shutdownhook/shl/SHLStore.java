@@ -45,17 +45,15 @@ public class SHLStore extends SqlStore
 
 	public static class FullManifest
 	{
-		public Manifest Manifest;
+		public Manifest Manifest = new Manifest();
 		public List<ManifestFile> Files = new ArrayList<ManifestFile>();
 	}
 	
 	public static class Manifest
 	{
 		public String ManifestId;
-		public String KeyB64u;
-		public String Flags;
-		public String Label;
-		public Integer ExpirationEpochSeconds;
+		public Long ExpirationEpochSecond;
+		public Long RetrySeconds;
 		public String Passcode;
 		public Integer PasscodeFailures;
 
@@ -63,10 +61,8 @@ public class SHLStore extends SqlStore
 
 			Manifest m = new Manifest();
 			m.ManifestId = rs.getString("manifest_id");
-			m.KeyB64u = rs.getString("key_b64u");
-			m.Flags = rs.getString("flags");
-			m.Label = rs.getString("label");
-			m.ExpirationEpochSeconds = rs.getInt("exp_epoch_seconds");
+			m.ExpirationEpochSecond = rs.getLong("exp_epoch_second");
+			m.RetrySeconds = rs.getLong("retry_seconds");
 			m.Passcode = rs.getString("passcode");
 			m.PasscodeFailures = rs.getInt("passcode_failures");
 
@@ -94,7 +90,7 @@ public class SHLStore extends SqlStore
 		}
 	}
 
-	public static class FullFile
+	public static class FullUrl
 	{
 		public ManifestUrl ManifestUrl;
 		public ManifestFile ManifestFile;
@@ -105,7 +101,7 @@ public class SHLStore extends SqlStore
 		public String UrlId;
 		public String FileId;
 		public String ManifestId;
-		public Integer ExpirationEpochSeconds;
+		public Long ExpirationEpochSecond;
 
 		public static ManifestUrl fromRow(ResultSet rs) throws SQLException {
 			
@@ -113,7 +109,7 @@ public class SHLStore extends SqlStore
 			mu.UrlId = rs.getString("url_id");
 			mu.FileId = rs.getString("file_id");
 			mu.ManifestId = rs.getString("manifest_id");
-			mu.ExpirationEpochSeconds = rs.getInt("exp_epoch_seconds");
+			mu.ExpirationEpochSecond = rs.getLong("exp_epoch_second");
 
 			return(mu);
 		}
@@ -158,33 +154,35 @@ public class SHLStore extends SqlStore
 	// | createManifest |
 	// +----------------+
 
-	public String createManifest(Manifest m, List<ManifestFile> files) {
-		
-		String manifestId = makeId();
-		
+	public String createManifest(FullManifest fm) {
+
+		fm.Manifest.ManifestId = makeId();
+
 		try {
-			return(internalCreateManifest(manifestId, m, files));
+			return(internalCreateManifest(fm));
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "createManifest", true));
-			deleteManifest(manifestId);
+			deleteManifest(fm.Manifest.ManifestId);
 			return(null);
 		}
 	}
 	
-	private String internalCreateManifest(String manifestId, Manifest m,
-										  List<ManifestFile> files) throws Exception {
+	private String internalCreateManifest(FullManifest fm) throws Exception {
 
 		SqlStore.Return<Boolean> added = new SqlStore.Return<Boolean>();
 
+		long expirationEpochSecond = (fm.Manifest.ExpirationEpochSecond == null
+									  ? 0 : fm.Manifest.ExpirationEpochSecond);
+
+		long retrySeconds = (fm.Manifest.RetrySeconds == null ? 0 : fm.Manifest.RetrySeconds);
+
 		update(INSERT_MANIFEST, new SqlStore.UpdateHandler() {
 			public void prepare(PreparedStatement stmt, int iter) throws Exception {
-				stmt.setString(1, manifestId);
-				stmt.setString(2, m.KeyB64u);
-				stmt.setString(3, m.Flags);
-				stmt.setString(4, m.Label);
-				stmt.setInt(5, (m.ExpirationEpochSeconds == null ? 0 : m.ExpirationEpochSeconds));
-				stmt.setString(6, m.Passcode);
+				stmt.setString(1, fm.Manifest.ManifestId);
+				stmt.setLong(2, expirationEpochSecond);
+				stmt.setLong(3, retrySeconds);
+				stmt.setString(4, fm.Manifest.Passcode);
 			}
 			public void confirm(int rowsAffected, int iter) {
 				if (rowsAffected > 0) added.Value = true;
@@ -193,16 +191,17 @@ public class SHLStore extends SqlStore
 
 		if (!added.Value) throw new Exception("Failed adding manifest row");
 
-		for (ManifestFile mf : files) {
+		for (ManifestFile mf : fm.Files) {
 
-			String fileId = makeId();
+			mf.ManifestId = fm.Manifest.ManifestId;
+			mf.FileId = makeId();
 
-			saveJWE(fileId, mf.JWE);
+			saveJWE(mf.FileId, mf.JWE);
 			
 			update(INSERT_FILE, new SqlStore.UpdateHandler() {
 				public void prepare(PreparedStatement stmt, int iter) throws Exception {
-					stmt.setString(1, fileId);
-					stmt.setString(2, manifestId);
+					stmt.setString(1, mf.FileId);
+					stmt.setString(2, mf.ManifestId);
 					stmt.setString(3, mf.ContentType);
 					stmt.setString(4, mf.ManifestUniqueName);
 				}
@@ -214,7 +213,7 @@ public class SHLStore extends SqlStore
 			if (!added.Value) throw new Exception("Failed adding manifest file row");
 		}
 
-		return(manifestId);
+		return(fm.Manifest.ManifestId);
 	}
 
 	// +----------------+
@@ -264,9 +263,9 @@ public class SHLStore extends SqlStore
 	// | createUrl |
 	// +-----------+
 
-	public String createUrl(ManifestFile mf, Integer expirationEpochSeconds) {
+	public String createUrl(ManifestFile mf, Long expirationEpochSecond) {
 		try {
-			return(internalCreateUrl(mf, expirationEpochSeconds));
+			return(internalCreateUrl(mf, expirationEpochSecond));
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "createUrl", true));
@@ -274,7 +273,7 @@ public class SHLStore extends SqlStore
 		}
 	}
 
-	private String internalCreateUrl(ManifestFile mf, Integer expirationEpochSeconds) throws Exception {
+	private String internalCreateUrl(ManifestFile mf, Long expirationEpochSecond) throws Exception {
 
 		String urlId = makeId();
 
@@ -285,7 +284,7 @@ public class SHLStore extends SqlStore
 				stmt.setString(1, urlId);
 				stmt.setString(2, mf.FileId);
 				stmt.setString(3, mf.ManifestId);
-				stmt.setInt(4, expirationEpochSeconds == null ? 0 : expirationEpochSeconds);
+				stmt.setLong(4, expirationEpochSecond == null ? 0 : expirationEpochSecond);
 			}
 			public void confirm(int rowsAffected, int iter) {
 				if (rowsAffected > 0) added.Value = true;
@@ -302,7 +301,7 @@ public class SHLStore extends SqlStore
 	// | queryUrl |
 	// +----------+
 
-	public FullFile queryUrl(String urlId) {
+	public FullUrl queryUrl(String urlId) {
 		try {
 			return(internalQueryUrl(urlId));
 		}
@@ -312,24 +311,24 @@ public class SHLStore extends SqlStore
 		}
 	}
 
-	private FullFile internalQueryUrl(String urlId) throws Exception {
+	private FullUrl internalQueryUrl(String urlId) throws Exception {
 
-		SqlStore.Return<FullFile> ff = new SqlStore.Return<FullFile>();
-		ff.Value = new FullFile();
+		SqlStore.Return<FullUrl> fu = new SqlStore.Return<FullUrl>();
+		fu.Value = new FullUrl();
 		
 		query(QUERY_URL, new SqlStore.QueryHandler() {
 			public void prepare(PreparedStatement stmt) throws Exception {
 				stmt.setString(1, urlId);
 			}
 			public void row(ResultSet rs, int irow) throws Exception {
-				ff.Value.ManifestFile = ManifestFile.fromRow(rs);
-				ff.Value.ManifestUrl = ManifestUrl.fromRow(rs);
+				fu.Value.ManifestFile = ManifestFile.fromRow(rs);
+				fu.Value.ManifestUrl = ManifestUrl.fromRow(rs);
 			}
 		});
 
-		ff.Value.ManifestFile.JWE = loadJWE(ff.Value.ManifestFile.FileId);
+		fu.Value.ManifestFile.JWE = loadJWE(fu.Value.ManifestFile.FileId);
 
-		return(ff.Value);
+		return(fu.Value);
 	}
 	
 	// +--------------+
@@ -382,9 +381,9 @@ public class SHLStore extends SqlStore
 	
 	private final static String INSERT_MANIFEST =
 		"insert into manifests " +
-		"(manifest_id, key_b64u, flags, label, exp_epoch_seconds, " +
+		"(manifest_id, exp_epoch_second, retry_seconds," +
 		" passcode, passcode_failures) " +
-		"values (?,?,?,?,?,?,0) ";
+		"values (?,?,?,?,0) ";
 
 	private final static String DELETE_MANIFEST =
 		"delete from manifests where manifest_id = ?";
@@ -392,10 +391,8 @@ public class SHLStore extends SqlStore
 	private final static String QUERY_MANIFEST =
 		"select " +
 		"  m.manifest_id manifest_id, " +
-		"  m.key_b64u key_b64u, " +
-		"  m.flags flags, " +
-		"  m.label label, " +
-		"  m.exp_epoch_seconds exp_epoch_seconds, " +
+		"  m.exp_epoch_second exp_epoch_second, " +
+		"  m.retry_seconds retry_seconds, " +
 		"  m.passcode passcode, " +
 		"  m.passcode_failures passcode_failures, " +
 		"  f.file_id file_id, " +
@@ -425,7 +422,7 @@ public class SHLStore extends SqlStore
 	
 	private final static String INSERT_URL =
 		"insert into urls " +
-		"(url_id, file_id, manifest_id, exp_epoch_seconds) " +
+		"(url_id, file_id, manifest_id, exp_epoch_second) " +
 		"values (?,?,?,?) ";
 
 	private final static String DELETE_URLS =
@@ -436,7 +433,7 @@ public class SHLStore extends SqlStore
 		"  u.url_id url_id, " +
 		"  u.file_id file_id, " +
 		"  u.manifest_id manifest_id, " +
-		"  u.exp_epoch_seconds exp_epoch_seconds, " +
+		"  u.exp_epoch_second exp_epoch_second, " +
 		"  f.content_type content_type, " +
 		"  f.manifest_unique_name manifest_unique_name " +
 		"from " +
@@ -452,10 +449,8 @@ public class SHLStore extends SqlStore
 		"create table manifests " +
 		"( " +
 		"    manifest_id varchar(43) not null, " +
-		"    key_b64u varchar(43) not null, " +
-		"    flags varchar(4) not null, " +
-		"    label varchar(80) not null, " +
-		"    exp_epoch_seconds integer null, " +
+		"    exp_epoch_second integer null, " +
+		"    retry_seconds integer null, " +
 		"    passcode varchar(128) null, " +
 		"    passcode_failures integer null, " +
 		" " +
@@ -480,7 +475,7 @@ public class SHLStore extends SqlStore
 		"    url_id varchar(43) not null, " +
 		"    file_id varchar(43) not null, " +
 		"    manifest_id varchar(43) not null, " +
-		"    exp_epoch_seconds integer null, " +
+		"    exp_epoch_second integer null, " +
 		" " +
 		"    foreign key (manifest_id) references manifests, " +
 		"    foreign key (file_id) references files, " +

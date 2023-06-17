@@ -495,7 +495,7 @@ public class Easy
 	}
 
 	public static String base64urlEncode(String input) {
-		try { return(Base64.getUrlEncoder().encodeToString(input.getBytes("UTF-8"))); }
+		try { return(Base64.getUrlEncoder().withoutPadding().encodeToString(input.getBytes("UTF-8"))); }
 		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 

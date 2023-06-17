@@ -19,7 +19,7 @@ public class App
 	public static class Config
 	{
 		public WebServer.Config Server;
-		public SmartHealthLinks.Config SHL;
+		public SHL.Config SHL;
 
 		public String ManifestUrl = "/manifest";
 		public String ContentUrl = "/content";
@@ -39,7 +39,7 @@ public class App
 		
 		final Config cfg = Config.fromJson(Easy.stringFromSmartyPath(cfgPath));
 		final WebServer server = WebServer.create(cfg.Server);
-		final SmartHealthLinks shl = new SmartHealthLinks(cfg.SHL);
+		final SHL shl = new SHL(cfg.SHL);
 			
 		registerManifestHandler(cfg.ManifestUrl, server, shl);
 		registerContentHandler(cfg.ContentUrl, server, shl);
@@ -52,7 +52,7 @@ public class App
 
 	private static void registerManifestHandler(String url,
 												WebServer server,
-												SmartHealthLinks shl) throws IOException {
+												SHL shl) throws IOException {
 		
 		server.registerHandler(url, new Handler() {
 				
@@ -64,7 +64,7 @@ public class App
 
 	private static void registerContentHandler(String url,
 											   WebServer server,
-											   SmartHealthLinks shl) throws IOException {
+											   SHL shl) throws IOException {
 		
 		server.registerHandler(url, new Handler() {
 				
@@ -76,7 +76,7 @@ public class App
 
 	private static void registerCreateHandler(String url,
 											  WebServer server,
-											  SmartHealthLinks shl) throws IOException {
+											  SHL shl) throws IOException {
 		
 		server.registerHandler(url, new Handler() {
 				
