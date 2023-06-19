@@ -92,8 +92,8 @@ public class SHLStore extends SqlStore
 
 	public static class FullUrl
 	{
-		public ManifestUrl ManifestUrl;
-		public ManifestFile ManifestFile;
+		public ManifestUrl Url;
+		public ManifestFile File;
 	}
 	
 	public static class ManifestUrl
@@ -196,21 +196,8 @@ public class SHLStore extends SqlStore
 			mf.ManifestId = fm.Manifest.ManifestId;
 			mf.FileId = makeId();
 
+			insertFile(mf);
 			saveJWE(mf.FileId, mf.JWE);
-			
-			update(INSERT_FILE, new SqlStore.UpdateHandler() {
-				public void prepare(PreparedStatement stmt, int iter) throws Exception {
-					stmt.setString(1, mf.FileId);
-					stmt.setString(2, mf.ManifestId);
-					stmt.setString(3, mf.ContentType);
-					stmt.setString(4, mf.ManifestUniqueName);
-				}
-				public void confirm(int rowsAffected, int iter) {
-					if (rowsAffected > 0) added.Value = true;
-				}
-			});
-
-			if (!added.Value) throw new Exception("Failed adding manifest file row");
 		}
 
 		return(fm.Manifest.ManifestId);
@@ -257,6 +244,134 @@ public class SHLStore extends SqlStore
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "deleteManifestHelper", true));
 		}
+	}
+
+	// +---------------------------+
+	// | incrementPasscodeFailures |
+	// +---------------------------+
+
+	public void incrementPasscodeFailures(String manifestId) {
+		try {
+			update(INCREMENT_PASSCODE_FAILURES, new SqlStore.UpdateHandler() {
+				public void prepare(PreparedStatement stmt, int iter) throws Exception {
+					stmt.setString(1, manifestId);
+				}
+			});
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "incremetnPasscodeFailures", true));
+		}
+	}
+
+	// +------------+
+	// | upsertFile |
+	// +------------+
+
+	public boolean upsertFile(ManifestFile mf) {
+		try {
+			upsertFileHelper(mf);
+			return(true);
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "upsertManifest", true));
+			return(false);
+		}
+	}
+
+	public void upsertFileHelper(ManifestFile mfNew) throws Exception {
+
+		ManifestFile mfOld = queryFile(mfNew.ManifestId, mfNew.ManifestUniqueName);
+
+		if (mfOld == null) {
+			mfNew.FileId = makeId();
+			insertFile(mfNew);
+		}
+		else {
+			mfNew.FileId = mfOld.FileId;
+			
+			if (!mfOld.ContentType.equals(mfNew.ContentType)) {
+				updateContentType(mfNew);
+			}
+
+			deleteJWE(mfOld.FileId);
+		}
+
+		saveJWE(mfNew.FileId, mfNew.JWE);
+	}
+
+	private ManifestFile queryFile(String manifestId, String manifestUniqueName) throws Exception {
+		
+		SqlStore.Return<ManifestFile> mf = new SqlStore.Return<ManifestFile>();
+
+		query(QUERY_FILE, new SqlStore.QueryHandler() {
+			public void prepare(PreparedStatement stmt) throws Exception {
+				stmt.setString(1, manifestId);
+				stmt.setString(2, manifestUniqueName);
+			}
+			public void row(ResultSet rs, int irow) throws Exception {
+				mf.Value = ManifestFile.fromRow(rs);
+			}
+		});
+
+		return(mf.Value);
+	}
+	
+	private void insertFile(ManifestFile mf) throws Exception {
+		
+		SqlStore.Return<Boolean> added = new SqlStore.Return<Boolean>();
+		
+		update(INSERT_FILE, new SqlStore.UpdateHandler() {
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, mf.FileId);
+				stmt.setString(2, mf.ManifestId);
+				stmt.setString(3, mf.ContentType);
+				stmt.setString(4, mf.ManifestUniqueName);
+			}
+			public void confirm(int rowsAffected, int iter) {
+				if (rowsAffected > 0) added.Value = true;
+			}
+		});
+
+		if (!added.Value) throw new Exception("Failed adding manifest file row");
+	}
+
+	private void updateContentType(ManifestFile mf) throws Exception {
+
+		update(UPDATE_FILE_CT, new SqlStore.UpdateHandler() {
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, mf.ContentType);
+				stmt.setString(2, mf.FileId);
+			}
+		});
+	}
+
+	// +------------+
+	// | deleteFile |
+	// +------------+
+
+	public boolean deleteFile(String manifestId, String manifestUniqueName) {
+		try {
+			deleteFileHelper(manifestId, manifestUniqueName);
+			return(true);
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "deleteManifest", true));
+			return(false);
+		}
+	}
+
+	private void deleteFileHelper(String manifestId, String manifestUniqueName) throws Exception {
+
+		ManifestFile mf = queryFile(manifestId, manifestUniqueName);
+		if (mf == null) throw new Exception("manifest file not found");
+
+		update(DELETE_FILE, new SqlStore.UpdateHandler() {
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, mf.FileId);
+			}
+		});
+
+		deleteJWE(mf.FileId);
 	}
 
 	// +-----------+
@@ -321,12 +436,12 @@ public class SHLStore extends SqlStore
 				stmt.setString(1, urlId);
 			}
 			public void row(ResultSet rs, int irow) throws Exception {
-				fu.Value.ManifestFile = ManifestFile.fromRow(rs);
-				fu.Value.ManifestUrl = ManifestUrl.fromRow(rs);
+				fu.Value.File = ManifestFile.fromRow(rs);
+				fu.Value.Url = ManifestUrl.fromRow(rs);
 			}
 		});
 
-		fu.Value.ManifestFile.JWE = loadJWE(fu.Value.ManifestFile.FileId);
+		fu.Value.File.JWE = loadJWE(fu.Value.File.FileId);
 
 		return(fu.Value);
 	}
@@ -405,6 +520,11 @@ public class SHLStore extends SqlStore
 	    "where " +
 		"  m.manifest_id = ? ";
 
+	private final static String INCREMENT_PASSCODE_FAILURES =
+		"update manifests " +
+		"set passcode_failures = passcode_failures + 1 " +
+		"where manifest_id = ? ";
+
 	// files
 	
 	private final static String INSERT_FILE =
@@ -415,9 +535,19 @@ public class SHLStore extends SqlStore
 	private final static String DELETE_FILES =
 		"delete from files where manifest_id = ?";
 
+	private final static String DELETE_FILE =
+		"delete from files where file_id = ?";
+
 	private final static String QUERY_FILES =
 		"select file_id from files where manifest_id = ?";
 
+	private final static String QUERY_FILE =
+		"select file_id, manifest_id, content_type, manifest_unique_name " +
+		"from files where manifest_id = ? and manifest_unique_name = ?";
+
+	private final static String UPDATE_FILE_CT =
+		"update files set content_type = ? where file_id = ?";
+		
 	// urls
 	
 	private final static String INSERT_URL =

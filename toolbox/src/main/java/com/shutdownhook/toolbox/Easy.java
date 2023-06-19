@@ -535,6 +535,14 @@ public class Easy
 			   urlFormatQueryParams(params));
 	}
 
+	public static String urlAddQueryParam(String baseUrl, String name, String value) {
+
+		Map<String,String> params = new HashMap<String,String>();
+		params.put(name, value);
+		
+		return(urlAddQueryParams(baseUrl, params));
+	}
+
 	public static String urlFormatQueryParams(Map<String,String> params) {
 
 		StringBuilder sb = new StringBuilder();

@@ -18,46 +18,59 @@ import com.nimbusds.jose.crypto.DirectDecrypter;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
 
-public class TestHelper implements Closeable
+public class TestHelper
 {
-	public TestHelper() throws Exception {
+	// +-----------------+
+	// | TestStoreConfig |
+	// +-----------------+
+
+	public static class TestConfigs implements Closeable
+	{
+		public TestConfigs() throws Exception {
 			
-		String tmp = "xyz" + Integer.toString(new Random().nextInt(20000));
-		System.out.println("TempStore Prefix is " + tmp);
+			String tmp = "xyz" + Integer.toString(new Random().nextInt(20000));
+			System.out.println("TempStore Prefix is " + tmp);
+			
+			this.sqlFile = Files.createTempFile(tmp, ".sql");
+			this.jweDir = Files.createTempDirectory(tmp);
 
-		this.sqlFile = Files.createTempFile(tmp, ".sql");
-		this.jweDir = Files.createTempDirectory(tmp);
-		
-		SHLStore.Config cfgStore = new SHLStore.Config();
-		cfgStore.Sql = new SqlStore.Config("jdbc:sqlite:" + sqlFile.toString());
-		cfgStore.FilesPath = jweDir.toString();
+			this.cfgStore = new SHLStore.Config();
+			cfgStore.Sql = new SqlStore.Config("jdbc:sqlite:" + sqlFile.toString());
+			cfgStore.FilesPath = jweDir.toString();
 
-		this.store = new SHLStore(cfgStore);
+			this.cfgSHL = new SHL.Config();
+			cfgSHL.Store = cfgStore;
+			cfgSHL.AdminToken = ADMIN_TOKEN;
 
-		SHL.Config cfgSHL = new SHL.Config();
-		cfgSHL.Store = cfgStore;
-		cfgSHL.AdminToken = ADMIN_TOKEN;
+			this.cfgServer = new SHLServer.Config();
+			cfgServer.WebServer.Port = new Random().nextInt(2000) + 7000; // rand to minimize conflict
+			cfgServer.WebServer.ReturnExceptionDetails = true;
+			cfgServer.SHL = cfgSHL;
+		}
 
-		this.shl = new SHL(cfgSHL);
-		this.encrypt = new SHLEncrypt();
+		public void close() {
+			sqlFile.toFile().delete();
+			jweDir.toFile().delete();
+		}
+
+		public SHLServer.Config getServerConfig() { return(cfgServer); }
+		public SHL.Config getSHLConfig() { return(cfgSHL); }
+		public SHLStore.Config getStoreConfig() { return(cfgStore); }
+
+		private SHLServer.Config cfgServer;
+		private SHL.Config cfgSHL;
+		private SHLStore.Config cfgStore;
+		private Path sqlFile;
+		private Path jweDir;
 	}
-
-	public void close() {
-		this.shl = null;
-		this.store = null;
-		sqlFile.toFile().delete();
-		jweDir.toFile().delete();
-	}
-
-	public SHL getSHL() { return(shl); }
-	public SHLStore getStore() { return(store); }
 
 	// +---------+
 	// | Decrypt |
 	// +---------+
 
-	public String decrypt(String JWE, String keyB64u) throws Exception {
+	public static String decrypt(String JWE, String keyB64u) throws Exception {
 
+		SHLEncrypt encrypt = new SHLEncrypt();
 		SecretKey key = encrypt.b64uToKey(keyB64u);
 		
 		JWEObject jweObject = JWEObject.parse(JWE);
@@ -66,22 +79,12 @@ public class TestHelper implements Closeable
 		return(jweObject.getPayload().toString());
 	}
 
-	// +---------+
-	// | Members |
-	// +---------+
-	
-	private Path sqlFile;
-	private Path jweDir;
-	private SHLStore store;
-	private SHL shl;
-	private SHLEncrypt encrypt;
-
 	// +------+
 	// | Data |
 	// +------+
 
 	public final static String ADMIN_TOKEN = "admin";
-	public final static String URL_PREFIX = "https://localhost/manifest?id=";
+	public final static String MANIFEST_URL = "https://localhost/manifest";
 
 	public final static String SAMPLE_PASSCODE = "pa$$c0de";
 	public final static String SAMPLE_LABEL = "look at me writing tests";

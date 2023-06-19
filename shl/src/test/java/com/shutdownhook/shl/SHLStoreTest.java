@@ -13,12 +13,15 @@ import org.junit.Assert;
 import org.junit.BeforeClass;
 import org.junit.AfterClass;
 
+import com.google.gson.Gson;
+
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
 
 public class SHLStoreTest
 {
-	private static TestHelper helper = null;
+	private static TestHelper.TestConfigs configs = null;
+	private static SHLStore store = null;
 	private static String basicManifestId = null;
 	
 	// +------------------+
@@ -29,15 +32,16 @@ public class SHLStoreTest
 	public static void setup() throws Exception {
 
 		Easy.setSimpleLogFormat("FINE");
-		helper = new TestHelper();
+		configs = new TestHelper.TestConfigs();
+		store = new SHLStore(configs.getStoreConfig());
 		basicManifestId = createBasicManifest();
 	}
 
 	@AfterClass
 	public static void cleanup() throws Exception {
 		
-		if (basicManifestId != null) helper.getStore().deleteManifest(basicManifestId);
-		helper.close(); helper = null;
+		if (basicManifestId != null) store.deleteManifest(basicManifestId);
+		configs.close(); configs = null;
 	}
 	
 	// +-------------------+
@@ -47,7 +51,7 @@ public class SHLStoreTest
 	@Test
     public void testManifestBasic() throws Exception {
 
-		SHLStore.FullManifest fm = helper.getStore().queryManifest(basicManifestId);
+		SHLStore.FullManifest fm = store.queryManifest(basicManifestId);
 		
 		Assert.assertNotNull(fm);
 		Assert.assertEquals(basicManifestId, fm.Manifest.ManifestId);
@@ -81,6 +85,68 @@ public class SHLStoreTest
 		}
 	}
 
+	// +-------------------------+
+	// | testManifestFilesUpdate |
+	// +-------------------------+
+
+	@Test
+	public void testManifestFilesUpdate() throws Exception {
+
+		String manifestId = createBasicManifest();
+		SHLStore.FullManifest fm = store.queryManifest(manifestId);
+		
+		Assert.assertEquals(2, fm.Files.size());
+
+		// remove f1
+		store.deleteFile(manifestId, TestHelper.BASIC_FILENAME_1);
+		fm = store.queryManifest(manifestId);
+		
+		Assert.assertEquals(1, fm.Files.size());
+		Assert.assertEquals(TestHelper.BASIC_FILENAME_2, fm.Files.get(0).ManifestUniqueName);
+
+		// update f2 changing ips -> shc
+		SHLStore.ManifestFile mf = fm.Files.get(0);
+		mf.ContentType = TestHelper.SHC_CONTENTTYPE;
+		mf.JWE = TestHelper.SHC_JWE;
+
+		Assert.assertTrue(store.upsertFile(mf));
+		fm = store.queryManifest(manifestId);
+		
+		Assert.assertEquals(1, fm.Files.size());
+		Assert.assertEquals(TestHelper.BASIC_FILENAME_2, fm.Files.get(0).ManifestUniqueName);
+		Assert.assertEquals(TestHelper.SHC_JWE, fm.Files.get(0).JWE);
+
+		// add back f1 (but as ips)
+		mf = new SHLStore.ManifestFile();
+		mf.ManifestId = manifestId;
+		mf.ManifestUniqueName = TestHelper.BASIC_FILENAME_1;
+		mf.ContentType = TestHelper.FHIR_CONTENTTYPE;
+		mf.JWE = TestHelper.IPS_JWE;
+
+		Assert.assertTrue(store.upsertFile(mf));
+		fm = store.queryManifest(manifestId);
+
+		Assert.assertEquals(2, fm.Files.size());
+		checkFlippedFile(fm.Files.get(0));
+		checkFlippedFile(fm.Files.get(1));
+
+		store.deleteManifest(manifestId);
+	}
+
+	private void checkFlippedFile(SHLStore.ManifestFile mf) {
+		if (mf.ManifestUniqueName.equals(TestHelper.BASIC_FILENAME_2)) {
+			Assert.assertEquals(TestHelper.SHC_CONTENTTYPE, mf.ContentType);
+			Assert.assertEquals(TestHelper.SHC_JWE, mf.JWE);
+		}
+		else if (mf.ManifestUniqueName.equals(TestHelper.BASIC_FILENAME_1)) {
+			Assert.assertEquals(TestHelper.FHIR_CONTENTTYPE, mf.ContentType);
+			Assert.assertEquals(TestHelper.IPS_JWE, mf.JWE);
+		}
+		else {
+			Assert.fail();
+		}
+	}
+
 	// +--------------+
 	// | testUrlBasic |
 	// +--------------+
@@ -88,7 +154,7 @@ public class SHLStoreTest
 	@Test
     public void testUrlBasic() throws Exception {
 
-		SHLStore.FullManifest fm = helper.getStore().queryManifest(basicManifestId);
+		SHLStore.FullManifest fm = store.queryManifest(basicManifestId);
 
 		testUrlRoundTrip(fm.Files.get(0), null);
 		testUrlRoundTrip(fm.Files.get(1), 60L * 60L);
@@ -96,21 +162,21 @@ public class SHLStoreTest
 
 	private void testUrlRoundTrip(SHLStore.ManifestFile mf, Long expirationEpochSecond) {
 		
-		String urlId = helper.getStore().createUrl(mf, expirationEpochSecond);
-		SHLStore.FullUrl fu = helper.getStore().queryUrl(urlId);
+		String urlId = store.createUrl(mf, expirationEpochSecond);
+		SHLStore.FullUrl fu = store.queryUrl(urlId);
 
-		Assert.assertEquals(mf.FileId, fu.ManifestFile.FileId);
-		Assert.assertEquals(mf.ManifestId, fu.ManifestFile.ManifestId);
-		Assert.assertEquals(mf.ContentType, fu.ManifestFile.ContentType);
-		Assert.assertEquals(mf.ManifestUniqueName, fu.ManifestFile.ManifestUniqueName);
-		Assert.assertEquals(mf.JWE, fu.ManifestFile.JWE);
+		Assert.assertEquals(mf.FileId, fu.File.FileId);
+		Assert.assertEquals(mf.ManifestId, fu.File.ManifestId);
+		Assert.assertEquals(mf.ContentType, fu.File.ContentType);
+		Assert.assertEquals(mf.ManifestUniqueName, fu.File.ManifestUniqueName);
+		Assert.assertEquals(mf.JWE, fu.File.JWE);
 		
-		Assert.assertEquals(urlId, fu.ManifestUrl.UrlId);
-		Assert.assertEquals(mf.FileId, fu.ManifestUrl.FileId);
-		Assert.assertEquals(mf.ManifestId, fu.ManifestUrl.ManifestId);
+		Assert.assertEquals(urlId, fu.Url.UrlId);
+		Assert.assertEquals(mf.FileId, fu.Url.FileId);
+		Assert.assertEquals(mf.ManifestId, fu.Url.ManifestId);
 		
 		Assert.assertEquals(expirationEpochSecond == null ? 0 : expirationEpochSecond,
-							(long) fu.ManifestUrl.ExpirationEpochSecond);
+							(long) fu.Url.ExpirationEpochSecond);
 	}
 
 	// +---------------+
@@ -136,7 +202,7 @@ public class SHLStoreTest
 		fm.Files.add(mf1);
 		fm.Files.add(mf2);
 
-		return(helper.getStore().createManifest(fm));
+		return(store.createManifest(fm));
     }
 
 }

@@ -78,6 +78,7 @@ public class WebServer implements Closeable
 		public boolean Secure;
 		public Map<String,String> QueryParams;
 		public Map<String,String> Cookies;
+		public Map<String,List<String>> Headers;
 		public String Body;
 
 		public Map<String,String> parseBodyAsQueryString() {
@@ -311,6 +312,7 @@ public class WebServer implements Closeable
 		request.Method = exchange.getRequestMethod();
 		request.RemoteAddress = exchange.getRemoteAddress().getAddress().getHostAddress();
 		request.Referrer = exchange.getRequestHeaders().getFirst("Referer");
+		request.Headers = exchange.getRequestHeaders();
 
 		// query string
 		request.QueryParams = parseQueryString(exchange.getRequestURI().getRawQuery());
