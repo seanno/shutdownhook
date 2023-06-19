@@ -74,15 +74,47 @@ public class SHLServer implements Closeable
 	public void close() { server.close(); }
 
 	// +--------------------+
+	// | CORSEnabledHandler |
+	// +--------------------+
+
+	public abstract static class CORSEnabledHandler implements Handler
+	{
+		public CORSEnabledHandler(String method) {
+			this.method = method;
+		}
+		
+		public void handle(Request request, Response response) throws Exception {
+
+			response.addHeader("Access-Control-Allow-Origin", "*");
+
+			if (request.Method.equalsIgnoreCase("OPTIONS")) {
+				response.addHeader("Access-Control-Allow-Methods", method + ", OPTIONS");
+				response.addHeader("Access-Control-Allow-Headers", "*");
+				response.Status = 204; // OK no content
+				return;
+			}
+
+			if (!request.Method.equalsIgnoreCase(method)) {
+				response.Status = 401;
+			}
+
+			handle2(request, response);
+		}
+
+		protected abstract void handle2(Request request, Response response) throws Exception;
+
+		private String method;
+	}
+
+	// +--------------------+
 	// | Manifest & Content |
 	// +--------------------+
 	
 	private void registerManifestHandler() {
 
-		server.registerHandler(cfg.ManifestUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
+		server.registerHandler(cfg.ManifestUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
-				requireMethod(request, "POST");
 				SHL.ManifestPOST post = SHL.ManifestPOST.fromJson(request.Body);
 				SHL.ManifestReturn mr = shl.manifest(request.Path, request.Base, post);
 
@@ -101,11 +133,8 @@ public class SHLServer implements Closeable
 	}
 
 	private void registerContentHandler() {
-		server.registerHandler(cfg.ContentUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "GET");
-
+		server.registerHandler(cfg.ContentUrl, new CORSEnabledHandler("GET") { 
+			public void handle2(Request request, Response response) throws Exception {
 				response.Status = 200;
 				response.ContentType = "application/jwt";
 				response.Body = shl.content(request.Path);
@@ -118,10 +147,8 @@ public class SHLServer implements Closeable
 	// +--------------------------+
 		
 	private void registerCreateLinkHandler() {
-		server.registerHandler(cfg.CreateLinkUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "POST");
+		server.registerHandler(cfg.CreateLinkUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
 				String link = shl.createLink(getAdminToken(request),
 											 request.Base,
@@ -134,10 +161,8 @@ public class SHLServer implements Closeable
 	}
 
 	private void registerCreatePayloadHandler() {
-		server.registerHandler(cfg.CreatePayloadUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "POST");
+		server.registerHandler(cfg.CreatePayloadUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
 				SHL.Payload payload = shl.createPayload(getAdminToken(request),
 														request.Base,
@@ -149,10 +174,8 @@ public class SHLServer implements Closeable
 	}
 
 	private void registerDeleteManifestHandler() {
-		server.registerHandler(cfg.DeleteManifestUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "POST");
+		server.registerHandler(cfg.DeleteManifestUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
 				shl.deleteManifest(getAdminToken(request),
 								   SHL.DeleteManifestParams.fromJson(request.Body));
@@ -167,10 +190,8 @@ public class SHLServer implements Closeable
 	// +----------------------------+
 	
 	private void registerUpsertFileHandler() {
-		server.registerHandler(cfg.UpsertFileUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "POST");
+		server.registerHandler(cfg.UpsertFileUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
 				shl.upsertFile(getAdminToken(request),
 							   SHL.UpsertFileParams.fromJson(request.Body));
@@ -181,10 +202,8 @@ public class SHLServer implements Closeable
 	}
 
 	private void registerDeleteFileHandler() {
-		server.registerHandler(cfg.DeleteFileUrl, new Handler() {
-			public void handle(Request request, Response response) throws Exception {
-
-				requireMethod(request, "POST");
+		server.registerHandler(cfg.DeleteFileUrl, new CORSEnabledHandler("POST") {
+			public void handle2(Request request, Response response) throws Exception {
 
 				shl.deleteFile(getAdminToken(request),
 							   SHL.DeleteFileParams.fromJson(request.Body));
@@ -192,16 +211,6 @@ public class SHLServer implements Closeable
 				response.setText("OK");
 			}
 		});
-	}
-
-	// +---------+
-	// | Helpers |
-	// +---------+
-
-	private void requireMethod(Request request, String method) throws Exception {
-		if (!request.Method.equalsIgnoreCase(method)) {
-			throw new Exception("Invalid method for route");
-		}
 	}
 
 	private String getAdminToken(Request request) throws Exception {
