@@ -87,8 +87,11 @@ public class SHLServer implements Closeable
 				SHL.ManifestReturn mr = shl.manifest(request.Path, request.Base, post);
 
 				response.Status = mr.Status;
-				response.ContentType = "application/json";
-				response.Body = mr.JSON;
+				
+				if (mr.JSON != null) {
+					response.ContentType = "application/json";
+					response.Body = mr.JSON;
+				}
 
 				if (mr.RetrySeconds != null) {
 					response.addHeader("Retry-After", mr.RetrySeconds.toString());
