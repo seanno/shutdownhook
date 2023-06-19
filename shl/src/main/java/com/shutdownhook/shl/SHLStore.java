@@ -37,6 +37,7 @@ public class SHLStore extends SqlStore
 		super(cfg.Sql);
 		this.cfg = cfg;
 		ensureTables();
+		Files.createDirectories(Paths.get(cfg.FilesPath));
 	}
 
 	// +------------+
