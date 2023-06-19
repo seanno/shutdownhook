@@ -119,7 +119,10 @@ public class SHL
 		
 		if (fm.Manifest.PasscodeFailures >= cfg.MaxPasscodeFailures) {
 			log.warning(String.format("Manifest ID %s disabled (passcode failure max)", manifestId));
-			throw new AccessDeniedException("too many passcode failures");
+
+			// per spec act like it doesn't exist
+			mr.Status = 404;
+			return(mr);
 		}
 
 		if (fm.Manifest.Passcode != null && !fm.Manifest.Passcode.equals(post.passcode)) {
