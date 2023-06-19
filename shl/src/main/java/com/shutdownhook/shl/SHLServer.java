@@ -116,6 +116,12 @@ public class SHLServer implements Closeable
 			public void handle2(Request request, Response response) throws Exception {
 
 				SHL.ManifestPOST post = SHL.ManifestPOST.fromJson(request.Body);
+				if (post == null) {
+					response.Status = 500;
+					log.info("invalid post for manifest");
+					return;
+				}
+				
 				SHL.ManifestReturn mr = shl.manifest(request.Path, request.Base, post);
 
 				response.Status = mr.Status;
@@ -150,10 +156,13 @@ public class SHLServer implements Closeable
 		server.registerHandler(cfg.CreateLinkUrl, new CORSEnabledHandler("POST") {
 			public void handle2(Request request, Response response) throws Exception {
 
+				SHL.CreateParams params = SHL.CreateParams.fromJson(request.Body);
+				if (params == null) { response.Status = 500; return; }
+				
 				String link = shl.createLink(getAdminToken(request),
 											 request.Base,
 											 cfg.ViewerUrl,
-											 SHL.CreateParams.fromJson(request.Body));
+											 params);
 
 				response.setText(link);
 			}
@@ -164,9 +173,12 @@ public class SHLServer implements Closeable
 		server.registerHandler(cfg.CreatePayloadUrl, new CORSEnabledHandler("POST") {
 			public void handle2(Request request, Response response) throws Exception {
 
+				SHL.CreateParams params = SHL.CreateParams.fromJson(request.Body);
+				if (params == null) { response.Status = 500; return; }
+
 				SHL.Payload payload = shl.createPayload(getAdminToken(request),
 														request.Base,
-														SHL.CreateParams.fromJson(request.Body));
+														params);
 
 				response.setJson(payload.toJson());
 			}
@@ -177,9 +189,10 @@ public class SHLServer implements Closeable
 		server.registerHandler(cfg.DeleteManifestUrl, new CORSEnabledHandler("POST") {
 			public void handle2(Request request, Response response) throws Exception {
 
-				shl.deleteManifest(getAdminToken(request),
-								   SHL.DeleteManifestParams.fromJson(request.Body));
-
+				SHL.DeleteManifestParams params = SHL.DeleteManifestParams.fromJson(request.Body);
+				if (params == null) { response.Status = 500; return; }
+				
+				shl.deleteManifest(getAdminToken(request), params);
 				response.setText("OK");
 			}
 		});
@@ -193,9 +206,10 @@ public class SHLServer implements Closeable
 		server.registerHandler(cfg.UpsertFileUrl, new CORSEnabledHandler("POST") {
 			public void handle2(Request request, Response response) throws Exception {
 
-				shl.upsertFile(getAdminToken(request),
-							   SHL.UpsertFileParams.fromJson(request.Body));
+				SHL.UpsertFileParams params = SHL.UpsertFileParams.fromJson(request.Body);
+				if (params == null) { response.Status = 500; return; }
 
+				shl.upsertFile(getAdminToken(request), params);
 				response.setText("OK");
 			}
 		});
@@ -205,13 +219,18 @@ public class SHLServer implements Closeable
 		server.registerHandler(cfg.DeleteFileUrl, new CORSEnabledHandler("POST") {
 			public void handle2(Request request, Response response) throws Exception {
 
-				shl.deleteFile(getAdminToken(request),
-							   SHL.DeleteFileParams.fromJson(request.Body));
+				SHL.DeleteFileParams params = SHL.DeleteFileParams.fromJson(request.Body);
+				if (params == null) { response.Status = 500; return; }
 
+				shl.deleteFile(getAdminToken(request), params);
 				response.setText("OK");
 			}
 		});
 	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
 
 	private String getAdminToken(Request request) throws Exception {
 		List<String> values = request.Headers.get(cfg.AdminTokenHeader);
