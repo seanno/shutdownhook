@@ -226,7 +226,7 @@ public class SHL
 		public String Passcode = null; // default no passcode
 		public Long TtlSeconds = 0L; // default no expiration
 		public Long RetrySeconds = 0L; // default no Retry-After header
-		public Boolean EncryptFiles = false; // default files already encrypted
+		public Boolean EncryptFiles = true; // default files need encryption
 		public String Label;
 		public FileData[] Files;
 

@@ -1,0 +1,26 @@
+{
+  "WebServer": {
+	
+	"Port": 7071,
+	"SSLCertificateFile": "@localhost.crt",
+	"SSLCertificateKeyFile": "@localhost.key"
+  },
+
+  "SHL": {
+
+	"Store": {
+
+	  "Sql": {
+
+		"ConnectionString": "jdbc:sqlite:shl-demo.sql"
+	  },
+
+	  "FilesPath": "shl-demo"
+	},
+
+	"AdminToken": "demotime"
+	
+  },
+
+  "ViewerUrl": "https://shcwork.z22.web.core.windows.net/shlink.html"
+}
