@@ -1,5 +1,5 @@
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import Scoreboard from "./Scoreboard.js";
 import OutsDisplay from "./OutsDisplay.js";
 import ButtonBar from "./ButtonBar.js";
@@ -22,12 +22,19 @@ export default function DiceBall() {
 
   const HOME_TEAM = "Mariners";
   
-  const [visitingTeam] =
-		useState(VISITING_TEAMS[Math.floor(Math.random() * VISITING_TEAMS.length)]);
-		  
-  const [outs, setOuts] = useState(0);
-  const [innings, setInnings] = useState([0]); // really half-innings
-  const [actionHistory, setActionHistory] = useState([]);
+  const [visitingTeam, setVisitingTeam] = useState(localStorageString("visitor", randomVisitor()));
+  const [outs, setOuts] = useState(localStorageInt("outs", 0));
+  const [innings, setInnings] = useState(localStorageArray("innings", [0]));
+  const [actionHistory, setActionHistory] = useState(localStorageArray("history", []));
+
+  useEffect(() => {
+	
+	localStorage.setItem("visitor", visitingTeam);
+	localStorage.setItem("outs", outs.toString());
+	localStorage.setItem("innings", JSON.stringify(innings));
+	localStorage.setItem("history", JSON.stringify(actionHistory));
+	
+  }, [visitingTeam,outs,innings,actionHistory]);
   
   // +---------+
   // | Actions |
@@ -103,6 +110,13 @@ export default function DiceBall() {
 	}
   }
   
+  const reset = async() => {
+	setVisitingTeam(randomVisitor());
+	setOuts(0);
+	setInnings([0]);
+	setActionHistory([]);
+  }
+
   // +---------+
   // | Helpers |
   // +---------+
@@ -165,6 +179,34 @@ export default function DiceBall() {
 	return(team === HOME ? HOME_TEAM : visitingTeam);
   }
 
+  // +-----------------+
+  // | Storage Helpers |
+  // +-----------------+
+
+  function randomVisitor() {
+	return(VISITING_TEAMS[Math.floor(Math.random() * VISITING_TEAMS.length)]);
+  }
+
+  function localStorageString(key, def) {
+	return(localStorage.getItem(key) || def);
+  }
+  
+  function localStorageArray(key, def) {
+
+	const s = localStorage.getItem(key);
+	if (!s) return(def);
+
+	return(JSON.parse(s));
+  }
+
+  function localStorageInt(key, def) {
+
+	const s = localStorage.getItem(key);
+	if (!s) return(def);
+
+	return(parseInt(s));
+  }
+
   // +--------+
   // | render |
   // +--------+
@@ -172,7 +214,8 @@ export default function DiceBall() {
   const actions = {
 	out: out,
 	run: run,
-	undo: undo
+	undo: undo,
+	reset: reset
   }
 
   const helpers = {

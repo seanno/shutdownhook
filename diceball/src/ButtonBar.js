@@ -9,6 +9,7 @@ export default function ButtonBar({ actions }) {
 	  <Button sx={{ m: 1 }} variant="contained" onClick={actions.out}>Out</Button>
 	  <Button sx={{ m: 1 }} variant="contained" onClick={actions.run}>Run</Button>
 	  <Button sx={{ m: 1 }} variant="contained" onClick={actions.undo}>Undo</Button>
+	  <Button sx={{ m: 1 }} variant="contained" onClick={actions.reset}>Reset</Button>
     </div>
   );
 }
