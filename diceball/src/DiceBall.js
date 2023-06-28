@@ -235,10 +235,13 @@ export default function DiceBall() {
   }
 
   return (
-	<div>
-	  <Scoreboard helpers={helpers} />
-	  <ButtonBar actions={actions} />
-	  <OutsDisplay helpers={helpers} />
+	<div className="bg">
+	  <div className="content">
+		<Scoreboard helpers={helpers} />
+		<ButtonBar actions={actions} />
+		<OutsDisplay helpers={helpers} />
+	  </div>
+	  <div className="footer" />
 	</div>
   );
 }
