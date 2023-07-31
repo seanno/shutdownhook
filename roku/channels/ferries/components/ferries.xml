@@ -1,0 +1,163 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<component name="Ferries" extends="Scene"> 
+
+  <children>
+
+	<LayoutGroup
+		id="ferriesLayout"
+		translation="[ 100, 70 ]"
+		layoutDirection="horiz" >
+	  
+	  <LabelList id="terminalsList" />
+	  <Poster id="ferryImage" width="1100" />
+
+	</LayoutGroup>
+
+	<Timer
+		id="cycleTimer"
+		repeat="true"
+		duration="20" />
+
+	<TerminalsTask id="terminalsTask" />
+	<RegistryTask id="registryTask" />
+		
+
+  </children>
+  
+  <!-- BrightScript -->
+  <script type="text/brightscript" >
+	<![CDATA[
+
+        function init()
+
+		    terminalsList = m.top.findNode("terminalsList")
+			terminalsList.observeField("itemSelected", "onItemSelected")
+			terminalsList.observeField("itemFocused", "onItemFocused")
+
+            m.terminalsTask = m.top.findNode("TerminalsTask")
+			m.terminalsTask.observeField("ferries", "onContentReady")
+			m.terminalsTask.control = "RUN"
+
+            m.registryTask = m.top.findNode("RegistryTask")
+
+        end function
+
+        function onContentReady()
+		
+		    terminalsList = m.top.findNode("terminalsList")
+			terminalsList.content = m.terminalsTask.ferries.namesNode
+
+            savedTerminalName = m.registryTask.callFunc("getTerminal")
+			terminalsList.jumpToItem = lookupTerminalIndex(savedTerminalName)
+            terminalsList.setFocus(true)
+			cycleImage(true)
+
+		    cycleTimer = m.top.findNode("cycleTimer")
+			cycleTimer.observeField("fire", "onTimer")
+			cycleTimer.control = "START"
+
+		end function
+
+        function lookupTerminalIndex(terminalName as String) 
+
+            terminalsList = m.top.findNode("terminalsList")
+			for i = 0 to terminalsList.content.getChildCount() - 1
+			    if (terminalsList.content.getChild(i).title = terminalName) then return(i)
+			end for
+
+            return(0)
+		    
+        end function
+
+        function onKeyEvent(key as String, press as Boolean) as Boolean
+
+            if (not press) then return(false)
+
+            ? "onKeyEvent press: " + key
+
+            if (key = "right") then
+				cycleImage(true)
+			    return(true)
+			end if
+
+            if (key = "left") then
+				cycleImage(false)
+			    return(true)
+			end if
+
+			return(false)
+
+		end function
+
+        function onItemFocused()
+
+            terminalsList = m.top.findNode("terminalsList")
+			terminalIndex = terminalsList.itemFocused
+            terminalName = terminalsList.content.getChild(terminalIndex).title
+
+            if (terminalName <> m.lastTerminalName) then 
+			    m.lastTerminalName = terminalName
+		        m.lastImageIndex = -1
+
+                m.registryTask.terminal = terminalName
+				m.registryTask.control = "RUN"
+			end if
+
+		end function
+
+        function onItemSelected()
+			cycleImage(true)
+		end function
+
+        function onTimer()
+		    cycleImage(true)
+		end function
+
+        function cycleImage(fwd)
+
+            ? "cycleImage; m.lastImageIndex = ";
+			? m.lastImageIndex;
+			? "; m.terminalName = ";
+			? m.lastTerminalName
+
+            ' get the next image info
+
+			selectedCameras = m.terminalsTask.ferries.camerasMap[m.lastTerminalName]
+
+            if (fwd) then m.lastImageIndex = m.lastImageIndex + 1
+            if (not fwd) then m.lastImageIndex = m.lastImageIndex - 1
+
+            if (m.lastImageIndex >= selectedCameras.Count()) then m.lastImageIndex = 0
+			if (m.lastImageIndex < 0) then m.lastImageIndex = selectedCameras.Count() - 1
+
+			camera = selectedCameras[m.lastImageIndex]
+			? camera.title
+
+            ' update the image
+
+            ferryImage = m.top.findNode("ferryImage")
+			ferryImage.height = (ferryImage.width * camera.height) / camera.width
+			ferryImage.uri = cacheBust(camera.url)
+
+            return(true)
+
+		end function
+
+        function cacheBust(url) 
+
+            rnd = Str(Rnd(0))
+			rnd = Mid(rnd, InStr(1, rnd, ".") + 1)
+
+            marker = "&"
+			if (InStr(1, url, "?") = 0) then marker = "?"
+            newUrl = url + marker + "r=" + rnd
+
+            return(newUrl)
+
+		end function
+
+	]]>
+  </script>
+  <!-- End BrightScript -->
+
+</component>

@@ -7,6 +7,7 @@ package com.shutdownhook.zwave;
 
 import java.io.Closeable;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -84,7 +85,16 @@ public class Queue extends Worker implements Closeable
 		 
 			while (!shouldStop()) {
 
-				List<Message> messages = sqs.receiveMessage(cfg.Url).getMessages();
+				List<Message> messages = null;
+				
+				try {
+					messages = sqs.receiveMessage(cfg.Url).getMessages();
+				}
+				catch (Exception eRcv) {
+					log.severe("Exception receiving messages; will wait 2 seconds: " + eRcv.toString());
+					Thread.sleep(2000); // this is super-rare, try not to spin crazy on outage
+					messages = new ArrayList<Message>();
+				}
 
 				if (messages.size() > 0) {
 					log.info("Queue received " + Integer.toString(messages.size()) + " messsages");
@@ -128,7 +138,6 @@ public class Queue extends Worker implements Closeable
 			log.severe("Exception in queue thread; exiting: " + e.toString());
 		}
 	}
-		public Integer MaxIntervalSecondsForDuplicate = 10; 
 	
 	@Override
 	public void cleanup(Exception e) {

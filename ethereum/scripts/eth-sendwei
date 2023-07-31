@@ -1,0 +1,35 @@
+#!/bin/sh
+
+# $1 = destination address
+# $2 = amount to send (in wei)
+
+if [ "$ETH_ENDPOINT" = "" ] || [ "$ETH_ACCOUNT" = "" ] || [ "$ETH_PK" = "" ]; then
+   echo Set ETH_ENDPOINT, ETH_ACCOUNT, ETH_PK to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+SCRIPTDIR=`dirname $0`
+
+# Value transactions require 21000 gas; we just add a bit of buffer to be safe
+GAS=25000
+
+TX_JSON='{"from":"'$ETH_ACCOUNT'","to":"'$1'","gas":'$GAS',"value":'$2'}'
+
+TX_SIGNED=`$SCRIPTDIR/eth-signtx ''''$TX_JSON''''`
+
+TX_HASH=`curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["'$TX_SIGNED'"],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+echo "Transaction Hash is: $TX_HASH"
+
+$SCRIPTDIR/eth-waittx $TX_HASH

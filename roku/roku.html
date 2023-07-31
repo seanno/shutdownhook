@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html>
+<head>
+	
+  <title>Roku Sidecar</title>
+
+  <style>
+	
+	body, td {
+		font: 14px Verdana,Helvetica,Arial;
+		padding: 2px 2px 2px 2px;
+		color: darkslategray;
+		max-width: 1000px;
+	}
+
+	p, li {
+		margin-bottom: 10px;
+	}
+
+	.nobr {
+		white-space: nowrap;
+	}
+
+	div {
+		padding: 6px 6px 6px 6px;
+		margin: 0px 0px 0px 0px;
+	}
+
+	#controlBar, #watchListSet {
+		background-color: lightsteelblue;
+	}
+
+	#main {
+		display: none;
+	}
+
+	#startup {
+		display: none;
+		background-color: powderblue;
+	}
+
+	#watchListHelp {
+		display: none;
+	}
+	
+	#miniAddrUpdate {
+		float: right;
+		text-align: right;
+	}
+
+	#miniAddrUpdate input {
+		text-align: right;
+	}
+
+	#miniAddrUpdate p {
+		margin: 4px 4px 4px 4px;
+	}
+
+	.miniButton {
+		min-width: 30px;
+	}
+
+	.spaceRight {
+		margin-right: 15px;
+	}
+
+	#watchListContent, #watchListMessage, #watchListHelp {
+		display: none;
+	}
+
+	#watchListGrid {
+		display: grid;
+		grid-gap: 4px 4px;
+		grid-template-columns: auto 130px;
+		trid-template-rows: auto;
+	}
+
+	#tagList {
+		grid-column: 2;
+		grid-row: 1;
+	}
+
+	#showTable {
+		grid-column: 1;
+		grid-row: 1;
+	}
+
+	.showTable {
+		border-collapse: collapse;
+		width: 100%;
+	}
+
+	.showTable td, .showTable th {
+		font-size: 13px;
+		padding: 6px 10px 6px 10px;
+		border: .5px solid darkgrey;
+	}
+
+	.showTable tr:nth-child(1) {
+		background: #e0e0e0;
+	}
+
+	.clearTags {
+		margin-bottom: 8px;
+	}
+
+
+  </style>
+
+  <script
+    src="https://code.jquery.com/jquery-3.6.0.js"
+    integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+    crossorigin="anonymous">
+  </script>
+
+  <script src="callroku.js"></script>
+
+  <script type="text/javascript">
+
+	// globals & init
+
+    $(document).ready(function() {
+
+		fillAppsList();
+		setMainView();
+		
+		$('#saveAddr').click(function(evt) {
+			evt.preventDefault();
+			setAddress(evt, $('#addr').val());
+			setMainView();
+	    });
+		
+		$('#miniSaveAddr').click(function(evt) {
+			evt.preventDefault();
+			setAddress(evt, $('#miniAddr').val());
+	    });
+
+		$('#homeButton').click(function(evt) {
+			evt.preventDefault();
+			rokuCall(getAddress(), '/keypress/home');
+		});
+
+		$('#searchButton').click(function(evt) {
+			evt.preventDefault();
+			rokuSearch(getAddress(), $('#search').val());
+		});
+
+		$('#launchButton').click(function(evt) {
+			evt.preventDefault();
+			rokuLaunch(getAddress(), $('#launch option:selected').val());
+		});
+
+		$('.miniButton').click(function(evt) {
+			evt.preventDefault();
+			rokuCall(getAddress(), '/keypress/' + this.id.substring(4));
+		});
+
+		$('#refreshWatchList').click(function(evt) {
+			evt.preventDefault();
+			renderWatchList();
+		});
+
+		$('#setWatchListUrl').click(function(evt) {
+			evt.preventDefault();
+
+			if (evt.shiftKey) {
+				forgetWatchListUrl();
+				$('#watchListUrl').val('');
+				renderWatchList();
+				return;
+			}
+			
+			var url = $('#watchListUrl').val();
+			if (!url) return;
+			
+			rememberWatchListUrl(url);
+			renderWatchList();
+		});
+
+		// attaching these to document picks up dynamically-created items
+		
+		$(document).on('change', '.tagCheckbox', function(evt) {
+			toggleCheckbox(evt.target);
+		});
+
+		$(document).on('click', '.goShow', function(evt) {
+			evt.preventDefault();
+			var appid = rokuLookupAppId(evt.target.dataset.channel);
+			rokuSearch(getAddress(), evt.target.dataset.show, appid);
+		});
+
+		$(document).on('click', '.clearTags', function(evt) {
+			evt.preventDefault();
+			unselectAllTags();
+		});
+								
+		$(document).on('click', '.allTags', function(evt) {
+			evt.preventDefault();
+			selectAllTags();
+		});
+
+	});
+
+	function setAddress(evt, addr) {
+		evt.preventDefault();
+
+		if (evt.shiftKey) {
+			forgetAddress();
+			setMainView();
+			return;
+		}
+		
+		if (!addr) {
+			alert('Please enter your Roku address in the box.\n' +
+				  'You can find it under Settings / Network / About');
+			return;
+		}
+		
+		if (addr.toLowerCase().startsWith("http://")) {
+			addr = addr.substring(7);
+		}
+
+		rememberAddress(addr);
+	}
+
+	function setMainView() {
+		
+		if (getAddress()) {
+			$('#startup').hide();
+			$('#main').show();
+			$('#miniAddr').val(getAddress());
+			$('#watchListUrl').val(getWatchListUrl());
+			renderWatchList();
+		}
+		else {
+			$('#startup').show();
+			$('#main').hide();
+		}
+	}
+
+	function fillAppsList() {
+		rokuApps().forEach(function(item) {
+			$('#launch').append($('<option/>').val(item.id).text(item.name));
+		});
+	}
+
+	// watchlist
+
+	function watchListMode_Message(msg, showHelp) {
+
+		$('#watchListContent').hide();
+		
+		$('#watchListMessage').html(msg);
+		$('#watchListMessage').show();
+
+		if (showHelp) {
+			$('#watchListHelp').show();
+		}
+		else {
+			$('#watchListHelp').hide();
+		}
+	}
+
+	function watchListMode_Content() {
+
+		$('#watchListContent').show();
+		$('#watchListHelp').hide();
+		$('#watchListMessage').hide();
+	}
+	
+	function renderWatchList() {
+
+		if (!getWatchListUrl()) {
+			watchListMode_Message('', true);
+			return;
+		}
+
+		watchListMode_Message('loading watchlist...', false);
+
+		var table = document.createElement('table');
+		table.setAttribute('class', 'showTable');
+
+		var uncheckedTags = getUncheckedTags();
+		var seenTags = { };
+		clearCheckboxes();
+		addCheckbox('untagged', '', seenTags, uncheckedTags);
+		
+		var tr = document.createElement('tr');
+		table.append(tr);
+
+		var th = document.createElement('th'); th.innerText = 'Show'; tr.append(th);
+		th = document.createElement('th'); th.innerText = 'Channel'; tr.append(th);
+		th = document.createElement('th'); th.innerText = 'Tag'; tr.append(th);
+		th = document.createElement('th'); th.innerText = 'Notes'; tr.append(th);
+
+		$.ajax({
+			url: getWatchListUrl(),
+			type: 'GET',
+			success: function(data, status, jqXHR) {
+				data.split('\n').forEach(function(line) {
+					var fields = line.split('\t');
+					var show = fields[0].trim();
+					if (show && show.toLowerCase() != 'show') {
+						
+						var channel = (fields.length >= 2 ? fields[1] : '');
+						var tag = (fields.length >= 3 ? fields[2] : '');
+						var notes = (fields.length >= 4 ? fields[3] : '');
+
+						if (tag != 'skip') {
+						
+							tr = document.createElement('tr');
+							table.append(tr);
+
+							var td = document.createElement('td');
+							td.setAttribute('class', 'nobr');
+							tr.append(td);
+							
+							var a = document.createElement('a');
+							a.setAttribute('class', 'goShow');
+							a.setAttribute('href', '#');
+							a.dataset.channel = channel;
+							a.dataset.show = show;
+							a.innerText = show;
+							td.append(a);
+
+							td.setAttribute('class', 'nobr');
+							td = document.createElement('td');
+							td.innerText = channel; tr.append(td);
+							
+							td = document.createElement('td');
+							td.setAttribute('class', 'nobr');
+							td.innerText = tag; tr.append(td);
+
+							if (tag) addCheckbox(tag, tag, seenTags, uncheckedTags);
+							tr.setAttribute('class', 'rowtag' + tag);
+							if (uncheckedTags[tag]) tr.setAttribute('style', 'display: none;');
+
+							td = document.createElement('td');
+							td.innerText = notes; tr.append(td);
+						}
+					}
+				});
+
+				document.getElementById('showTable').replaceChildren(table);
+				watchListMode_Content();
+			},
+			error: function(jqXHR, status, err) {
+				var msg = '<span style="color: red;">Failed loading watchlist (' + err + ')</span>';
+				watchListMode_Message(msg, true);
+			}
+		});
+	}
+
+	function clearCheckboxes() {
+		
+		var clearTags = document.createElement('button');
+		clearTags.setAttribute('class', 'clearTags');
+		clearTags.innerHTML = 'hide all tags';
+
+		var allTags = document.createElement('button');
+		allTags.setAttribute('class', 'allTags');
+		allTags.innerHTML = 'show all tags';
+
+		var tagList = document.getElementById('tagList');
+		tagList.replaceChildren();
+		tagList.appendChild(clearTags);
+		tagList.appendChild(document.createElement('br'));
+		tagList.appendChild(allTags);
+		tagList.appendChild(document.createElement('br'));
+		tagList.appendChild(document.createElement('br'));
+	}
+
+	function unselectAllTags() {
+		tags = {};
+		$('.tagCheckbox').each(function() {
+			this.checked = false;
+			
+			var value = $(this).val();
+			tags[value] = true;
+			$('.rowtag' + value).hide();
+		});
+
+		rememberUncheckedTags(tags);
+	}
+	
+	function selectAllTags() {
+		$('.tagCheckbox').each(function() {
+			this.checked = true;
+			var value = $(this).val();
+			$('.rowtag' + value).show();
+		});
+
+		rememberUncheckedTags({});
+	}
+
+	function toggleCheckbox(elt) {
+
+		var className = '.rowtag' + elt.value;
+		var uncheckedTags = getUncheckedTags();
+		
+		if (elt.checked) {
+			$(className).show();
+			if (uncheckedTags[elt.value]) delete uncheckedTags[elt.value];
+		}
+		else {
+			$(className).hide();
+			uncheckedTags[elt.value] = true;
+		}
+
+		rememberUncheckedTags(uncheckedTags);
+	}
+		
+	function addCheckbox(text, value, seenTags, uncheckedTags) {
+
+		if (seenTags[value]) return;
+		seenTags[value] = true;
+
+		var tagList = document.getElementById('tagList');
+		
+		var cb = document.createElement('input');
+		cb.setAttribute('type', 'checkbox');
+		cb.setAttribute('class', 'tagCheckbox');
+		cb.setAttribute('value', value);
+		if (!uncheckedTags[value]) cb.checked = true;
+		tagList.appendChild(cb);
+
+		var label = document.createElement('span');
+		label.innerHTML = text;
+		tagList.appendChild(label);
+
+		tagList.appendChild(document.createElement('br'));
+	}
+
+	// persisted data
+
+	const STG_ADDRESS = 'ROKU_ADDR';
+	const STG_WATCHLIST = 'WATCHLIST_URL';
+	const STG_UNCHECKED_TAGS = 'UNCHECKED_TAGS';
+	
+	function forgetAddress() { localStorage.removeItem(STG_ADDRESS); }
+	function rememberAddress(addr) { localStorage.setItem(STG_ADDRESS, addr); }
+	function getAddress() { return(localStorage.getItem(STG_ADDRESS)); }
+
+	function forgetWatchListUrl() { localStorage.removeItem(STG_WATCHLIST); }
+	function rememberWatchListUrl(url) { localStorage.setItem(STG_WATCHLIST, url); }
+	function getWatchListUrl() { return(localStorage.getItem(STG_WATCHLIST)); }
+
+	function getUncheckedTags() {
+		var tags = {};
+		var saved = localStorage.getItem(STG_UNCHECKED_TAGS);
+		
+		if (saved) {
+			saved.split('|').forEach(function(item) {
+				tags[item] = true;
+			});
+		}
+		return(tags);
+	}
+
+	function rememberUncheckedTags(tags) {
+		localStorage.setItem(STG_UNCHECKED_TAGS, Object.keys(tags).join('|'));
+	}
+
+  </script>
+
+  </head>
+
+  <body>
+  <form>
+
+	<!-- ----- MAIN DIV ----- -->
+
+	<div id="main">
+
+	  <div id="miniAddrUpdate">
+		<p><input type="text" id="miniAddr" style="width: 110px;" /></p>
+		<p><button id="miniSaveAddr">Update</button></p>
+	  </div>
+	  
+	  <h1>Roku Sidecar</h1>
+
+	  <div id="controlBar">
+
+		<button class='miniButton spaceRight' id="miniHome">Home</button>
+		<button class='miniButton' id='miniUp'>&#8679;</button>
+		<button class='miniButton' id='miniDown'>&#8681;</button>
+		<button class='miniButton' id='miniLeft'>&#8678;</button>
+		<button class='miniButton spaceRight' id='miniRight'>&#8680;</button>
+		<button class='miniButton' id="miniSelect">Select</button>
+		<button class='miniButton spaceRight' id="miniBack">Back</button>
+		<button class='miniButton' id="miniPlay">Play/Pause</button>
+
+		<br/>
+		<br/>
+		
+		Search:
+		<input type="text" id="search" style="width: 200px;" />
+		<button id="searchButton" style='margin-right: 25px'>Go</button>
+
+		Launch:
+		<select id="launch"></select>
+		<button id="launchButton">Go</button>
+
+	  </div>
+
+ 	  <div id="watchListContent">
+		<div id="watchListGrid">
+		  <div id="tagList">taglist</div>
+		  <div id="showTable">showtable</div>
+		</div>
+	  </div>
+
+	  <div id="watchListMessage"></div>
+	  
+	  <div id="watchListHelp">
+		<p>
+		  Set up a watchlist! Head on over to
+		  <a href="https://sheets.google.com" target="_blank">Google</a> and create a new Sheet
+		  with four columns: 
+		</p>
+		<ol>
+		  <li><b>Show</b> should be the full, official name so Roku finds it easily.</li>
+		  <li><b>Channel</b> is optional but helps identify shows better.</li>
+		  <li><b>Tag</b> is any optional string that groups shows; used for filtering the list.</li>
+		  <li><b>Notes</b> is just to help you remember what is what.</li>
+		</ol>
+		<p>
+		  In Google; choose File / Share / Publish to Web as "Tab-separated values (.tsv)", then
+		  paste the URL into the box below. If you let your family or roommates edit the sheet, you
+		  can all share a common watchlist.
+		</p>
+		<p>
+		  You can see an example sheet
+		  <a href="https://docs.google.com/spreadsheets/d/1zjQ-cpI8SkUX1YWUswmbKRKsboW9nAXgLJUQ1c8ldGw/edit?usp=sharing" target="_blank">here</a>, published as
+		  <a href="https://docs.google.com/spreadsheets/d/e/2PACX-1vScuK-9Vbm-CMp9mg47l6CSxIsSNj4ZLG5Pr2nDHjzFfUZOe-fcGmqOpvgnTJsXCcy7s7jnRSu8VW6w/pub?output=tsv" target="_blank">this TSV file</a>.
+		  Actually, you can point at any publicly-available TSV file; Google just makes it easy.
+		</p>
+
+	  </div>
+
+	  <div id="watchListSet">
+		<button id="refreshWatchList" style="margin-right: 25px;">Refresh</button>
+		
+		Watchlist URL:
+		<input type="text" id="watchListUrl" style="width: 400px;" />
+		<button id="setWatchListUrl">Update</button>
+	  </div>
+		
+	</div>
+
+	<!-- ----- STARTUP DIV ----- -->
+
+	<div id="startup">
+
+	  <p>Get started with Sidecar!</p>
+
+	  <ol>
+		
+		<li>On your Roku, choose Settings / Network / About</li>
+
+		<li>Copy the displayed IP Address here:
+		  http:// <input type="text" id="addr" style="width: 150px;" /></li>
+
+		<li>Click <button id="saveAddr">Start using Sidecar</button>
+	  </ol>
+
+	  <p>
+		<i>The fine print:</i> Sidecar uses Roku's 
+		<a href="https://developer.roku.com/docs/developer-program/debugging/external-control-api.md" target="_blank">External Control Protocol</a>
+		to control your TV. Sidecar does not send any data to my servers;
+		your browser talks directly to your Roku (they must be on the same
+		network). My blog at 
+		<a href="https://shutdownhook.com">shutdownhook.com</a>
+		breaks it all down in way more detail; hope to see you there!
+	  </p>
+
+	</div>
+
+  </form>
+  </body>
+
+</html>

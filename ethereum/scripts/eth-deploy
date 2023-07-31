@@ -1,0 +1,44 @@
+#!/bin/sh
+
+# $1 = path to .sol
+# $2 = max gas willing to pay (in units, so max cost * by current gas price)
+
+if [ "$ETH_ENDPOINT" = "" ] || [ "$ETH_ACCOUNT" = "" ] || [ "$ETH_PK" = "" ]; then
+   echo Set ETH_ENDPOINT, ETH_ACCOUNT, ETH_PK to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+SCRIPTDIR=`dirname $0`
+
+BYTES=`solc --bin $1 | awk '(NR==4) {print $0}'`
+
+TX_JSON='{"from":"'$ETH_ACCOUNT'","gas":'$2',"data":"0x'$BYTES'"}'
+
+TX_SIGNED=`$SCRIPTDIR/eth-signtx ''''$TX_JSON''''`
+
+TX_HASH=`curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["'$TX_SIGNED'"],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+echo "Transaction Hash is: $TX_HASH"
+
+$SCRIPTDIR/eth-waittx $TX_HASH
+
+
+
+
+
+
+
+
+
+

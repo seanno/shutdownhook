@@ -1,0 +1,110 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+    <title>Play Round Robin Lotto!</title>
+
+    <style>
+    </style>
+
+    <script
+      src="https://code.jquery.com/jquery-3.6.0.js"
+      integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+      crossorigin="anonymous">
+    </script>
+
+	<script 
+	   src="https://cdn.ethers.io/lib/ethers-5.2.umd.min.js"
+       type="application/javascript">
+	</script>
+
+    <script type="text/javascript">
+
+	  var address = false;
+	  var provider;
+	  var contract;
+	  var signer;
+
+	  const weiToPlay = 1000000000000000;
+	  const  contractAddress = "0xe588f20df3c5dad47d66722c2d6c744d3a41593c";
+
+	  const abi = [{"inputs":[],"stateMutability":"nonpayable","type":"constructor"},{"anonymous":false,"inputs":[{"indexed":true,"internalType":"address","name":"to","type":"address"},{"indexed":false,"internalType":"uint256","name":"amount","type":"uint256"}],"name":"Payout","type":"event"},{"inputs":[],"name":"destroy","outputs":[],"stateMutability":"nonpayable","type":"function"},{"inputs":[],"name":"play","outputs":[],"stateMutability":"payable","type":"function"}];
+
+	  function log(msg) {
+	      $("#output").prepend(msg + "<br/>");
+	  }
+
+	  async function connectEthereum() {
+	      if (address) return;
+
+	      if (!window.ethereum) {
+	        log("window.ethereum not available; install MetaMask?");
+	        return;
+  	      }
+
+	      log("enabling ethereum");
+	      var addrs = await ethereum.request({method: 'eth_requestAccounts' });
+	      address = addrs[0];
+	      log("address is " + address);
+
+	      provider = new ethers.providers.Web3Provider(window.ethereum);
+	      signer = provider.getSigner();
+	      contract = new ethers.Contract(contractAddress, abi, provider);
+
+	      contract.on("Payout", (to, amount, evt) => {
+	          log("payout! " + amount + " to " + to);
+	      });
+	  }
+
+	  async function play() {
+	      log("-----");
+
+	      await connectEthereum();
+	      if (!address) return;
+
+	      var chain = await ethereum.request({method: 'eth_chainId' });
+	      if (chain != 0x3) {
+	          log("Please run on Ropsten; fake ETH only!");
+	          return;
+	      }
+
+	      log("initiating play() transaction");
+
+	      var superContract = contract.connect(signer);
+	      tx = await superContract.play({ value: weiToPlay });
+	      log("waiting...<br/>transaction hash is: " + tx.hash);
+
+	      await tx.wait();
+	      log("transaction complete! <a target='_blank' " +
+              "href='https://ropsten.etherscan.io/tx/" + tx.hash +
+              "'>view on etherscan</a>");
+	  }
+
+      $(document).ready(function() {
+
+	    $('#playButton').click(async function() {
+	      $(this).prop('disabled', true);
+	      try { await play(); }
+	      catch (err) { log(err.message); }
+	      finally { $(this).prop('disabled', false); }
+	    });
+	  });
+
+    </script>
+
+  </head>
+
+  <body>
+
+	<h1>Play Round Robin Lotto!</h1>
+
+	<p>
+	  <button id="playButton">Play Now</button>
+	</p>
+
+	<div id="output"></div>
+
+  </body>
+
+</html>

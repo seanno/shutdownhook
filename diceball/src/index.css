@@ -1,0 +1,21 @@
+body {
+  font-family: 'Open Sans';
+  font-size: 24px;
+}
+
+.bg {
+	display: flex;
+	flex-flow: column;
+	height: calc(100vh - 20px);
+}
+
+.content {
+	flex: 0 1 auto;
+}
+
+.footer {
+	flex: 1 1 auto;
+	background-image: linear-gradient(white, DarkGreen);
+}
+
+

@@ -1,0 +1,41 @@
+
+.container {
+	display: grid;
+	background-color: #54796d;
+	padding: 20px;
+	margin: 20px 8px 20px 8px;
+}
+
+.container div {
+	color: white;
+	border: 1px solid white;
+}
+
+.visitingTeam {
+	grid-column: 1;
+	grid-row: 2;
+}
+
+.homeTeam {
+	grid-column: 1;
+	grid-row: 3;
+}
+
+.headerInning {
+	grid-row: 1;
+}
+
+.visitingInning {
+	grid-row: 2;
+	font-weight: bold;
+}
+
+.homeInning {
+	grid-row: 3;
+	font-weight: bold;
+}
+
+.container .atbat {
+	color: yellow;
+}
+

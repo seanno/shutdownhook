@@ -5,6 +5,8 @@
 
 package com.shutdownhook.toolbox;
 
+import java.util.logging.Logger;
+
 public abstract class Worker extends Thread {
 
 	// +-----------------+
@@ -51,18 +53,18 @@ public abstract class Worker extends Thread {
 		
 	public boolean waitForStop(int waitSeconds) {
 
-		System.out.println("Waiting for clean shutdown...");
+		log.info("Waiting for clean shutdown...");
 		signalStop(); // just in case
 		safeJoin(waitSeconds * 1000 / 2); 
 		if (isAlive()) {
 
-			System.out.println("Stop ignored, sending interrupt...");
+			log.warning("Stop ignored, sending interrupt...");
 			interrupt();
 			safeJoin(waitSeconds * 1000 / 2);
 			if (isAlive()) {
 
 				// BETTER THAN NOTHING
-				System.out.println("SHUTDOWN FAILURE; thread will be killed!");
+				log.severe("SHUTDOWN FAILURE; thread will be killed!");
 				return(false);
 			}
 		}
@@ -99,4 +101,6 @@ public abstract class Worker extends Thread {
 
 	private boolean stop = false;
 	private static int DEFAULT_WAIT_SECONDS = 10;
+
+	private final static Logger log = Logger.getLogger(Worker.class.getName());
 }

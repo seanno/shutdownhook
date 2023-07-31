@@ -11,6 +11,8 @@ import java.time.LocalDate;
 import java.time.ZonedDateTime;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Random;
 
 import org.junit.Assert;
@@ -23,6 +25,26 @@ public class EasyTest
 	@BeforeClass
 	public static void beforeClass() throws Exception {
 		Global.init();
+	}
+
+	// +---------+
+	// | Strings |
+	// +---------+
+
+	@Test
+	public void testJoin() throws Exception {
+
+		List<String> l = new ArrayList<String>();
+		String j = Easy.join(l, ",");
+		Assert.assertEquals("", j);
+		
+		l.add("foo");
+		j = Easy.join(l, ",");
+		Assert.assertEquals("foo", j);
+
+		l.add("bar");
+		j = Easy.join(l, "COWFISH");
+		Assert.assertEquals("fooCOWFISHbar", j);
 	}
 
 	// +----+
@@ -111,5 +133,19 @@ public class EasyTest
 	public void testHmac256() throws Exception {
 		String sig = Easy.hmac256("abc", Easy.base64Encode("def"));
 		Assert.assertEquals("OX9Gc0Hk14xHSGfvMmHNtGwOEDUempiZY+bLLc5A7l0=", sig);
+	}
+
+	@Test
+	public void testHtmlDecode() throws Exception {
+		testOneHtmlDecode("yo", "yo");
+		testOneHtmlDecode("yo&", "yo&");
+		testOneHtmlDecode("&gt;", ">");
+		testOneHtmlDecode("&gt;&lt;&#36;&#x24;&#X24;", "><$$$");
+		testOneHtmlDecode("", "");
+		testOneHtmlDecode("&", "&");
+	}
+
+	private void testOneHtmlDecode(String input, String expected) throws Exception {
+		Assert.assertEquals(expected, Easy.htmlDecode(input));
 	}
 }

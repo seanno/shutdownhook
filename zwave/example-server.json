@@ -1,0 +1,179 @@
+{
+	"Lights": {
+
+		"Screens": [
+			{
+				"Id": "family",
+				"Name": "Family Room",
+				"Settings": [
+					{
+						"Id": "normal",
+						"Name": "Normal",
+						"Values": [
+							{ "VLightId": "family_main", "Level": 100 },
+							{ "VLightId": "kitchen_main", "Level": 70 },
+							{ "VLightId": "pantry", "Level": 100 },
+							{ "VLightId": "family_accent", "Level": 0 },
+							{ "VLightId": "kitchen_sink", "Level": 0 }
+						]
+					},
+					{
+						"Id": "movie",
+						"Name": "Movie",
+						"Values": [
+							{ "VLightId": "family_main", "Level": 20 },
+							{ "VLightId": "kitchen_main", "Level": 1 },
+							{ "VLightId": "pantry", "Level": 20 },
+							{ "VLightId": "family_accent", "Level": 0 },
+							{ "VLightId": "kitchen_sink", "Level": 0 }
+						]
+					},
+					{
+						"Id": "nap",
+						"Name": "Nap",
+						"Values": [
+							{ "VLightId": "family_main", "Level": 5 },
+							{ "VLightId": "kitchen_main", "Level": 0 },
+							{ "VLightId": "pantry", "Level": 5 },
+							{ "VLightId": "family_accent", "Level": 0 },
+							{ "VLightId": "kitchen_sink", "Level": 0 }
+						]
+					},
+					{
+						"Id": "nightlight",
+						"Name": "Nightlight",
+						"Values": [
+							{ "VLightId": "family_main", "Level": 10 },
+							{ "VLightId": "kitchen_main", "Level": 0 },
+							{ "VLightId": "pantry", "Level": 10 },
+							{ "VLightId": "family_accent", "Level": 0 },
+							{ "VLightId": "kitchen_sink", "Level": 5 }
+						]
+					}
+				],
+				"VLights": [
+					{
+						"Id": "family_main",
+						"Name": "Main",
+						"Devices": [
+							"Family Main Lights SE", "Family Main Lights SW",
+							"Family Main Lights NE", "Family Main Lights NW"
+						]
+					},
+					{
+						"Id": "kitchen_main",
+						"Name": "Kitchen",
+				        "Devices": [
+					        "Kitchen Main Lights"
+						]
+					},
+					{
+						"Id": "pantry",
+						"Name": "Pantry",
+						"Devices": [
+							"Pantry Lights E", "Pantry Lights W"
+						]
+					},
+					{
+						"Id": "kitchen_sink",
+						"Name": "Sink",
+						"Devices": [
+							"Kitchen Sink Light"
+						]
+					},
+					{
+						"Id": "family_accent",
+						"Name": "Accent",
+						"Devices": [
+							"Family Accent Lights"
+						]
+					}
+				]
+			},
+			{
+				"Id": "random",
+				"Name": "Random",
+				"VLights": [
+					{
+						"Id": "family_accent",
+						"Name": "Family Accent",
+						"Devices": [
+							"Family Accent Lights"
+						]
+					}
+				]
+			},
+			{
+				"Id": "test",
+				"Name": "Test",
+				"VLights": [
+					{
+						"Id": "pantry",
+						"Name": "Pantry",
+						"Devices": [
+							"Pantry Lights E", "Pantry Lights W"
+						]
+					}
+				]
+			}
+
+		]
+	},
+
+	"Motion": {
+
+		"Sensors": [
+			{
+				"Name": "Family-Dining Treshold",
+				"WiringPiPinNumber": 3,
+
+				"Actions": [
+					{
+						"Name": "Overnight",
+						"StartTimeHHMM": "02:00",
+						"EndTimeHHMM": "05:30",
+						"OnlyIfOff": true,
+
+						"ScreenId": "family",
+						"ActionSettingId": "nightlight",
+						"QuietSettingId": "off"
+					},
+					{
+						"Name": "Morning",
+						"StartTimeHHMM": "05:30",
+						"EndTimeHHMM": "09:00",
+						"OnlyIfOff": false,
+
+						"ScreenId": "family",
+						"ActionSettingId": "normal"
+					},
+					{
+						"Name": "Test",
+
+						"ScreenId": "test",
+						"ActionSettingId": "on",
+						"QuietSettingId": "off"
+					}
+				]
+			}
+		]
+	},
+
+	"Queue": {
+		"Url": "https://XXX",
+		"Key": "XXX",
+		"Secret": "XXX"
+	},
+	
+	"ZWay": {
+		
+		"Login": "XXX",
+		"Password": "XXX",
+		"BaseUrl": "http://192.168.5.183:8083"
+	},
+
+	"Server": {
+		
+		"Port": 7071
+	}
+}

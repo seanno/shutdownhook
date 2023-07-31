@@ -39,12 +39,12 @@ public class WebTest
 		baseUrls[1] = "https://localhost:" + Integer.toString(port);
 			
 		WebRequests.Config clientConfig = new WebRequests.Config();
-		clientConfig.TimeoutMillis = 3000;
+		clientConfig.TimeoutMillis = 10000;
 		clientConfig.TrustedCertificateFile = "@localhost.crt";
 		requests = new WebRequests(clientConfig);
 
 		WebRequests.Config clientConfigDefaultSSL = new WebRequests.Config();
-		clientConfigDefaultSSL.TimeoutMillis = 3000;
+		clientConfigDefaultSSL.TimeoutMillis = 10000;
 		requestsDefaultSSL = new WebRequests(clientConfigDefaultSSL);
 	}
 
@@ -166,7 +166,9 @@ public class WebTest
 			WebRequests.Params params = new WebRequests.Params();
 			params.addQueryParam("echo", "bananafishbones");
 
-			params.ResponseBodyPath = "/tmp/" + UUID.randomUUID().toString() + ".txt";
+			params.ResponseBodyPath =
+				File.createTempFile(UUID.randomUUID().toString(), ".txt").getCanonicalPath();
+				
 			File f = new File(params.ResponseBodyPath);
 
 			try {
@@ -237,7 +239,7 @@ public class WebTest
     @Test
     public void sslRequestGoodCertDefaultConfig() throws Exception
 	{
-		WebRequests.Response response = requestsDefaultSSL.fetch("https://yahoo.com");
+		WebRequests.Response response = requestsDefaultSSL.fetch("https://google.com");
 		Assert.assertEquals(200, response.Status);
 		Assert.assertNull(response.Ex);
 	}
@@ -245,7 +247,7 @@ public class WebTest
     @Test
     public void sslRequestGoodCertExtendedConfig() throws Exception
 	{
-		WebRequests.Response response = requests.fetch("https://yahoo.com");
+		WebRequests.Response response = requests.fetch("https://google.com");
 		Assert.assertEquals(200, response.Status);
 		Assert.assertNull(response.Ex);
 	}

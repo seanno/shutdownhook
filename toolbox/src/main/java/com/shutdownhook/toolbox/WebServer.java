@@ -9,6 +9,7 @@ import com.sun.net.httpserver.HttpHandler;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.Closeable;
+import java.io.File;
 import java.io.InputStream;
 import java.io.IOException;
 import java.io.UnsupportedEncodingException;
@@ -50,6 +51,10 @@ public class WebServer implements Closeable
 		// so hopefully they make sense to people.
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
+
+		// optional directory holding static pages. Each .html or .js file in
+		// this directory will be exposed as a static route at /basename.
+		public String StaticPagesDirectory;
 	}
 
 	// +---------------------------+
@@ -68,10 +73,17 @@ public class WebServer implements Closeable
 		public String Base;
 		public String Path;
 		public String Method;
+		public String RemoteAddress;
+		public String Referrer;
 		public boolean Secure;
 		public Map<String,String> QueryParams;
 		public Map<String,String> Cookies;
+		public Map<String,List<String>> Headers;
 		public String Body;
+
+		public Map<String,String> parseBodyAsQueryString() {
+			return(WebServer.parseQueryString(Body));
+		}
 	}
 
 	// +----------+
@@ -87,6 +99,7 @@ public class WebServer implements Closeable
 		public void setJson(String s) { Status = 200; Body = s; ContentType = "application/json"; }
 		public void setText(String s) { Status = 200; Body = s; ContentType = "text/plain"; }
 		public void setHtml(String s) { Status = 200; Body = s; ContentType = "text/html"; }
+		public void setJS(String s) { Status = 200; Body = s; ContentType = "text/javascript"; }
 
 		public void redirect(String url) {
 			Status = 302;
@@ -127,8 +140,9 @@ public class WebServer implements Closeable
 		server.createHttpServer(new InetSocketAddress(cfg.Port));
 		server.setExecutor();
 
-		return(server);
+		server.registerStaticRoutes();
 		
+		return(server);
 	}
 
 	public void start() {
@@ -187,6 +201,18 @@ public class WebServer implements Closeable
 			public void handle(Request request, Response response) throws Exception {
 				response.ContentType = contentType;
 				response.Body = body;
+			}
+		});
+	}
+
+	public void registerEmptyHandler(String urlPrefix,
+									 final int status) {
+
+		registerHandler(urlPrefix, new Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				response.Status = status;
+				response.ContentType = "text/plain";
+				response.Body = "";
 			}
 		});
 	}
@@ -284,17 +310,12 @@ public class WebServer implements Closeable
 		
 		request.Path = exchange.getRequestURI().toString();
 		request.Method = exchange.getRequestMethod();
+		request.RemoteAddress = exchange.getRemoteAddress().getAddress().getHostAddress();
+		request.Referrer = exchange.getRequestHeaders().getFirst("Referer");
+		request.Headers = exchange.getRequestHeaders();
 
 		// query string
-		request.QueryParams = new HashMap<String,String>();
-		String queryString = exchange.getRequestURI().getRawQuery();
-
-		if (queryString != null && !queryString.isEmpty()) {
-			for (String pair : queryString.split("&")) {
-				String[] kv = pair.split("=");
-				request.QueryParams.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
-			}
-		}
+		request.QueryParams = parseQueryString(exchange.getRequestURI().getRawQuery());
 
 		// cookies
 		request.Cookies = new HashMap<String,String>();
@@ -332,6 +353,20 @@ public class WebServer implements Closeable
 		return(request);
 	}
 
+	private static Map<String,String> parseQueryString(String input) {
+
+		Map<String,String> params = new HashMap<String,String>();
+
+		if (input != null && !input.isEmpty()) {
+			for (String pair : input.split("&")) {
+				String[] kv = pair.split("=");
+				params.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
+			}
+		}
+
+		return(params);
+	}
+
 	private void setBaseUrl(HttpExchange exchange, Request request) {
 
 		request.Secure = (this instanceof SecureServer);
@@ -351,6 +386,36 @@ public class WebServer implements Closeable
 		request.Base = "http" + (request.Secure ? "s" : "") + "://" + hostAndPort;
 	}
 
+	private void registerStaticRoutes() throws Exception {
+		
+		if (cfg.StaticPagesDirectory == null) {
+			return;
+		}
+
+		File routesDir = new File(cfg.StaticPagesDirectory);
+		for (File htmlFile : routesDir.listFiles()) {
+
+			String name = htmlFile.getName();
+			int ichLastDot = name.lastIndexOf(".");
+
+			if (ichLastDot != -1) {
+
+				String ext = name.substring(ichLastDot);
+				String base = name.substring(0, ichLastDot);
+
+				boolean isHtml = ext.equalsIgnoreCase(".html");
+				boolean isJs = ext.equalsIgnoreCase(".js");
+				
+				if (isHtml || isJs) {
+
+					registerStaticHandler("/" + base + (isHtml ? "" : ".js"),
+										  Easy.stringFromFile(htmlFile.getAbsolutePath()),
+										  "text/" + (isHtml ? "html" : "javascript"));
+				}
+			}
+		}
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
@@ -363,7 +428,7 @@ public class WebServer implements Closeable
 			cfg.SSLCertificateFile = "@localhost.crt";
 			cfg.SSLCertificateKeyFile = "@localhost.key";
 		}
-	
+
 		final WebServer server = WebServer.create(cfg);
 		server.registerStaticHandler("/", args[0], "text/plain");
 		server.runSync();

@@ -1,0 +1,21 @@
+
+.container {
+	padding: 4px;
+	margin: 12px 8px 8px 8px;
+}
+
+.container svg {
+	font-size: 34px;
+	vertical-align: top;
+}
+
+.container svg circle {
+	color: red;
+}
+
+.container span {
+	font-size: 24px;
+	font-weight: bold;
+	margin-right: 12px;
+}
+

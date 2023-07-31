@@ -1,6 +1,6 @@
 /*
 ** Read about this code at http://shutdownhook.com
-n** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
+** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
 package com.shutdownhook.toolbox;
@@ -8,6 +8,7 @@ package com.shutdownhook.toolbox;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.InputStream;
@@ -33,7 +34,9 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Base64;
+import java.util.Iterator;
 import java.util.Locale;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.Set;
@@ -94,7 +97,9 @@ public class Easy
 
 		String homeDir = System.getProperty("user.home");
 		
-		return(new FileInputStream(path.replaceAll("~", homeDir)));
+		return(new FileInputStream(new File(path)
+								   .getCanonicalPath()
+								   .replaceAll("~", homeDir)));
 	}
 
 	public static String stringFromSmartyPath(String path) throws IOException {
@@ -248,9 +253,9 @@ public class Easy
 											  Locale.ENGLISH);
 	}
 	
-	// +--------------------+
-	// | URLs and Encodings |
-	// +--------------------+
+	// +---------------+
+	// | HTML Encoding |
+	// +---------------+
 
 	public static String htmlEncode(String input) {
 		
@@ -277,7 +282,208 @@ public class Easy
 
 		return(sb.toString());
 	}
+
+	// adapted from https://stackoverflow.com/a/24575417/3289113.
+	// assumes the escape value is trapped between & and ; and must be 
+	// CCH_ENTITY_MIN to CCH_ENTITY_MAX in length, which provides some
+	// protection against stray & characters that show up unencoded.
+
+	private static int CCH_ENTITY_MIN = 2;
+	private static int CCH_ENTITY_MAX = 6;
 	
+	public static String htmlDecode(String input) {
+		
+		StringBuffer sb = new StringBuffer();
+
+		int cch = input.length();
+		int ich = 0;
+
+		while (ich < cch) {
+			
+			// find next ampersand
+			int ichNextAmp = input.indexOf("&", ich);
+			if (ichNextAmp == -1) ichNextAmp = cch;
+
+			// copy over everything before that
+			sb.append(input.substring(ich, ichNextAmp));
+			ich = ichNextAmp;
+
+			// now we're either pointing at an entity or at EOS
+			if (ich < cch) {
+				++ich;
+				int ichEntityEnd = input.indexOf(";", ich);
+				if (ichEntityEnd == -1) ichEntityEnd = cch;
+
+				int cchEntity = ichEntityEnd - ich;
+				if (cchEntity < CCH_ENTITY_MIN || cchEntity > CCH_ENTITY_MAX) {
+					// hmm. well ok we'll just add that sucker in there
+					// and see what happens on the next go-around
+					sb.append("&");
+				}
+				else {
+					// looks like an actual entity, figure that out
+					appendDecodedHtmlEntity(sb, input.substring(ich, ichEntityEnd));
+					ich = ichEntityEnd + 1;
+				}
+			}
+		}
+
+		return(sb.toString());
+	}
+
+	private static void appendDecodedHtmlEntity(StringBuffer sb, String entity) {
+
+		if (entity.charAt(0) == '#') {
+
+			// numeric, assumed decimal unless we see hex marker
+			
+			int ichNum = 1;
+			int radix = 10;
+			
+			if (entity.charAt(1) == 'x' || entity.charAt(1) == 'X') {
+				ichNum = 2;
+				radix = 16;
+			}
+
+			try {
+				int entityVal = Integer.parseInt(entity.substring(ichNum), radix);
+			
+				if (entityVal > 0xFFFF) {
+					char[] rgch = Character.toChars(entityVal);
+					sb.append(rgch[0]).append(rgch[1]);
+				}
+				else {
+					sb.append((char)entityVal);
+				}
+			}
+			catch (NumberFormatException e) {
+				// they said it was a number but it wasn't, just skip.
+			}
+		}
+		else {
+
+			// named entity, use the lookup
+			sb.append(htmlEntityLookup.get(entity));
+		}
+	}
+	
+    private static final String[][] HTML_NAMED_ENTITIES = {
+        {"\"",     "quot"}, // " - double-quote
+        {"&",      "amp"}, // & - ampersand
+        {"<",      "lt"}, // < - less-than
+        {">",      "gt"}, // > - greater-than
+
+        // Mapping to escape ISO-8859-1 characters to their named HTML 3.x equivalents.
+        {"\u00A0", "nbsp"}, // non-breaking space
+        {"\u00A1", "iexcl"}, // inverted exclamation mark
+        {"\u00A2", "cent"}, // cent sign
+        {"\u00A3", "pound"}, // pound sign
+        {"\u00A4", "curren"}, // currency sign
+        {"\u00A5", "yen"}, // yen sign = yuan sign
+        {"\u00A6", "brvbar"}, // broken bar = broken vertical bar
+        {"\u00A7", "sect"}, // section sign
+        {"\u00A8", "uml"}, // diaeresis = spacing diaeresis
+        {"\u00A9", "copy"}, // © - copyright sign
+        {"\u00AA", "ordf"}, // feminine ordinal indicator
+        {"\u00AB", "laquo"}, // left-pointing double angle quotation mark = left pointing guillemet
+        {"\u00AC", "not"}, // not sign
+        {"\u00AD", "shy"}, // soft hyphen = discretionary hyphen
+        {"\u00AE", "reg"}, // ® - registered trademark sign
+        {"\u00AF", "macr"}, // macron = spacing macron = overline = APL overbar
+        {"\u00B0", "deg"}, // degree sign
+        {"\u00B1", "plusmn"}, // plus-minus sign = plus-or-minus sign
+        {"\u00B2", "sup2"}, // superscript two = superscript digit two = squared
+        {"\u00B3", "sup3"}, // superscript three = superscript digit three = cubed
+        {"\u00B4", "acute"}, // acute accent = spacing acute
+        {"\u00B5", "micro"}, // micro sign
+        {"\u00B6", "para"}, // pilcrow sign = paragraph sign
+        {"\u00B7", "middot"}, // middle dot = Georgian comma = Greek middle dot
+        {"\u00B8", "cedil"}, // cedilla = spacing cedilla
+        {"\u00B9", "sup1"}, // superscript one = superscript digit one
+        {"\u00BA", "ordm"}, // masculine ordinal indicator
+        {"\u00BB", "raquo"}, // right-pointing double angle quotation mark = right pointing guillemet
+        {"\u00BC", "frac14"}, // vulgar fraction one quarter = fraction one quarter
+        {"\u00BD", "frac12"}, // vulgar fraction one half = fraction one half
+        {"\u00BE", "frac34"}, // vulgar fraction three quarters = fraction three quarters
+        {"\u00BF", "iquest"}, // inverted question mark = turned question mark
+        {"\u00C0", "Agrave"}, // А - uppercase A, grave accent
+        {"\u00C1", "Aacute"}, // Б - uppercase A, acute accent
+        {"\u00C2", "Acirc"}, // В - uppercase A, circumflex accent
+        {"\u00C3", "Atilde"}, // Г - uppercase A, tilde
+        {"\u00C4", "Auml"}, // Д - uppercase A, umlaut
+        {"\u00C5", "Aring"}, // Е - uppercase A, ring
+        {"\u00C6", "AElig"}, // Ж - uppercase AE
+        {"\u00C7", "Ccedil"}, // З - uppercase C, cedilla
+        {"\u00C8", "Egrave"}, // И - uppercase E, grave accent
+        {"\u00C9", "Eacute"}, // Й - uppercase E, acute accent
+        {"\u00CA", "Ecirc"}, // К - uppercase E, circumflex accent
+        {"\u00CB", "Euml"}, // Л - uppercase E, umlaut
+        {"\u00CC", "Igrave"}, // М - uppercase I, grave accent
+        {"\u00CD", "Iacute"}, // Н - uppercase I, acute accent
+        {"\u00CE", "Icirc"}, // О - uppercase I, circumflex accent
+        {"\u00CF", "Iuml"}, // П - uppercase I, umlaut
+        {"\u00D0", "ETH"}, // Р - uppercase Eth, Icelandic
+        {"\u00D1", "Ntilde"}, // С - uppercase N, tilde
+        {"\u00D2", "Ograve"}, // Т - uppercase O, grave accent
+        {"\u00D3", "Oacute"}, // У - uppercase O, acute accent
+        {"\u00D4", "Ocirc"}, // Ф - uppercase O, circumflex accent
+        {"\u00D5", "Otilde"}, // Х - uppercase O, tilde
+        {"\u00D6", "Ouml"}, // Ц - uppercase O, umlaut
+        {"\u00D7", "times"}, // multiplication sign
+        {"\u00D8", "Oslash"}, // Ш - uppercase O, slash
+        {"\u00D9", "Ugrave"}, // Щ - uppercase U, grave accent
+        {"\u00DA", "Uacute"}, // Ъ - uppercase U, acute accent
+        {"\u00DB", "Ucirc"}, // Ы - uppercase U, circumflex accent
+        {"\u00DC", "Uuml"}, // Ь - uppercase U, umlaut
+        {"\u00DD", "Yacute"}, // Э - uppercase Y, acute accent
+        {"\u00DE", "THORN"}, // Ю - uppercase THORN, Icelandic
+        {"\u00DF", "szlig"}, // Я - lowercase sharps, German
+        {"\u00E0", "agrave"}, // а - lowercase a, grave accent
+        {"\u00E1", "aacute"}, // б - lowercase a, acute accent
+        {"\u00E2", "acirc"}, // в - lowercase a, circumflex accent
+        {"\u00E3", "atilde"}, // г - lowercase a, tilde
+        {"\u00E4", "auml"}, // д - lowercase a, umlaut
+        {"\u00E5", "aring"}, // е - lowercase a, ring
+        {"\u00E6", "aelig"}, // ж - lowercase ae
+        {"\u00E7", "ccedil"}, // з - lowercase c, cedilla
+        {"\u00E8", "egrave"}, // и - lowercase e, grave accent
+        {"\u00E9", "eacute"}, // й - lowercase e, acute accent
+        {"\u00EA", "ecirc"}, // к - lowercase e, circumflex accent
+        {"\u00EB", "euml"}, // л - lowercase e, umlaut
+        {"\u00EC", "igrave"}, // м - lowercase i, grave accent
+        {"\u00ED", "iacute"}, // н - lowercase i, acute accent
+        {"\u00EE", "icirc"}, // о - lowercase i, circumflex accent
+        {"\u00EF", "iuml"}, // п - lowercase i, umlaut
+        {"\u00F0", "eth"}, // р - lowercase eth, Icelandic
+        {"\u00F1", "ntilde"}, // с - lowercase n, tilde
+        {"\u00F2", "ograve"}, // т - lowercase o, grave accent
+        {"\u00F3", "oacute"}, // у - lowercase o, acute accent
+        {"\u00F4", "ocirc"}, // ф - lowercase o, circumflex accent
+        {"\u00F5", "otilde"}, // х - lowercase o, tilde
+        {"\u00F6", "ouml"}, // ц - lowercase o, umlaut
+        {"\u00F7", "divide"}, // division sign
+        {"\u00F8", "oslash"}, // ш - lowercase o, slash
+        {"\u00F9", "ugrave"}, // щ - lowercase u, grave accent
+        {"\u00FA", "uacute"}, // ъ - lowercase u, acute accent
+        {"\u00FB", "ucirc"}, // ы - lowercase u, circumflex accent
+        {"\u00FC", "uuml"}, // ь - lowercase u, umlaut
+        {"\u00FD", "yacute"}, // э - lowercase y, acute accent
+        {"\u00FE", "thorn"}, // ю - lowercase thorn, Icelandic
+        {"\u00FF", "yuml"}, // я - lowercase y, umlaut
+    };
+
+    private static final HashMap<String, CharSequence> htmlEntityLookup;
+
+    static {
+        htmlEntityLookup = new HashMap<String, CharSequence>();
+        for (final CharSequence[] seq : HTML_NAMED_ENTITIES) 
+            htmlEntityLookup.put(seq[1].toString(), seq[0]);
+    }
+
+	// +--------------------+
+	// | URLs and Encodings |
+	// +--------------------+
+
 	public static String base64Encode(String input) {
 		try { return(Base64.getEncoder().encodeToString(input.getBytes("UTF-8"))); }
 		catch (UnsupportedEncodingException e) { return(null); } // won't happen
@@ -285,6 +491,16 @@ public class Easy
 
 	public static String base64Decode(String input) throws IllegalArgumentException {
 		try { return(new String(Base64.getDecoder().decode(input), "UTF-8")); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
+	}
+
+	public static String base64urlEncode(String input) {
+		try { return(Base64.getUrlEncoder().withoutPadding().encodeToString(input.getBytes("UTF-8"))); }
+		catch (UnsupportedEncodingException e) { return(null); } // won't happen
+	}
+
+	public static String base64urlDecode(String input) throws IllegalArgumentException {
+		try { return(new String(Base64.getUrlDecoder().decode(input), "UTF-8")); }
 		catch (UnsupportedEncodingException e) { return(null); } // won't happen
 	}
 
@@ -319,6 +535,14 @@ public class Easy
 			   urlFormatQueryParams(params));
 	}
 
+	public static String urlAddQueryParam(String baseUrl, String name, String value) {
+
+		Map<String,String> params = new HashMap<String,String>();
+		params.put(name, value);
+		
+		return(urlAddQueryParams(baseUrl, params));
+	}
+
 	public static String urlFormatQueryParams(Map<String,String> params) {
 
 		StringBuilder sb = new StringBuilder();
@@ -333,6 +557,10 @@ public class Easy
 
 		return(sb.toString());
 	}
+
+	// +-----------------+
+	// | Hashes and such |
+	// +-----------------+
 
 	public static String sha256(String input) {
 
@@ -386,6 +614,45 @@ public class Easy
 		return(sb.toString());
 	}
 
+	// +--------------------+
+	// | Process Mgmt Stuff | 
+	// +--------------------+
+
+	public static void waitForExit() throws Exception {
+
+		final Object shutdownTrigger = new Object();
+		
+		Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+		    synchronized (shutdownTrigger) { shutdownTrigger.notify(); }
+		}));
+
+		synchronized (shutdownTrigger) {
+			try { shutdownTrigger.wait(); }
+			catch (InterruptedException e) { /* nut-n-honey */ }
+		}
+	}
+	
+	// +---------+
+	// | Strings |
+	// +---------+
+
+	public static String join(Iterable iterable, String sep) {
+		
+		StringBuilder sb = new StringBuilder();
+
+		Iterator iter = iterable.iterator();
+		while (iter.hasNext()) {
+			if (sb.length() > 0) sb.append(sep);
+			sb.append(iter.next().toString());
+		}
+
+		return(sb.toString());
+	}
+
+	public static Boolean nullOrEmpty(String s) {
+		return(s == null || s.isEmpty());
+	}
+
 	// +------+
 	// | Misc |
 	// +------+
@@ -406,7 +673,7 @@ public class Easy
 		return(sb.toString());
 	}
 	
-	public static String exMsg(Exception e, String msg, boolean includeStack) {
+	public static String exMsg(Throwable e, String msg, boolean includeStack) {
 
 		String log = String.format("Exception (%s): %s%s",
 								   e.toString(), msg,
@@ -414,11 +681,30 @@ public class Easy
 		return(log);
 	}
 	
-	public static String getStackTrace(Exception e) {
+	public static String getStackTrace(Throwable e) {
 		StringWriter sw = new StringWriter();
 		PrintWriter pw = new PrintWriter(sw);
 		e.printStackTrace(pw);
 		return(sw.toString());
+	}
+
+	public static void configureLoggingProperties(String smartyPath) {
+
+		InputStream stm = null;
+		
+		try {
+			stm = streamFromSmartyPath(smartyPath);
+			LogManager.getLogManager().readConfiguration(stm);
+		}
+		catch (IOException e) {
+			System.err.println(exMsg(e, "configureLoggingProperties", false));
+		}
+		finally {
+			if (stm != null) {
+				try { stm.close(); }
+				catch (Exception e2) { System.err.println(e2.toString()); }
+			}
+		}
 	}
 	
 	public static void setSimpleLogFormat() {

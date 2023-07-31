@@ -1,0 +1,17 @@
+{
+  "name": "newshaiku",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "dotenv": "^16.0.3",
+    "node-fetch": "^2.6.9",
+    "twitter-api-v2": "^1.14.2",
+    "xml2js": "^0.4.23"
+  }
+}

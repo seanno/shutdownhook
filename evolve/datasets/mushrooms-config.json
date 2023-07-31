@@ -1,0 +1,15 @@
+{
+	"Network": {
+
+		"Layers": [ 20, 40, 40, 1 ],
+		"LearningRate": 0.01
+	},
+
+	"DataSetTsv": "mushrooms-data.tsv",
+
+	"HoldBackPercentage": 5,
+	"TrainingIterations": 2000000,
+	"TrainingReportInterval": 20000,
+
+	"FinalNetworkStatePath": "mushrooms-final.json"
+}

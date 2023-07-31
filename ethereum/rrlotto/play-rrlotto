@@ -1,0 +1,45 @@
+#!/bin/sh
+
+# $1 = contract address as found in transaction receipt from deployment
+
+if [ "$ETH_ENDPOINT" = "" ] || [ "$ETH_ACCOUNT" = "" ] || [ "$ETH_PK" = "" ]; then
+   echo Set ETH_ENDPOINT, ETH_ACCOUNT, ETH_PK to use this script
+   exit
+fi
+
+SECRET_PARAM=""
+if [ "$ETH_SECRET" != "" ]; then
+	SECRET_PARAM="--user :$ETH_SECRET"
+fi
+
+SCRIPTDIR=`dirname $0`
+
+# https://docs.soliditylang.org/en/develop/abi-spec.html#function-selector-and-argument-encoding
+# function signature is play() - no parameters
+# keccak-256 hash is 93e84cd98013966bc86d4153fc5768aa4b8db100fe4499b2671a3e8ff9523fd9
+# first four bytes are 93e84cd9
+FUNCTION_SIG=0x93e84cd9
+
+# Oh, gas limit, you're so quirky. solc is unable to estimate gas for the function.
+# Normally it'll be quite small; the counter is decremented and that's all. But on a
+# payout transaction it can be much higher; we use this as a "safe" limit.
+GAS=300000
+
+# Cost to play (in wei) as defined in rrlotto.sol
+WEI=1000000000000000
+
+TX_JSON='{"from":"'$ETH_ACCOUNT'","to":"'$1'","gas":'$GAS',"value":'$WEI',"data":"'$FUNCTION_SIG'"}'
+
+TX_SIGNED=`$SCRIPTDIR/../scripts/eth-signtx ''''$TX_JSON''''`
+
+TX_HASH=`curl \
+	-s \
+	-X POST \
+	-H "Content-Type: application/json" \
+	$SECRET_PARAM \
+	--data '{"jsonrpc":"2.0","method":"eth_sendRawTransaction","params":["'$TX_SIGNED'"],"id":1}' \
+	$ETH_ENDPOINT | jq -r .result`
+
+echo "Transaction Hash is: $TX_HASH"
+
+$SCRIPTDIR/../scripts/eth-waittx $TX_HASH

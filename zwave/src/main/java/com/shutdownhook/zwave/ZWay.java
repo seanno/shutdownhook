@@ -11,6 +11,7 @@ import java.io.Closeable;
 import java.time.Instant;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.List;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -21,8 +22,9 @@ import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
+import com.shutdownhook.toolbox.Worker;
 
-public class ZWay implements Closeable
+public class ZWay extends Worker implements Closeable
 {
 	// +------------------+
 	// | Config and Setup |
@@ -35,6 +37,8 @@ public class ZWay implements Closeable
 
 		public String BaseUrl = REMOTE_BASE_URL;
 
+		public List<CommandDeviceConfig> CommandDevices;
+		
 		public WebRequests.Config Requests = new WebRequests.Config();
 
 		public Boolean UpdateOnCommand = true;
@@ -43,9 +47,24 @@ public class ZWay implements Closeable
 		public Boolean AllowReferenceByName = true;
 		public Boolean DebugPrintFetchBody = false;
 
+		public Integer UpdateCatchupIntervalSeconds = (60 * 15); // 0 = no catchup thread
+		public Integer StopWaitSeconds = 10;
+
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
+	}
+
+	public static class CommandDeviceConfig
+	{
+		public String Id;
+		public String Name;
+		public String Type;
+
+		public String CommandOn;
+		public String CommandOff;
+		public String CommandGet;
+		public String CommandSetFormat;
 	}
 
 	public ZWay(Config cfg) throws Exception {
@@ -54,114 +73,263 @@ public class ZWay implements Closeable
 
 		this.gson = new GsonBuilder().setPrettyPrinting().create();
 		this.parser = new JsonParser();
+
+		if (cfg.UpdateCatchupIntervalSeconds == 0) {
+			log.info("No update catchup thread configured");
+		}
+		else {
+			log.info("Starting update catchup thread...");
+			go();
+		}
 	}
 	
 	public void close() {
+
+		if (cfg.UpdateCatchupIntervalSeconds > 0) {
+			log.info("Stopping update catchup thread...");
+			signalStop();
+			waitForStop(cfg.StopWaitSeconds);
+		}
+
 		logout();
 		requests.close();
-	}
-
-	// +----------+
-	// | Commands |
-	// +----------+
-
-	public void turnOn(String deviceId) throws Exception {
-		fetch(String.format("devices/%s/command/on", lookupDeviceId(deviceId)));
-		if (cfg.UpdateOnCommand) requestUpdate(deviceId);
-	}
-
-	public void turnOff(String deviceId) throws Exception {
-		fetch(String.format("devices/%s/command/off", lookupDeviceId(deviceId)));
-		if (cfg.UpdateOnCommand) requestUpdate(deviceId);
-	}
-
-	public void setLevel(String deviceId, int level) throws Exception {
-		fetch(String.format("devices/%s/command/exact?level=%d",
-							lookupDeviceId(deviceId), level));
-
-		if (cfg.UpdateOnCommand) requestUpdate(deviceId);
 	}
 
 	// +--------+
 	// | Status |
 	// +--------+
 
-	public void requestUpdate(String deviceId) throws Exception {
-		
-		if (deviceId == null) {
-			for (Device device : getDevices().values()) {
-				fetch(String.format("devices/%s/command/update", device.getId()));
-			}
-		}
-		else {
-			fetch(String.format("devices/%s/command/update", lookupDeviceId(deviceId)));
-		}
+	public void updateAll() throws Exception {
+		for (Device device : getDevices().values()) device.update();
 	}
 	
-	public int getLevel(String deviceId, boolean refresh) throws Exception {
-		JsonObject json = getMetrics(deviceId, refresh);
-		return(json.get("level").getAsInt());
-	}
+	// +--------+
+	// | Device |
+	// +--------+
 
-	public JsonObject getMetrics(String deviceId, boolean refresh) throws Exception {
-		String realDeviceId = lookupDeviceId(deviceId);
-
-		JsonObject json = fetch(String.format("devices/%s", realDeviceId));
-		long updated = json.getAsJsonObject("data").get("updateTime").getAsLong();
-
-		if (refresh) {
-
-			requestUpdate(deviceId);
-
-			long newUpdated = updated;
-			int iter = 0;
+	abstract static class Device
+	{
+		public Device(ZWay zway) {
+			this.zway = zway;
+		}
 		
-			while (newUpdated == updated && iter++ < cfg.MaxUpdateRefreshIterations) {
-				Thread.sleep(cfg.UpdateRefreshIntervalMilliseconds);
-				json = fetch(String.format("devices/%s", realDeviceId));
-				newUpdated = json.getAsJsonObject("data").get("updateTime").getAsLong();
-			}
+		abstract public String getId();
+		abstract public String getName();
+		abstract public String getType();
+		
+		abstract public void turnOn() throws Exception;
+		abstract public void turnOff() throws Exception;
+		abstract public int getLevel(boolean refresh) throws Exception;
+		abstract public void setLevel(int level) throws Exception;
+		abstract public void update() throws Exception;
 
-			if (newUpdated == updated) {
-				String msg = String.format("No update to %s after %d iterations; " +
-										   "value may be stale",
-										   deviceId, cfg.MaxUpdateRefreshIterations);
-				log.warning(msg);
+		public boolean isBinary() {
+
+			switch (getType().toLowerCase()) {
+
+			    case "switchbinary":
+			    case "togglebinary":
+					return(true);
+
+			    default:
+					return(false);
 			}
 		}
 		
-		return(json.getAsJsonObject("data").getAsJsonObject("metrics"));
+		protected ZWay zway;
 	}
 
-	// +-------------+
-	// | Device List |
-	// +-------------+
+	// +------------+
+	// | ZWayDevice |
+	// +------------+
 
-	public static class Device
+	public static class ZWayDevice extends Device
 	{
-		public Device(JsonObject json) {
+		public ZWayDevice(ZWay zway, JsonObject json) {
+			super(zway);
 			this.json = json;
 		}
-
+		
 		public String getId() {
 			return(json.get("id").getAsString());
-		}
-		
-		public String getType() {
-			return(json.get("deviceType").getAsString());
 		}
 
 		public String getName() {
 			return(json.getAsJsonObject("metrics").get("title").getAsString());
 		}
 		
-		public JsonObject getJson() {
-			return(json);
+		public String getType() {
+			return(json.get("deviceType").getAsString());
+		}
+
+		public void turnOn() throws Exception {
+			zway.fetch(String.format("devices/%s/command/on", getId()));
+			if (zway.cfg.UpdateOnCommand) update();
 		}
 		
+		public void turnOff() throws Exception {
+			zway.fetch(String.format("devices/%s/command/off", getId()));
+			if (zway.cfg.UpdateOnCommand) update();
+		}
+		
+		public void setLevel(int level) throws Exception {
+			zway.fetch(String.format("devices/%s/command/exact?level=%d",
+									 getId(), level));
+			
+			if (zway.cfg.UpdateOnCommand) update();
+		}
+		
+		public int getLevel(boolean refresh) throws Exception {
+
+			JsonObject json = zway.fetch(String.format("devices/%s", getId()));
+			long updated = json.getAsJsonObject("data").get("updateTime").getAsLong();
+
+			JsonObject metrics = json.getAsJsonObject("data").getAsJsonObject("metrics");
+
+			// failed devices report last-known values; this can play havoc with
+			// checks like "OnlyIfOff" in motion alerts. Here we just assume that any
+			// failed device is "off" for simplicity.
+			if (metrics.has("isFailed")) {
+				if (metrics.get("isFailed").getAsBoolean()) {
+					String msg = String.format("Device %s is failed; returning 0", getId());
+					ZWay.log.warning(msg);
+					return(0);
+				}
+			}
+
+			if (refresh) {
+
+				update();
+
+				long newUpdated = updated;
+				int iter = 0;
+		
+				while (newUpdated == updated &&
+					   iter++ < zway.cfg.MaxUpdateRefreshIterations) {
+					
+					Thread.sleep(zway.cfg.UpdateRefreshIntervalMilliseconds);
+					json = zway.fetch(String.format("devices/%s", getId()));
+					
+					newUpdated =
+						json.getAsJsonObject("data").get("updateTime").getAsLong();
+				}
+
+				if (newUpdated == updated) {
+					String msg = String.format("No update to %s after %d iterations; " +
+											   "value may be stale", getId(),
+											   zway.cfg.MaxUpdateRefreshIterations);
+					ZWay.log.warning(msg);
+				}
+			}
+
+			int level = json.getAsJsonObject("data")
+				.getAsJsonObject("metrics")
+				.get("level")
+				.getAsInt();
+
+			return(level);
+		}
+
+		public void update() throws Exception {
+
+			if (!isUpdatable()) return;
+			
+			zway.fetch(String.format("devices/%s/command/update", getId()));
+		}
+
+		private boolean isUpdatable() {
+
+			if (!json.has("probeType")) return(true);
+
+			String probeType = json.get("probeType").getAsString();
+			return(!probeType.equalsIgnoreCase("control"));
+		}
+
 		private JsonObject json;
 	}
 
+	// +---------------+
+	// | CommandDevice |
+	// +---------------+
+
+	public static class CommandDevice extends Device
+	{
+		public CommandDevice(ZWay zway, CommandDeviceConfig cfg) {
+			super(zway);
+			this.cfg = cfg;
+		}
+		
+		public String getId() { return(cfg.Id); }
+		public String getName() { return(cfg.Name); }
+		public String getType() { return(cfg.Type); }
+
+		public void turnOn() throws Exception {
+			run(cfg.CommandOn);
+			cachedLevel = 100;
+		}
+		
+		public void turnOff() throws Exception {
+			run(cfg.CommandOff);
+			cachedLevel = 0;
+		}
+		
+		public void setLevel(int level) throws Exception {
+			if (cfg.CommandSetFormat == null) {
+				if (level == 0) turnOff(); else turnOn();
+			}
+			else {
+				run(String.format(cfg.CommandSetFormat, level));
+				cachedLevel = level;
+			}
+		}
+
+		public int getLevel(boolean refresh) throws Exception {
+
+			if (cachedLevel == null || refresh) {
+				String result = run(cfg.CommandGet);
+				if (result.equalsIgnoreCase("false")) cachedLevel = 0;
+				else if (result.equalsIgnoreCase("true")) cachedLevel = 100;
+				else cachedLevel = Integer.parseInt(result);
+			}
+
+			return(cachedLevel);
+		}
+
+		public void update() throws Exception {
+			getLevel(true);
+		}
+
+		private String run(String cmd) throws Exception {
+			String result = Easy.stringFromProcess(cmd);
+			ZWay.log.info(String.format("CommandDevice result: %s (%s)", result, cmd));
+			return(result.trim());
+		}
+
+		private CommandDeviceConfig cfg;
+		private Integer cachedLevel = null;
+	}
+
+	// +-------------+
+	// | Device List |
+	// +-------------+
+
+	public Device findDevice(String input) throws Exception {
+
+		Map<String,Device> devices = getDevices(false);
+		if (devices.containsKey(input)) return(devices.get(input));
+
+		if (cfg.AllowReferenceByName) {
+
+			for (Device device : devices.values()) {
+				if (input.equalsIgnoreCase(device.getName())) {
+					return(device);
+				}
+			}
+		}
+
+		throw new Exception("Unknown device id or name: " + input);
+	}
+	
 	public Map<String,Device> getDevices() throws Exception {
 		return(getDevices(false));
 	}
@@ -177,12 +345,42 @@ public class ZWay implements Closeable
 
 			devices = new HashMap<String,Device>();
 			for (int i = 0; i < jsonDevices.size(); ++i) {
-				Device device = new Device(jsonDevices.get(i).getAsJsonObject());
-				devices.put(device.getId(),device);
+				Device device = new ZWayDevice(this, jsonDevices.get(i).getAsJsonObject());
+				devices.put(device.getId(), device);
+			}
+
+			if (cfg.CommandDevices != null) {
+				for (CommandDeviceConfig cmdCfg : cfg.CommandDevices) {
+					Device device = new CommandDevice(this, cmdCfg);
+					devices.put(device.getId(), device);
+				}
 			}
 		}
 
 		return(devices);
+	}
+
+	// +-----------------------+
+	// | Update Catchup Thread |
+	// +-----------------------+
+
+	@Override
+	public void work() throws Exception {
+
+		while (!sleepyStop(cfg.UpdateCatchupIntervalSeconds)) {
+			try {
+				log.info("requesting catchup update");
+				updateAll();
+			}
+			catch (Exception e) {
+				log.severe("Exception in zway refresh thread; exiting: " + e.toString());
+			}
+		}
+	}
+	
+	@Override
+	public void cleanup(Exception e) {
+		// nut-n-honey
 	}
 
 	// +----------------+
@@ -192,6 +390,7 @@ public class ZWay implements Closeable
 	private void ensureLogin() throws Exception {
 
 		if (zwaySession != null && Instant.now().isAfter(expires)) {
+			expires = Instant.MAX; // don't loop forever!
 			logout();
 		}
 
@@ -277,23 +476,6 @@ public class ZWay implements Closeable
 	// | Helpers & Members |
 	// +-------------------+
 
-	private String lookupDeviceId(String input) throws Exception {
-
-		// skip all the stuff below if we are requiring IDs
-		if (!cfg.AllowReferenceByName) return(input);
-		
-		Map<String,Device> devices = getDevices(false);
-		if (devices.containsKey(input)) return(input);
-
-		for (Device device : devices.values()) {
-			if (input.equalsIgnoreCase(device.getName())) {
-				return(device.getId());
-			}
-		}
-
-		throw new Exception("Unknown device id or name: " + input);
-	}
-	
 	private JsonObject fetch(String url) throws Exception {
 		return(fetch(url, null, true));
 	}

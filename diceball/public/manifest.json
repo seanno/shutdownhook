@@ -1,0 +1,30 @@
+{
+  "short_name": "DiceBall",
+  "name": "DiceBall Companion App",
+
+  "start_url": ".",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  
+  "theme_color": "#000000",
+  "background_color": "#ffffff",
+
+  "icons": [
+    {
+      "src": "favicon.ico",
+      "sizes": "20x20",
+      "type": "image/x-icon"
+    },
+    {
+      "src": "logo192.png",
+      "type": "image/png",
+      "sizes": "192x192"
+    },
+    {
+      "src": "logo512.png",
+      "type": "image/png",
+      "sizes": "512x512"
+    }
+  ]
+  
+}

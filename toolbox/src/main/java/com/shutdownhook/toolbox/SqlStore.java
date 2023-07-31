@@ -21,6 +21,10 @@ public class SqlStore
 
 	public static class Config
 	{
+		public Config() {
+			// nut-n-honey
+		}
+		
 		public Config(String connectionString) {
 			this.ConnectionString = connectionString;
 		}
@@ -155,6 +159,44 @@ public class SqlStore
 		}
 	}
 	
+	// +-------------+
+	// | DDL Support |
+	// +-------------+
+
+	public void ensureTable(String tableName, String ddl) throws Exception {
+		if (!tableExists(tableName)) update(ddl);
+	}
+
+	public boolean tableExists(String tableName) {
+
+		boolean exists = false;
+		
+		try {
+			String sql = "select 1 from " + tableName + " limit 1";
+			query(sql, new SqlStore.QueryHandler() {
+				public void row(ResultSet rs, int irow) throws Exception { }
+			});
+			
+			exists = true;
+		}
+		catch (Exception e) {
+			// nothing
+		}
+
+		return(exists);
+	}
+
+	// +---------------------+
+	// | Convenience Helpers |
+	// +---------------------+
+
+	public static Integer getNullableInt(ResultSet rs, String field)
+		throws SQLException {
+		
+		int i = rs.getInt(field);
+		return(rs.wasNull() ? null : i);
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
