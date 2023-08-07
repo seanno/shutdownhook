@@ -5,9 +5,9 @@
 
 package com.shutdownhook.tides;
 
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,7 +19,7 @@ import java.util.UUID;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
 
-public class TidesStore extends SqlStore
+public class TideStore extends SqlStore
 {
 	// +----------------+
 	// | Config & Setup |
@@ -31,11 +31,11 @@ public class TidesStore extends SqlStore
 		public String FilesPath;
 	}
 
-	public TidesStore(Config cfg) throws Exception {
+	public TideStore(Config cfg) throws Exception {
 		super(cfg.Sql);
 		this.cfg = cfg;
 		ensureTables();
-		Files.createDirectories(Paths.get(cfg.FilesPath));
+		new File(cfg.FilesPath).mkdirs();
 	}
 
 	// +------+
@@ -49,7 +49,10 @@ public class TidesStore extends SqlStore
 		public Integer HourOfDay;
 		public Integer DayOfYear;
 		public double TideHeight;
-		public double UV;
+		public double Lux;
+		public double WindMps;
+		public double TempF;
+		public File ImageFile;
 
 		public static Tide fromRow(ResultSet rs) throws SQLException {
 			Tide t = new Tide();
@@ -58,7 +61,9 @@ public class TidesStore extends SqlStore
 			t.HourOfDay = rs.getInt("hour_of_day");
 			t.DayOfYear = rs.getInt("day_of_year");
 			t.TideHeight = rs.getDouble("tide_height");
-			t.UV = rs.getDouble("uv");
+			t.Lux = rs.getDouble("lux");
+			t.WindMps = rs.getDouble("wind_mps");
+			t.TempF = rs.getDouble("temp_f");
 			return(t);
 		}
 	}
@@ -67,7 +72,7 @@ public class TidesStore extends SqlStore
 	// | saveTide |
 	// +----------+
 
-	public String saveTide(Tide t, Path jpegPath) {
+	public Tide saveTide(Tide t, File jpegFile) throws Exception {
 
 		t.TideId = UUID.randomUUID().toString();
 		SqlStore.Return<Boolean> added = new SqlStore.Return<Boolean>();
@@ -80,7 +85,9 @@ public class TidesStore extends SqlStore
 				stmt.setInt(3, t.HourOfDay);
 				stmt.setInt(4, t.DayOfYear);
 				stmt.setDouble(5, t.TideHeight);
-				stmt.setDouble(6, t.UV);
+				stmt.setDouble(6, t.Lux);
+				stmt.setDouble(7, t.WindMps);
+				stmt.setDouble(8, t.TempF);
 			}
 				
 			public void confirm(int rowsAffected, int iter) {
@@ -91,26 +98,27 @@ public class TidesStore extends SqlStore
 		if (!added.Value) return(null);
 
 		try {
-			Path targetPath = pathForTide(t);
-			Files.createDirectories(targetPath.getParent());
-			Files.copy(jpegPath, targetPath);
+			t.ImageFile = fileForTide(t);
+			Files.copy(jpegFile.toPath(), t.ImageFile.toPath());
 		}
 		catch (IOException e) {
 
+			log.severe(Easy.exMsg(e, "saveTide", true));
+			
 			try { deleteTide(t); }
 			catch (Exception eDel) { /* eat it */ }
 			
 			return(null);
 		}
 
-		return(t.TideId);
+		return(t);
 	}
 
 	// +------------+
 	// | deleteTide |
 	// +------------+
 
-	public void deleteTide(Tide t) {
+	public void deleteTide(Tide t) throws Exception {
 
 		update(DELETE_TIDE, new SqlStore.UpdateHandler() {
 				
@@ -119,23 +127,26 @@ public class TidesStore extends SqlStore
 			}
 		});
 
-		Files.delete(pathForTide(t));
+		fileForTide(t).delete();
 	}
 	
 	// +---------+
 	// | Helpers |
 	// +---------+
 
-	private Path pathForTide(Tide t) {
+	private File fileForTide(Tide t) {
 
 		String iso8601 = Instant.ofEpochSecond(t.EpochSecond).toString();
 		
 		String year = iso8601.substring(0, 4);
 		String month = iso8601.substring(5, 7);
 		String day = iso8601.substring(8, 10);
+
+		String fileName = String.format("%02d-%s.jpg", t.HourOfDay, t.TideId);
+		File file = Paths.get(cfg.FilesPath, year, month, day, fileName).toFile();
+		file.getParentFile().mkdirs();
 		
-		return(Paths.get(cfg.FilesPath, year, month, day,
-						 String.format("%02d-%s.jpg", t.HourOfDay, t.TideId)));
+		return(file);
 	}
 
 	private void ensureTables() throws Exception {
@@ -148,7 +159,7 @@ public class TidesStore extends SqlStore
 
 	private Config cfg;
 
-	private final static Logger log = Logger.getLogger(TidesStore.class.getName());
+	private final static Logger log = Logger.getLogger(TideStore.class.getName());
 
 	// +-----+
 	// | SQL |
@@ -156,8 +167,9 @@ public class TidesStore extends SqlStore
  
 	private final static String INSERT_TIDE =
 		"insert into tides " +
-		"(tide_id, epoch_second, hour_of_day, day_of_year, tide_height, uv) " +
-		"values (?,?,?,?,?,?,?) ";
+		"(tide_id, epoch_second, hour_of_day, day_of_year, " +
+		" tide_height, lux, wind_mps, temp_f) " +
+		"values (?,?,?,?,?,?,?,?) ";
 
 	private final static String DELETE_TIDE =
 		"delete from tides where tide_id = ?";
@@ -170,7 +182,9 @@ public class TidesStore extends SqlStore
 		"    hour_of_day integer not null, " +
 		"    day_of_year integer not null, " +
 		"    tide_height double not null, " +
-		"    uv double not null, " +
+		"    lux double not null, " +
+		"    wind_mps double not null, " +
+		"    temp_f double not null, " +
 		" " +
 		"    primary key (tide_id) " +
 		") ";
