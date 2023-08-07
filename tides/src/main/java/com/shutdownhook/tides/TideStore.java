@@ -49,9 +49,13 @@ public class TideStore extends SqlStore
 		public Integer HourOfDay;
 		public Integer DayOfYear;
 		public double TideHeight;
+		public double UV;
 		public double Lux;
 		public double WindMps;
 		public double TempF;
+		public double PrecipMmph;
+		public double PressureMb;
+		public double Humidity;
 		public File ImageFile;
 
 		public static Tide fromRow(ResultSet rs) throws SQLException {
@@ -61,9 +65,13 @@ public class TideStore extends SqlStore
 			t.HourOfDay = rs.getInt("hour_of_day");
 			t.DayOfYear = rs.getInt("day_of_year");
 			t.TideHeight = rs.getDouble("tide_height");
+			t.UV = rs.getDouble("uv");
 			t.Lux = rs.getDouble("lux");
 			t.WindMps = rs.getDouble("wind_mps");
 			t.TempF = rs.getDouble("temp_f");
+			t.PrecipMmph = rs.getDouble("precip_mmph");
+			t.PressureMb = rs.getDouble("pressure_mb");
+			t.Humidity = rs.getDouble("humidity");
 			return(t);
 		}
 	}
@@ -85,9 +93,13 @@ public class TideStore extends SqlStore
 				stmt.setInt(3, t.HourOfDay);
 				stmt.setInt(4, t.DayOfYear);
 				stmt.setDouble(5, t.TideHeight);
-				stmt.setDouble(6, t.Lux);
-				stmt.setDouble(7, t.WindMps);
-				stmt.setDouble(8, t.TempF);
+				stmt.setDouble(6, t.UV);
+				stmt.setDouble(7, t.Lux);
+				stmt.setDouble(8, t.WindMps);
+				stmt.setDouble(9, t.TempF);
+				stmt.setDouble(10, t.PrecipMmph);
+				stmt.setDouble(11, t.PressureMb);
+				stmt.setDouble(12, t.Humidity);
 			}
 				
 			public void confirm(int rowsAffected, int iter) {
@@ -167,9 +179,9 @@ public class TideStore extends SqlStore
  
 	private final static String INSERT_TIDE =
 		"insert into tides " +
-		"(tide_id, epoch_second, hour_of_day, day_of_year, " +
-		" tide_height, lux, wind_mps, temp_f) " +
-		"values (?,?,?,?,?,?,?,?) ";
+		"(tide_id, epoch_second, hour_of_day, day_of_year, tide_height, " +
+		" uv, lux, wind_mps, temp_f, precip_mmph, pressure_mb, humidity) " +
+		"values (?,?,?,?,?,?,?,?,?,?,?,?) ";
 
 	private final static String DELETE_TIDE =
 		"delete from tides where tide_id = ?";
@@ -182,9 +194,13 @@ public class TideStore extends SqlStore
 		"    hour_of_day integer not null, " +
 		"    day_of_year integer not null, " +
 		"    tide_height double not null, " +
+		"    uv double not null, " +
 		"    lux double not null, " +
 		"    wind_mps double not null, " +
 		"    temp_f double not null, " +
+		"    precip_mmph double not null, " +
+		"    pressure_mb double not null, " +
+		"    humidity double not null, " +
 		" " +
 		"    primary key (tide_id) " +
 		") ";

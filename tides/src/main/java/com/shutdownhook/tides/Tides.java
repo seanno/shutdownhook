@@ -56,6 +56,19 @@ public class Tides implements Closeable
 		noaa = null;
 	}
 	
+	// +-----------+
+	// | bestMatch |
+	// +-----------+
+
+	public TideStore.Tide bestMatch() throws Exception {
+		return(bestMatch(Instant.now()));
+	}
+
+	public TideStore.Tide bestMatch(Instant when) throws Exception {
+		// nyi
+		return(null);
+	}
+
 	// +--------------------+
 	// | captureCurrentTide |
 	// +--------------------+
@@ -76,14 +89,20 @@ public class Tides implements Closeable
 		tide.DayOfYear = now.atZone(GMT_ZONE).get(ChronoField.DAY_OF_YEAR);
 
 		// weather
+
+		Tempest.Observation obs =
+			tempest.getObservation(cfg.Tempest.Stations.get(0).StationId);
+
+		Tempest.Metrics metrics = obs.obs.get(0);
 		
-		Tempest.Forecast forecast =
-			tempest.getForecast(cfg.Tempest.Stations.get(0).StationId);
+		tide.UV = metrics.uv;
+		tide.Lux = metrics.brightness;
+		tide.WindMps = metrics.wind_avg;
+		tide.PrecipMmph = metrics.precip;
+		tide.PressureMb = metrics.sea_level_pressure;
+		tide.Humidity = metrics.relative_humidity;
 
-		tide.Lux = forecast.current_conditions.brightness;
-		tide.WindMps = forecast.current_conditions.wind_avg;
-
-		double tempC = forecast.current_conditions.air_temperature;
+		double tempC = metrics.air_temperature;
 		tide.TempF = Convert.celsiusToFarenheit(tempC);
 
 		// tide

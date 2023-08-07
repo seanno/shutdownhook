@@ -107,7 +107,7 @@ public class NOAA implements Closeable
 		public Predictions nextExtremes(Instant when) throws IllegalArgumentException {
 			
 			int pos = binarySearch(when);
-			pos = (pos >= 0) ? pos + 1 : (-pos) + 1;
+			if (pos < 0) pos = (-pos) + 1;
 
 			Predictions extremes = new Predictions();
 			for (int i = pos; i < predictions.size(); ++i) {
