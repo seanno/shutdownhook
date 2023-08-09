@@ -10,6 +10,7 @@ import java.io.File;
 import java.time.Instant;
 import java.time.ZoneId;
 import java.time.temporal.ChronoField;
+import java.util.List;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -29,6 +30,15 @@ public class Tides implements Closeable
 		public TideStore.Config Store;
 		public Camera.Config Camera;
 		public NOAA.Config NOAA;
+
+		public TideStore.ClosestTriple[] QueryThresholds = {
+			new TideStore.ClosestTriple(0.25, 0, 10),
+			new TideStore.ClosestTriple(0.25, 1, 10),
+			new TideStore.ClosestTriple(0.50, 2, 20),
+			new TideStore.ClosestTriple(1.00, 3, 30)
+		};
+
+		public Integer QueryForecastMaxResults = 10;
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -56,17 +66,43 @@ public class Tides implements Closeable
 		noaa = null;
 	}
 	
-	// +-----------+
-	// | bestMatch |
-	// +-----------+
+	// +---------------+
+	// | forecastTides |
+	// +---------------+
 
-	public TideStore.Tide bestMatch() throws Exception {
-		return(bestMatch(Instant.now()));
+	public List<TideStore.Tide> forecastTides() throws Exception {
+		/////////////////////////////////////////////////////////////////
+		// nyi --- implement this similar to below but get back a list
+		// and implement sort on distance of other variables.
+		// will need to implement a forecast looker-upper using Tempest
+		// and interpolating ?
+		// NOW + 1 HOUR + 3 HOURS + 6 HOURS + 12 HOURS
+		//
+		// Tasks: 1. forecast interpolater
+		//        2. query tides & forecasts per schedule
+		//        3. sort each queryClosest list by metric distances
+		//        4. (add next two extremes to results?)
+		/////////////////////////////////////////////////////////////////
+		return(null);
 	}
 
-	public TideStore.Tide bestMatch(Instant when) throws Exception {
-		// nyi
-		return(null);
+	// +-----------------+
+	// | imageForInstant |
+	// +-----------------+
+	
+	public File imageForInstant(Instant when) throws Exception {
+		
+		long hourOfDay = when.atZone(GMT_ZONE).get(ChronoField.HOUR_OF_DAY);
+		long dayOfYear = when.atZone(GMT_ZONE).get(ChronoField.DAY_OF_YEAR);
+		NOAA.Prediction prediction = noaa.getPredictions(when).estimateTide(when);
+
+		TideStore.ClosestTriple match =
+			new TideStore.ClosestTriple(prediction.Height, hourOfDay, dayOfYear);
+
+		List<TideStore.Tide> tides = store.queryClosest(match, cfg.QueryThresholds, 1);
+		if (tides == null || tides.size() == 0) throw new Exception("no match");
+		
+		return(tides.get(0).ImageFile);
 	}
 
 	// +--------------------+

@@ -13,8 +13,10 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.time.Instant;
-import java.util.logging.Logger;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
@@ -76,9 +78,108 @@ public class TideStore extends SqlStore
 		}
 	}
 
+	// +--------------+
+	// | queryClosest |
+	// +--------------+
+
+	// this query uses thresholds --- if zero results come back, or the
+	// "best" match isn't very good, the caller will have to loosen the
+	// thresholds and try again. The point is to try to have some options
+	// to choose from, but still be reasonably close.
+	
+	private final static String CLOSEST_QUERY =
+		"select top ?" +
+		"    * " +
+		"from " +
+		"    tides " +
+		"where " +
+		"    abs(tide_height - ?) <= ? and " +
+		"    case " +
+		"        when abs(day_of_year - ?) > (365 / 2) " +
+		"        then 365 - abs(day_of_year - ?) " +
+		"        else abs(day_of_year - ?) " +
+		"    end <= ? and " +
+		"    case " +
+		"        when abs(hour_of_day - ?) > (24 / 2) " +
+		"        then 24 - abs(hour_of_day - ?) " +
+		"        else abs(hour_of_day - ?) " +
+		"    end <= ? " +
+		"order by " +
+		"    abs(tide_height - ?) ";
+
+	static public class ClosestTriple
+	{
+		public ClosestTriple(double height, long hours, long days) {
+			this.Height = height;
+			this.Hours = hours;
+			this.Days = days;
+		}
+
+		public double Height;
+		public long Hours;
+		public long Days;
+	}
+
+	public List<Tide> queryClosest(ClosestTriple match,
+								   ClosestTriple[] progressiveThresholds,
+								   int maxResults) throws Exception {
+		
+		for (ClosestTriple thresholds : progressiveThresholds) {
+			List<Tide> tides = queryClosest(match, thresholds, maxResults);
+			if (tides.size() > 0) return(tides);
+		}
+
+		return(null);
+	}
+
+	public List<Tide> queryClosest(ClosestTriple match,
+								   ClosestTriple thresholds,
+								   int maxResults) throws Exception {
+
+		List<Tide> tides = new ArrayList<Tide>();
+		
+		query(CLOSEST_QUERY, new SqlStore.QueryHandler() {
+				
+			public void prepare(PreparedStatement stmt) throws Exception {
+				
+				stmt.setLong(1, maxResults);
+
+				stmt.setDouble(2, match.Height);
+				stmt.setDouble(3, thresholds.Height);
+				
+				stmt.setLong(4, match.Days);
+				stmt.setLong(5, match.Days);
+				stmt.setLong(6, match.Days);
+				stmt.setLong(7, thresholds.Days);
+				
+				stmt.setLong(8, match.Hours);
+				stmt.setLong(9, match.Hours);
+				stmt.setLong(10, match.Hours);
+				stmt.setLong(11, thresholds.Hours);
+
+				stmt.setDouble(12, match.Height);
+			}
+				
+			public void row(ResultSet rs, int irow) throws Exception {
+
+				Tide tide = Tide.fromRow(rs);
+				tide.ImageFile = fileForTide(tide);
+				tides.add(tide);
+			}
+		});
+
+		return(tides);
+	}
+	
 	// +----------+
 	// | saveTide |
 	// +----------+
+
+	private final static String INSERT_TIDE =
+		"insert into tides " +
+		"(tide_id, epoch_second, hour_of_day, day_of_year, tide_height, " +
+		" uv, lux, wind_mps, temp_f, precip_mmph, pressure_mb, humidity) " +
+		"values (?,?,?,?,?,?,?,?,?,?,?,?) ";
 
 	public Tide saveTide(Tide t, File jpegFile) throws Exception {
 
@@ -130,6 +231,9 @@ public class TideStore extends SqlStore
 	// | deleteTide |
 	// +------------+
 
+	private final static String DELETE_TIDE =
+		"delete from tides where tide_id = ?";
+		
 	public void deleteTide(Tide t) throws Exception {
 
 		update(DELETE_TIDE, new SqlStore.UpdateHandler() {
@@ -142,50 +246,10 @@ public class TideStore extends SqlStore
 		fileForTide(t).delete();
 	}
 	
-	// +---------+
-	// | Helpers |
-	// +---------+
-
-	private File fileForTide(Tide t) {
-
-		String iso8601 = Instant.ofEpochSecond(t.EpochSecond).toString();
-		
-		String year = iso8601.substring(0, 4);
-		String month = iso8601.substring(5, 7);
-		String day = iso8601.substring(8, 10);
-
-		String fileName = String.format("%02d-%s.jpg", t.HourOfDay, t.TideId);
-		File file = Paths.get(cfg.FilesPath, year, month, day, fileName).toFile();
-		file.getParentFile().mkdirs();
-		
-		return(file);
-	}
-
-	private void ensureTables() throws Exception {
-		ensureTable("tides", CREATE_TIDES_TABLE);
-	}
-
-	// +---------+
-	// | Members |
-	// +---------+
-
-	private Config cfg;
-
-	private final static Logger log = Logger.getLogger(TideStore.class.getName());
-
 	// +-----+
-	// | SQL |
+	// | DDL |
 	// +-----+
- 
-	private final static String INSERT_TIDE =
-		"insert into tides " +
-		"(tide_id, epoch_second, hour_of_day, day_of_year, tide_height, " +
-		" uv, lux, wind_mps, temp_f, precip_mmph, pressure_mb, humidity) " +
-		"values (?,?,?,?,?,?,?,?,?,?,?,?) ";
 
-	private final static String DELETE_TIDE =
-		"delete from tides where tide_id = ?";
-		
 	private final static String CREATE_TIDES_TABLE =
 		"create table tides " +
 		"( " +
@@ -205,4 +269,34 @@ public class TideStore extends SqlStore
 		"    primary key (tide_id) " +
 		") ";
 
+	private void ensureTables() throws Exception {
+		ensureTable("tides", CREATE_TIDES_TABLE);
+	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	private File fileForTide(Tide t) {
+
+		String iso8601 = Instant.ofEpochSecond(t.EpochSecond).toString();
+		
+		String year = iso8601.substring(0, 4);
+		String month = iso8601.substring(5, 7);
+		String day = iso8601.substring(8, 10);
+
+		String fileName = String.format("%02d-%s.jpg", t.HourOfDay, t.TideId);
+		File file = Paths.get(cfg.FilesPath, year, month, day, fileName).toFile();
+		file.getParentFile().mkdirs();
+		
+		return(file);
+	}
+
+	// +---------+
+	// | Members |
+	// +---------+
+
+	private Config cfg;
+
+	private final static Logger log = Logger.getLogger(TideStore.class.getName());
 }

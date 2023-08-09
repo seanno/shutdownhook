@@ -5,7 +5,10 @@
 
 package com.shutdownhook.tides;
 
+import java.io.File;
 import java.time.Instant;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.util.logging.Logger;
 import com.shutdownhook.toolbox.Easy;
 
@@ -18,6 +21,7 @@ public class App
 			System.err.println("java ... [path to config] server");
 			System.err.println("java ... [path to config] cam [save path]");
 			System.err.println("java ... [path to config] noaa");
+			System.err.println("java ... [path to config] predictImage [save path] [ISO DateTime]");
 			return;
 		}
 
@@ -60,6 +64,13 @@ public class App
 					System.out.println(String.format("\t%s\n",predictions.estimateTide(now)));
 					System.out.println("===== NEXT EXTREMES:\n");
 					System.out.println(predictions.nextExtremes());
+					break;
+
+				case "predictImage":
+					tides = new Tides(cfg);
+					Instant when = (args.length >= 4 ? Instant.parse(args[3]) : Instant.now());
+					File img = tides.imageForInstant(when);
+					Files.copy(img.toPath(), Paths.get(args[2]));
 					break;
 
 				default:
