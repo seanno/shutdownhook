@@ -68,7 +68,12 @@ public class App
 
 				case "predictimage":
 					tides = new Tides(cfg);
-					Instant when = (args.length >= 4 ? Instant.parse(args[3]) : Instant.now());
+					Instant when =
+					    ((args.length >= 4 &&
+					      !Easy.nullOrEmpty(args[3]))
+					     ? Instant.parse(args[3])
+					     : Instant.now());
+					
 					File img = tides.imageForInstant(when);
 					Files.copy(img.toPath(), Paths.get(args[2]));
 					break;
