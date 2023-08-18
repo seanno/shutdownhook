@@ -88,7 +88,7 @@ public class TideStore extends SqlStore
 	// to choose from, but still be reasonably close.
 	
 	private final static String CLOSEST_QUERY =
-		"select top ?" +
+		"select " +
 		"    * " +
 		"from " +
 		"    tides " +
@@ -105,7 +105,9 @@ public class TideStore extends SqlStore
 		"        else abs(hour_of_day - ?) " +
 		"    end <= ? " +
 		"order by " +
-		"    abs(tide_height - ?) ";
+		"    abs(tide_height - ?) " +
+		"limit " +
+		"    ? ";
 
 	static public class ClosestTriple
 	{
@@ -142,22 +144,22 @@ public class TideStore extends SqlStore
 				
 			public void prepare(PreparedStatement stmt) throws Exception {
 				
-				stmt.setLong(1, maxResults);
-
-				stmt.setDouble(2, match.Height);
-				stmt.setDouble(3, thresholds.Height);
+				stmt.setDouble(1, match.Height);
+				stmt.setDouble(2, thresholds.Height);
 				
+				stmt.setLong(3, match.Days);
 				stmt.setLong(4, match.Days);
 				stmt.setLong(5, match.Days);
-				stmt.setLong(6, match.Days);
-				stmt.setLong(7, thresholds.Days);
+				stmt.setLong(6, thresholds.Days);
 				
+				stmt.setLong(7, match.Hours);
 				stmt.setLong(8, match.Hours);
 				stmt.setLong(9, match.Hours);
-				stmt.setLong(10, match.Hours);
-				stmt.setLong(11, thresholds.Hours);
+				stmt.setLong(10, thresholds.Hours);
 
-				stmt.setDouble(12, match.Height);
+				stmt.setDouble(11, match.Height);
+
+				stmt.setLong(12, maxResults);
 			}
 				
 			public void row(ResultSet rs, int irow) throws Exception {

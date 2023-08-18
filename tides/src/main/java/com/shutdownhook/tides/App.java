@@ -66,7 +66,7 @@ public class App
 					System.out.println(predictions.nextExtremes());
 					break;
 
-				case "predictImage":
+				case "predictimage":
 					tides = new Tides(cfg);
 					Instant when = (args.length >= 4 ? Instant.parse(args[3]) : Instant.now());
 					File img = tides.imageForInstant(when);
