@@ -90,31 +90,28 @@ public class NOAA implements Closeable
 		}
 	}
 
-	public static class Predictions
+	public static class Predictions extends ArrayList<Prediction>
 	{
-		public Predictions() {
-			this.predictions = new ArrayList<Prediction>();
-		}
-
-		// +-----------------+
-		// | getNextExtremes |
-		// +-----------------+
+		// +--------------+
+		// | nextExtremes |
+		// +--------------+
 		
-		public Predictions nextExtremes() throws IllegalArgumentException {
-			return(nextExtremes(Instant.now()));
+		public Predictions nextExtremes(int max) throws IllegalArgumentException {
+			return(nextExtremes(Instant.now(), max));
 		}
 
-		public Predictions nextExtremes(Instant when) throws IllegalArgumentException {
+		public Predictions nextExtremes(Instant when, int max) throws IllegalArgumentException {
 			
 			int pos = binarySearch(when);
 			if (pos < 0) pos = (-pos) + 1;
 
 			Predictions extremes = new Predictions();
-			for (int i = pos; i < predictions.size(); ++i) {
-				Prediction p = predictions.get(i);
+			for (int i = pos; i < size(); ++i) {
+				Prediction p = get(i);
 				PredictionType ptype = p.PredictionType;
 				if (ptype == PredictionType.LOW || ptype == PredictionType.HIGH) {
-					extremes.predictions.add(p);
+					extremes.add(p);
+					if (extremes.size() >= max) break;
 				}
 			}
 
@@ -132,14 +129,14 @@ public class NOAA implements Closeable
 		public Prediction estimateTide(Instant when) throws IllegalArgumentException {
 
 			int pos = binarySearch(when);
-			if (pos >= 0) return(predictions.get(pos));
+			if (pos >= 0) return(get(pos));
 
 			// calculations below will always be valid if array is sorted
 			// (which we control) and the tests in binarySearch lets us get here
 
 			int insertionPoint = (-pos) - 1;
-			Prediction pLow = predictions.get(insertionPoint - 1);
-			Prediction pHigh = predictions.get(insertionPoint);
+			Prediction pLow = get(insertionPoint - 1);
+			Prediction pHigh = get(insertionPoint);
 
 			// fraction of time through period
 			double timeWhole = (double) pLow.Time.until(pHigh.Time, ChronoUnit.MILLIS);
@@ -161,24 +158,24 @@ public class NOAA implements Closeable
 		@Override
 		public String toString() {
 			StringBuilder sb = new StringBuilder();
-			for (int i = 0; i < predictions.size(); ++i) {
-				sb.append(String.format("%d\t%s\n", i, predictions.get(i)));
+			for (int i = 0; i < size(); ++i) {
+				sb.append(String.format("%d\t%s\n", i, get(i)));
 			}
 			return(sb.toString());
 		}
 
 		private int binarySearch(Instant when) throws IllegalArgumentException {
 			
-			if (predictions.size() == 0 ||
-				when.isBefore(predictions.get(0).Time) ||
-				when.isAfter(predictions.get(predictions.size() - 1).Time)) {
+			if (size() == 0 ||
+				when.isBefore(get(0).Time) ||
+				when.isAfter(get(size() - 1).Time)) {
 
 				throw new IllegalArgumentException("outside predictions range");
 			}
 
 			// same semantics as Collections.binarySearch
 			Prediction pKey = new Prediction(); pKey.Time = when;
-			return(Collections.binarySearch(predictions, pKey));
+			return(Collections.binarySearch(this, pKey));
 		}
 
 		// must be called for alternating H/L points in ascending time order.
@@ -190,9 +187,9 @@ public class NOAA implements Closeable
 
 		private void addTwelfths(Instant when, double height) {
 			
-			if (predictions.size() == 0) return;
+			if (size() == 0) return;
 			
-			Prediction pLast = predictions.get(predictions.size() - 1);
+			Prediction pLast = get(size() - 1);
 
 			// note this can be positive or negative which is what we want
 			double heightTwelfth = (height - pLast.Height) / 12.0;
@@ -219,11 +216,8 @@ public class NOAA implements Closeable
 			p.Height = height;
 			p.PredictionType = predictionType;
 			
-			predictions.add(p);
+			add(p);
 		}
-		
-		private List<Prediction> predictions;
-		
 	}
 
 	// +----------------+

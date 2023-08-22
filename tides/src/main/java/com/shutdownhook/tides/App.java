@@ -12,6 +12,8 @@ import java.nio.file.Paths;
 import java.util.logging.Logger;
 import com.shutdownhook.toolbox.Easy;
 
+import com.google.gson.Gson;
+
 public class App 
 {
 	public static void main(String[] args) throws Exception {
@@ -21,7 +23,7 @@ public class App
 			System.err.println("java ... [path to config] server");
 			System.err.println("java ... [path to config] cam [save path]");
 			System.err.println("java ... [path to config] noaa");
-			System.err.println("java ... [path to config] predictImage [save path] [ISO DateTime]");
+			System.err.println("java ... [path to config] predict [isodatetime]");
 			return;
 		}
 
@@ -29,7 +31,7 @@ public class App
 
 		String action = args[1].toLowerCase();
 		String json = Easy.stringFromSmartyPath(args[0]);
-		Tides.Config cfg = Tides.Config.fromJson(json);
+		Server.Config cfg = Server.Config.fromJson(json);
 
 		Tides tides = null;
 		Camera cam = null;
@@ -40,22 +42,22 @@ public class App
 			switch (action) {
 				case "capture":
 					log.info("Capturing current tide information");
-					tides = new Tides(cfg);
+					tides = new Tides(cfg.Tides);
 					if (tides.captureCurrentTide() == null) log.severe("Failed to capture tide");
 					break;
 				
 				case "server":
-					tides = new Tides(cfg);
-					// nyi
+					Server server = new Server(cfg);
+					server.runSync();
 					break;
 
 				case "cam":
-					cam = new Camera(cfg.Camera);
+					cam = new Camera(cfg.Tides.Camera);
 					cam.takeSnapshot(args[2]);
 					break;
 
 				case "noaa":
-					noaa = new NOAA(cfg.NOAA);
+					noaa = new NOAA(cfg.Tides.NOAA);
 					NOAA.Predictions predictions = noaa.getPredictions();
 					System.out.println("===== PREDICTIONS:");
 					System.out.println(predictions.toString());
@@ -63,14 +65,14 @@ public class App
 					System.out.println("===== CURRENT ESTIMATE:");
 					System.out.println(String.format("\t%s\n",predictions.estimateTide(now)));
 					System.out.println("===== NEXT EXTREMES:\n");
-					System.out.println(predictions.nextExtremes());
+					System.out.println(predictions.nextExtremes(5));
 					break;
 
-				case "predictimage":
-					tides = new Tides(cfg);
-					Instant when = (args.length >= 4 ? Instant.parse(args[3]) : Instant.now());
-					File img = tides.imageForInstant(when);
-					Files.copy(img.toPath(), Paths.get(args[2]));
+				case "predict":
+					tides = new Tides(cfg.Tides);
+					Instant when = (args.length >= 3 ? Instant.parse(args[2]) : Instant.now());
+					Tides.TideForecast forecast = tides.forecastTide(when);
+					System.out.println(new Gson().toJson(forecast));
 					break;
 
 				default:

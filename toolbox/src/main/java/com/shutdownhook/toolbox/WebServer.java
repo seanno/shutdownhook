@@ -10,8 +10,10 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import java.io.Closeable;
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.InputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.lang.InterruptedException;
@@ -93,6 +95,7 @@ public class WebServer implements Closeable
 	public static class Response {
 		public int Status;
 		public String Body;
+		public File BodyFile;
 		public String ContentType;
 		public Map<String,String> Headers;
 
@@ -292,7 +295,11 @@ public class WebServer implements Closeable
 			exchange.getResponseHeaders().add("Content-Type", response.ContentType);
 		}
 
-		if (response.Body == null || response.Body.isEmpty()) {
+		if (response.BodyFile != null) {
+			exchange.sendResponseHeaders(response.Status, response.BodyFile.length());
+			sendFileTo(response.BodyFile, exchange.getResponseBody());
+		}
+		else if (response.Body == null || response.Body.isEmpty()) {
 			exchange.sendResponseHeaders(response.Status, -1);
 		}
 		else {
@@ -413,6 +420,23 @@ public class WebServer implements Closeable
 										  "text/" + (isHtml ? "html" : "javascript"));
 				}
 			}
+		}
+	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	private void sendFileTo(File file, OutputStream outputStream) throws IOException {
+
+		FileInputStream inputStream = null;
+
+		try {
+			inputStream = new FileInputStream(file);
+			inputStream.transferTo(outputStream);
+		}
+		finally {
+			if (inputStream != null) inputStream.close();
 		}
 	}
 

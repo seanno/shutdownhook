@@ -307,6 +307,10 @@ public class Tempest implements Closeable
 			Conditions = conditions;
 		}
 	}
+
+	public Forecast getForecast() throws Exception {
+		return(getForecast(cfg.Stations.get(0).StationId));
+	}
 	
 	public Forecast getForecast(String stationId) throws Exception {
 		WebRequests.Params params = new WebRequests.Params();

@@ -48,7 +48,7 @@ public class TideStore extends SqlStore
 	{
 		public String TideId;
 		public Long EpochSecond;
-		public Integer HourOfDay;
+		public Integer MinuteOfDay;
 		public Integer DayOfYear;
 		public double TideHeight;
 		public double UV;
@@ -64,7 +64,7 @@ public class TideStore extends SqlStore
 			Tide t = new Tide();
 			t.TideId = rs.getString("tide_id");
 			t.EpochSecond = rs.getLong("epoch_second");
-			t.HourOfDay = rs.getInt("hour_of_day");
+			t.MinuteOfDay = rs.getInt("minute_of_day");
 			t.DayOfYear = rs.getInt("day_of_year");
 			t.TideHeight = rs.getDouble("tide_height");
 			t.UV = rs.getDouble("uv");
@@ -76,6 +76,18 @@ public class TideStore extends SqlStore
 			t.Humidity = rs.getDouble("humidity");
 			return(t);
 		}
+
+		public String toCSV() {
+			return(String.format("%s,%d,%d,%d,%02f,%02f,%02f,%02f,%02f,%02f,%02f,%02f,%s",
+								 TideId, EpochSecond, MinuteOfDay, DayOfYear, TideHeight,
+								 UV, Lux, WindMps, TempF, PrecipMmph, PressureMb,
+								 Humidity, ImageFile.toString()));
+		}
+
+		static public String CSV_HEADERS =
+			"TideId,EpochSecond,MinuteOfDay,DayOfYear,TideHeight," +
+			"UV,Lux,WindMps,TempF,PrecipMmph,PressureMb," +
+			"Humidity,ImageFile";
 	}
 
 	// +--------------+
@@ -100,9 +112,9 @@ public class TideStore extends SqlStore
 		"        else abs(day_of_year - ?) " +
 		"    end <= ? and " +
 		"    case " +
-		"        when abs(hour_of_day - ?) > (24 / 2) " +
-		"        then 24 - abs(hour_of_day - ?) " +
-		"        else abs(hour_of_day - ?) " +
+		"        when abs(minute_of_day - ?) > (1440 / 2) " +
+		"        then 1440 - abs(minute_of_day - ?) " +
+		"        else abs(minute_of_day - ?) " +
 		"    end <= ? " +
 		"order by " +
 		"    abs(tide_height - ?) " +
@@ -111,14 +123,14 @@ public class TideStore extends SqlStore
 
 	static public class ClosestTriple
 	{
-		public ClosestTriple(double height, long hours, long days) {
+		public ClosestTriple(double height, long minutes, long days) {
 			this.Height = height;
-			this.Hours = hours;
+			this.Minutes = minutes;
 			this.Days = days;
 		}
 
 		public double Height;
-		public long Hours;
+		public long Minutes;
 		public long Days;
 	}
 
@@ -152,10 +164,10 @@ public class TideStore extends SqlStore
 				stmt.setLong(5, match.Days);
 				stmt.setLong(6, thresholds.Days);
 				
-				stmt.setLong(7, match.Hours);
-				stmt.setLong(8, match.Hours);
-				stmt.setLong(9, match.Hours);
-				stmt.setLong(10, thresholds.Hours);
+				stmt.setLong(7, match.Minutes);
+				stmt.setLong(8, match.Minutes);
+				stmt.setLong(9, match.Minutes);
+				stmt.setLong(10, thresholds.Minutes);
 
 				stmt.setDouble(11, match.Height);
 
@@ -173,13 +185,40 @@ public class TideStore extends SqlStore
 		return(tides);
 	}
 	
+	// +---------+
+	// | getTide |
+	// +---------+
+
+	private final static String GETTIDE_QUERY =
+		"select * from tides where id = ?";
+
+	public Tide getTide(String id) throws Exception {
+
+		SqlStore.Return<Tide> tide = new SqlStore.Return<Tide>();
+
+		query(GETTIDE_QUERY, new SqlStore.QueryHandler() {
+				
+			public void prepare(PreparedStatement stmt) throws Exception {
+				stmt.setString(1, id);
+			}
+
+			public void row(ResultSet rs, int irow) throws Exception {
+				if (irow > 0) throw new Exception("multiple rows from id query");
+				tide.Value = Tide.fromRow(rs);
+				tide.Value.ImageFile = fileForTide(tide.Value);
+			}
+		});
+
+		return(tide.Value);
+	}
+
 	// +----------+
 	// | saveTide |
 	// +----------+
 
 	private final static String INSERT_TIDE =
 		"insert into tides " +
-		"(tide_id, epoch_second, hour_of_day, day_of_year, tide_height, " +
+		"(tide_id, epoch_second, minute_of_day, day_of_year, tide_height, " +
 		" uv, lux, wind_mps, temp_f, precip_mmph, pressure_mb, humidity) " +
 		"values (?,?,?,?,?,?,?,?,?,?,?,?) ";
 
@@ -193,7 +232,7 @@ public class TideStore extends SqlStore
 			public void prepare(PreparedStatement stmt, int iter) throws Exception {
 				stmt.setString(1, t.TideId);
 				stmt.setLong(2, t.EpochSecond);
-				stmt.setInt(3, t.HourOfDay);
+				stmt.setInt(3, t.MinuteOfDay);
 				stmt.setInt(4, t.DayOfYear);
 				stmt.setDouble(5, t.TideHeight);
 				stmt.setDouble(6, t.UV);
@@ -257,7 +296,7 @@ public class TideStore extends SqlStore
 		"( " +
 		"    tide_id char(36) not null, " +
 		"    epoch_second integer not null, " +
-		"    hour_of_day integer not null, " +
+		"    minute_of_day integer not null, " +
 		"    day_of_year integer not null, " +
 		"    tide_height double not null, " +
 		"    uv double not null, " +
@@ -287,7 +326,7 @@ public class TideStore extends SqlStore
 		String month = iso8601.substring(5, 7);
 		String day = iso8601.substring(8, 10);
 
-		String fileName = String.format("%02d-%s.jpg", t.HourOfDay, t.TideId);
+		String fileName = String.format("%02d-%s.jpg", t.MinuteOfDay, t.TideId);
 		File file = Paths.get(cfg.FilesPath, year, month, day, fileName).toFile();
 		file.getParentFile().mkdirs();
 		
