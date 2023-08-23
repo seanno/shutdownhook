@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+
+	<style>
+
+	  body {
+		  font: 12px Verdana,Helvetica,Arial;
+	  }
+
+	  #switches {
+		  margin-bottom: 16px;
+	  }
+	  
+	  #waterChart {
+		  height: 80vh;
+	  }
+	  
+	</style>
+	
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"
+			integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g="
+			crossorigin="anonymous"></script>
+
+	<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+	<script src="https://cdn.jsdelivr.net/npm/chartjs-adapter-date-fns/dist/chartjs-adapter-date-fns.bundle.min.js"></script>
+
+	<script type="text/javascript">
+
+	  $(document).ready(() => {
+		renderChart();
+	  });
+
+	  async function renderChart() {
+
+		const ctx = document.getElementById('waterChart');
+
+		const response = await fetch('{{DATA_URL}}?days={{DAYS}}');
+		const data = await response.json();
+		const parsed = data.map((o) => ({ x: Date.parse(o.When),
+										  y: (0.0328084 * o.Value) }));
+		
+		new Chart(ctx, {
+		  type: 'line',
+		  data: { datasets: [{ data: parsed }] },
+		  options: {
+			maintainAspectRatio: false,
+		    scales: {
+		      x: {
+				type: 'time',
+				title: {
+				  display: true,
+				  text: 'Timestamp'
+				}
+			  },
+			  y: {
+				min: 0,
+				max: 6,
+				title: {
+				  display: true,
+				  text: 'Feet'
+				}
+			  }
+			  
+		    },
+			plugins: {
+			  legend: {
+				display: false
+			  }
+			}
+          }
+		});
+		
+	  }
+	  
+	</script>
+	
+  </head>
+
+  <body>
+
+	<h2>Witter Beach Upper Tank Water Level</h2>
+
+	<div id="switches">
+	  Last {{DAYS}} days (
+	  <a href="{{GRAPH_URL}}?days=1">1</a> |
+	  <a href="{{GRAPH_URL}}?days=7">7</a> |
+	  <a href="{{GRAPH_URL}}?days=30">30</a> |
+	  <a href="{{GRAPH_URL}}?days=90">90</a> |
+	  <a href="{{GRAPH_URL}}?days=360">360</a> )
+	</div>
+	
+	<div>
+	  <canvas id="waterChart"></canvas>
+	</div>
+
+  </body>
+
+</html>
