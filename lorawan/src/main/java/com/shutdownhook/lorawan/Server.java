@@ -17,6 +17,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import com.shutdownhook.toolbox.Convert;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
 import com.shutdownhook.toolbox.Template;
@@ -41,6 +42,10 @@ public class Server implements Closeable
 		public String WitterDataUrl = "/witterdata";
 		public Integer WitterDataDaysDefault = 7;
 		public String WitterDefaultTimeZone = "PST8PDT";
+
+		public String WitterCheckUrl = "/wittercheck";
+		public Double WitterWarnFeet = 3.5;
+		public Double WitterCriticalFeet = 2.0;
 		
 		public String WitterHookUrl = "/witterhook";
 		public String WitterHookUser;
@@ -63,6 +68,7 @@ public class Server implements Closeable
 
 		registerWitterHook();
 		registerWitterData();
+		registerWitterCheck();
 		registerWitterGraph();
 
 		server.registerEmptyHandler("/favicon.ico", 404);
@@ -128,6 +134,44 @@ public class Server implements Closeable
 				response.setJson(new Gson().toJson(metrics));
 			}
 		});
+	}
+
+	// +---------------------+
+	// | registerWitterCheck |
+	// +---------------------+
+
+	private void registerWitterCheck() throws Exception {
+
+		server.registerHandler(cfg.WitterCheckUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				String zoneStr = request.QueryParams.get("tz");
+				ZoneId zone = ZoneId.of(zoneStr == null ? cfg.WitterDefaultTimeZone : zoneStr);
+				
+				MetricStore.Metric metric =	store.getLatestMetric(cfg.WitterMetric, zone);
+
+				String responseText = "[ERROR]";
+				
+				if (metric != null) {
+
+					double feet = Convert.cmToFeet((double)metric.Value);
+					if (feet < cfg.WitterCriticalFeet) {
+						responseText = "[CRITICAL]";
+					}
+					else if (feet < cfg.WitterWarnFeet) {
+						responseText = "[WARNING]";
+					}
+					else {
+						responseText = "[OK]";
+					}
+
+					responseText = responseText + "\n" + new Gson().toJson(metric);
+				}
+
+				response.setText(responseText);
+			}
+		});
+		
 	}
 
 	// +--------------------+

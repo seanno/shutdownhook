@@ -63,6 +63,21 @@ public class MetricStore extends SqlStore
 		return(added.Value);
 	}
 
+	// +-----------------+
+	// | getLatestMetric |
+	// +-----------------+
+
+	public Metric getLatestMetric(String name, ZoneId tz) throws Exception {
+
+		List<Metric> metrics = getMetrics(name, null, null, 1, tz);
+		
+		if (metrics == null || metrics.size() == 0) {
+			throw new Exception("No metrics available for " + name);
+		}
+
+		return(metrics.get(0));
+	}
+
 	// +------------+
 	// | getMetrics |
 	// +------------+
