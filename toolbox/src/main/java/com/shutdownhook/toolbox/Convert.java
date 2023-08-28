@@ -18,4 +18,8 @@ public class Convert
 	public static final double millimetersToInches(double mm) {
 		return(mm / 25.4);
 	}
+
+	public static final double cmToFeet(double cm) {
+		return(cm * 0.0328084);
+	}
 }
