@@ -155,6 +155,9 @@ public class NOAA implements Closeable
 			return(pEst);
 		}
 
+		public Instant earliestPrediction() { return(this.get(0).Time); }
+		public Instant latestPrediction() { return(this.get(this.size() - 1).Time); }
+		
 		@Override
 		public String toString() {
 			StringBuilder sb = new StringBuilder();

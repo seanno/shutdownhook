@@ -22,12 +22,12 @@ public class App
 			System.err.println("java ... [path to config] capture");
 			System.err.println("java ... [path to config] server");
 			System.err.println("java ... [path to config] cam [save path]");
-			System.err.println("java ... [path to config] noaa");
+			System.err.println("java ... [path to config] noaa [isodatetime]");
 			System.err.println("java ... [path to config] predict [isodatetime]");
 			return;
 		}
 
-		Easy.setSimpleLogFormat("INFO");
+		Easy.setSimpleLogFormat("FINE");
 
 		String action = args[1].toLowerCase();
 		String json = Easy.stringFromSmartyPath(args[0]);
@@ -36,6 +36,7 @@ public class App
 		Tides tides = null;
 		Camera cam = null;
 		NOAA noaa = null;
+		Instant when;
 
 		try {
 
@@ -58,19 +59,19 @@ public class App
 
 				case "noaa":
 					noaa = new NOAA(cfg.Tides.NOAA);
-					NOAA.Predictions predictions = noaa.getPredictions();
+					when = (args.length >= 3 ? Instant.parse(args[2]) : Instant.now());
+					NOAA.Predictions predictions = noaa.getPredictions(when);
 					System.out.println("===== PREDICTIONS:");
 					System.out.println(predictions.toString());
-					Instant now = Instant.now();
 					System.out.println("===== CURRENT ESTIMATE:");
-					System.out.println(String.format("\t%s\n",predictions.estimateTide(now)));
+					System.out.println(String.format("\t%s\n",predictions.estimateTide(when)));
 					System.out.println("===== NEXT EXTREMES:\n");
 					System.out.println(predictions.nextExtremes(5));
 					break;
 
 				case "predict":
 					tides = new Tides(cfg.Tides);
-					Instant when = (args.length >= 3 ? Instant.parse(args[2]) : Instant.now());
+					when = (args.length >= 3 ? Instant.parse(args[2]) : Instant.now());
 					Tides.TideForecast forecast = tides.forecastTide(when);
 					System.out.println(new Gson().toJson(forecast));
 					break;

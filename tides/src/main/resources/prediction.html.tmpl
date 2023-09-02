@@ -5,6 +5,8 @@
 	
 	<link rel="stylesheet"
 		  href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+	<link rel="stylesheet" href="/tides.css">
 	
 	<script src="https://code.jquery.com/jquery-3.7.0.min.js"
 			integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g="
@@ -15,7 +17,15 @@
 	<script type="text/javascript">
 
 	  $(document).ready(() => {
-		flatpickr("#dateTimePicker", {});
+		
+		$('#dateTimePicker').flatpickr({
+		  enableTime: true,
+		  altInput: true,
+		  altFormat: 'Y-m-d h:i K',
+		  dateFormat: 'Z',
+		  defaultDate: {{TIMESTAMP}}
+		});
+		
 	  });
 	  
 	</script>
@@ -25,15 +35,42 @@
   <body>
 	<form method="GET">
 
-	  <div>
-		<div id="#dateTimePicker"></div>
-		<input type="submit" value="  Go  " />
-	  </div>
+	  <div class="predictions">
+	  {{:rpt PREDICTIONS}}
 
-	  <div>
-		<img src="{{IMG_SRC}}"/>
+	    <div class="prediction"
+		     style="grid-row: {{PRED_ROW}}; grid-column: {{PRED_COL}};">
+		  
+		  <div class="p-header">
+			<span class="p-time">{{PRED_TIME}}</span>
+			<span class="p-metrics">{{:raw PRED_METRICS}}</span>
+		  </div>
+		  <img class="p-snap" src="{{PRED_IMG}}"/>
+		  
+		</div>
+	  
+	  {{:end}}
 	  </div>
 		  
+	  <div class="links">
+		<a href="{{THIS_URL}}">Now</a>
+		|
+		Forward:
+		<a href="{{THIS_URL}}?dateTime={{DT 1 h}}"}}>hour</a>
+		<a href="{{THIS_URL}}?dateTime={{DT 1 d}}"}}>day</a>
+		<a href="{{THIS_URL}}?dateTime={{DT 7 d}}"}}>week</a>
+		|
+		Back: 
+		<a href="{{THIS_URL}}?dateTime={{DT -1 h}}"}}>hour</a>
+		<a href="{{THIS_URL}}?dateTime={{DT -1 d}}"}}>day</a>
+		<a href="{{THIS_URL}}?dateTime={{DT -7 d}}"}}>week</a>
+	  </div>
+
+	  <div class="picker">
+		<input type="text" name="dateTime" id="dateTimePicker" />
+		<input type="submit" value="  Go  " />
+	  </div>
+	  
 	</form>
   </body>
 

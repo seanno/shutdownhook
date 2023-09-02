@@ -132,13 +132,23 @@ public class TideStore extends SqlStore
 		public double Height;
 		public long Minutes;
 		public long Days;
+
+		@Override
+		public String toString() {
+			return(String.format("H=%02f M=%d D=%d", Height, Minutes, Days));
+		}
 	}
 
 	public List<Tide> queryClosest(ClosestTriple match,
 								   ClosestTriple[] progressiveThresholds,
 								   int maxResults) throws Exception {
+
+		log.fine("queryClosest matching: " + match.toString());
 		
+		int i = 1;
 		for (ClosestTriple thresholds : progressiveThresholds) {
+			log.fine(String.format("queryClosest %d: %s", i++, thresholds));
+								   
 			List<Tide> tides = queryClosest(match, thresholds, maxResults);
 			if (tides.size() > 0) return(tides);
 		}
@@ -190,7 +200,7 @@ public class TideStore extends SqlStore
 	// +---------+
 
 	private final static String GETTIDE_QUERY =
-		"select * from tides where id = ?";
+		"select * from tides where tide_id = ?";
 
 	public Tide getTide(String id) throws Exception {
 

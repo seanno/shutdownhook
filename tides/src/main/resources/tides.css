@@ -1,0 +1,30 @@
+
+body {
+	font: 12px Verdana, Arial, Helvetica;
+}
+
+.picker {
+}
+
+.links {
+	margin-top: 20px;
+	margin-bottom: 6px;
+}
+
+.predictions {
+	display: grid;
+	grid-gap: 16px;
+}
+
+.p-header {
+	margin-bottom: 4px;
+	font-size: 1.2em;
+}
+
+.p-time {
+	font-weight: bold;
+}
+
+.p-snap {
+	width: 100%;
+}
