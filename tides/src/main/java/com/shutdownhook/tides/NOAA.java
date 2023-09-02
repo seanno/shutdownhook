@@ -63,8 +63,37 @@ public class NOAA implements Closeable
 	{
 		LOW,
 		HIGH,
-		POINT,
-		EST
+		POINT_RISING,
+		POINT_FALLING,
+		EST_RISING,
+		EST_FALLING;
+
+		public String toHTML() {
+			
+			String html = "";
+			
+			switch (this) {
+				case LOW:
+					html = "<b>L</b>";
+					break;
+					
+				case HIGH:
+					html = "<b>H</b>";
+					break;
+					
+				case POINT_RISING:
+				case EST_RISING:
+					html = "&uuarr;";
+					break;
+					
+				case POINT_FALLING: 
+				case EST_FALLING:
+					html = "&ddarr;";
+					break;
+			}
+			
+			return(html);
+		}
 	}
 	
 	public static class Prediction implements Comparable<Prediction>
@@ -144,6 +173,9 @@ public class NOAA implements Closeable
 
 			// tide change through period (may be - if going down, that's ok)
 			double tideWhole = (pHigh.Height - pLow.Height);
+			
+			PredictionType pt = (tideWhole > 0 ? PredictionType.EST_RISING
+								 : PredictionType.EST_FALLING);
 				
 			// and interpolate!
 			double estimate = pLow.Height + (tideWhole * timeFraction);
@@ -151,7 +183,7 @@ public class NOAA implements Closeable
 			Prediction pEst = new Prediction();
 			pEst.Time = when;
 			pEst.Height = estimate;
-			pEst.PredictionType = PredictionType.EST;
+			pEst.PredictionType = pt;
 			return(pEst);
 		}
 
@@ -196,6 +228,8 @@ public class NOAA implements Closeable
 
 			// note this can be positive or negative which is what we want
 			double heightTwelfth = (height - pLast.Height) / 12.0;
+			PredictionType pt = (heightTwelfth > 0 ? PredictionType.POINT_RISING
+								 : PredictionType.POINT_FALLING);
 
 			long secsBetween =
 				Duration.between(pLast.Time, when).getSeconds()
@@ -207,7 +241,7 @@ public class NOAA implements Closeable
 			for (double mult : TIDE_MULTS) {
 				interWhen = interWhen.plusSeconds(secsBetween);
 				interHeight += (heightTwelfth * mult);
-				addOne(interWhen, interHeight, PredictionType.POINT);
+				addOne(interWhen, interHeight, pt);
 			}
 		}
 

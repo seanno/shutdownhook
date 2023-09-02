@@ -254,11 +254,12 @@ public class Server implements Closeable
 	private String renderTokenMetrics(Tides.TideForecast forecast) {
 
 		StringBuilder sb = new StringBuilder();
-		sb.append(String.format("%.1f ft", forecast.Height));
+		sb.append(String.format("%.1f ft %s", forecast.Height,
+								forecast.PredictionType.toHTML()));
 
 		if (forecast.Weather != null) {
 			double degF = Convert.celsiusToFarenheit(forecast.Weather.air_temperature);
-			sb.append(String.format(", %.0f&deg;", degF));
+			sb.append(String.format(" %.0f&deg;", degF));
 		}
 		
 		return(sb.toString());

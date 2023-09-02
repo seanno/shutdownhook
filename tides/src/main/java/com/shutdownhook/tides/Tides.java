@@ -86,6 +86,7 @@ public class Tides implements Closeable
 	{
 		public Instant When;
 		public Double Height;
+		public NOAA.PredictionType PredictionType;
 		public TideStore.Tide Tide; // matched tide record
 		public Tempest.HourlyForecast Weather; // predicted weather if available
 	}
@@ -169,6 +170,7 @@ public class Tides implements Closeable
 		TideForecast result = new TideForecast();
 		result.When = when;
 		result.Height = tidePrediction.Height;
+		result.PredictionType = tidePrediction.PredictionType;
 		
 		int minuteOfDay = when.atZone(GMT_ZONE).get(ChronoField.MINUTE_OF_DAY);
 		int dayOfYear = when.atZone(GMT_ZONE).get(ChronoField.DAY_OF_YEAR);
