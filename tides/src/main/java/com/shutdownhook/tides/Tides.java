@@ -356,12 +356,17 @@ public class Tides implements Closeable
 		return(low + ((high - low) * fraction));
 	}
 
-	// +---------+
-	// | getTide |
-	// +---------+
+	// +------------+
+	// | getTide    |
+	// | getTideUrl |
+	// +------------+
 
 	public TideStore.Tide getTide(String id) throws Exception {
 		return(store.getTide(id));
+	}
+
+	public String getTideUrl(TideStore.Tide tide) throws Exception {
+		return(store.urlForTide(tide));
 	}
 
 	// +--------------------+

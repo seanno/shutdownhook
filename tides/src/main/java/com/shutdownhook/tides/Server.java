@@ -48,6 +48,10 @@ public class Server implements Closeable
 		
 		public String LocalZone = null; // defaults to LOCAL_ZONE
 
+		public boolean useExternalImageUrl() {
+			return(Tides.Store.ImageUrlPrefix != null);
+		}
+		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
@@ -73,7 +77,7 @@ public class Server implements Closeable
 		server = WebServer.create(cfg.WebServer);
 
 		registerPredictionHandler();
-		registerImageHandler();
+		if (!cfg.useExternalImageUrl()) registerImageHandler();
 		registerStaticHandlers();
 	}
 	
@@ -191,7 +195,7 @@ public class Server implements Closeable
 								return(renderTokenDT(currentForecast.When, args));
 
 							case TKN_PRED_IMG:
-								return(cfg.ImageUrl + "?id=" + currentForecast.Tide.TideId);
+								return(renderTokenImage(currentForecast));
 
 							case TKN_PRED_TIME:
 								return(renderTokenTime(currentForecast));
@@ -214,6 +218,12 @@ public class Server implements Closeable
 				response.setHtml(html);
 			}
 		});
+	}
+
+	private String renderTokenImage(Tides.TideForecast forecast) throws Exception {
+		return(cfg.useExternalImageUrl()
+			   ? tides.getTideUrl(forecast.Tide)
+			   : cfg.ImageUrl + "?id=" + forecast.Tide.TideId);
 	}
 	
 	private String renderTokenTime(Tides.TideForecast forecast) {

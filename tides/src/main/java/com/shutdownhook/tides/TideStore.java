@@ -30,14 +30,23 @@ public class TideStore extends SqlStore
 	public static class Config
 	{
 		public SqlStore.Config Sql;
+
+		// must be non-null to call saveTide or deleteTide
 		public String FilesPath;
+
+		// can be used to render images from a separate image server
+		// (e.g., a public Azure container). The prefix must accept
+		// a path exactly like the local image store (see fileForTide)
+		// starting with YYYY.
+		public String ImageUrlPrefix = null;
 	}
 
 	public TideStore(Config cfg) throws Exception {
 		super(cfg.Sql);
 		this.cfg = cfg;
 		ensureTables();
-		new File(cfg.FilesPath).mkdirs();
+
+		if (cfg.FilesPath != null) new File(cfg.FilesPath).mkdirs();
 	}
 
 	// +------+
@@ -234,6 +243,8 @@ public class TideStore extends SqlStore
 
 	public Tide saveTide(Tide t, File jpegFile) throws Exception {
 
+		if (cfg.FilesPath == null) throw new Exception("files not configured");
+		
 		t.TideId = UUID.randomUUID().toString();
 		SqlStore.Return<Boolean> added = new SqlStore.Return<Boolean>();
 		
@@ -287,6 +298,8 @@ public class TideStore extends SqlStore
 		
 	public void deleteTide(Tide t) throws Exception {
 
+		if (cfg.FilesPath == null) throw new Exception("files not configured");
+
 		update(DELETE_TIDE, new SqlStore.UpdateHandler() {
 				
 			public void prepare(PreparedStatement stmt, int iter) throws Exception {
@@ -324,20 +337,57 @@ public class TideStore extends SqlStore
 		ensureTable("tides", CREATE_TIDES_TABLE);
 	}
 
-	// +---------+
-	// | Helpers |
-	// +---------+
+	// +-------------+
+	// | urlForTide  |
+	// | fileForTide |
+	// +-------------+
 
-	private File fileForTide(Tide t) {
+	public static class TideFileParts
+	{
+		String Year;
+		String Month;
+		String Day;
+		String File;
+	}
 
+	private TideFileParts filePartsForTide(Tide t) {
+
+		TideFileParts parts = new TideFileParts();
+		
 		String iso8601 = Instant.ofEpochSecond(t.EpochSecond).toString();
 		
-		String year = iso8601.substring(0, 4);
-		String month = iso8601.substring(5, 7);
-		String day = iso8601.substring(8, 10);
+		parts.Year = iso8601.substring(0, 4);
+		parts.Month = iso8601.substring(5, 7);
+		parts.Day = iso8601.substring(8, 10);
+		parts.File = String.format("%02d-%s.jpg", t.MinuteOfDay, t.TideId);
 
-		String fileName = String.format("%02d-%s.jpg", t.MinuteOfDay, t.TideId);
-		File file = Paths.get(cfg.FilesPath, year, month, day, fileName).toFile();
+		return(parts);
+	}
+
+	public String urlForTide(Tide t) throws Exception {
+
+		if (cfg.ImageUrlPrefix == null) throw new Exception("url not configured");
+
+		TideFileParts parts = filePartsForTide(t);
+
+		String url = cfg.ImageUrlPrefix;
+		url = Easy.urlPaste(url, parts.Year);
+		url = Easy.urlPaste(url, parts.Month);
+		url = Easy.urlPaste(url, parts.Day);
+		url = Easy.urlPaste(url, parts.File);
+
+		return(url);
+	}
+	
+	private File fileForTide(Tide t) {
+
+		if (cfg.FilesPath == null) return(null);
+		
+		TideFileParts parts = filePartsForTide(t);
+		
+		File file = Paths.get(cfg.FilesPath, parts.Year, parts.Month,
+							  parts.Day, parts.File).toFile();
+
 		file.getParentFile().mkdirs();
 		
 		return(file);
