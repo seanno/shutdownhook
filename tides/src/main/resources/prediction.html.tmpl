@@ -35,6 +35,11 @@
   <body>
 	<form method="GET">
 
+	  <div class="header">
+		<div class="extremes">{{:raw EXTREMES}}</div>
+		{{KEY_TIME}} {{:raw KEY_METRICS}}
+	  </div>
+	  
 	  <div class="predictions">
 	  {{:rpt PREDICTIONS}}
 
@@ -45,7 +50,10 @@
 			<span class="p-time">{{PRED_TIME}}</span>
 			<span class="p-metrics">{{:raw PRED_METRICS}}</span>
 		  </div>
-		  <img class="p-snap" src="{{PRED_IMG}}"/>
+		  
+		  <a href="{{THIS_URL}}?dateTime={{PRED_DT}}">
+			<img class="p-snap" src="{{PRED_IMG}}"/>
+		  </a>
 		  
 		</div>
 	  

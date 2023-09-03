@@ -74,11 +74,11 @@ public class NOAA implements Closeable
 			
 			switch (this) {
 				case LOW:
-					html = "<b>L</b>";
+					html = "Low";
 					break;
 					
 				case HIGH:
-					html = "<b>H</b>";
+					html = "High";
 					break;
 					
 				case POINT_RISING:
@@ -130,9 +130,9 @@ public class NOAA implements Closeable
 		}
 
 		public Predictions nextExtremes(Instant when, int max) throws IllegalArgumentException {
-			
+
 			int pos = binarySearch(when);
-			if (pos < 0) pos = (-pos) + 1;
+			if (pos < 0) pos = -(pos + 1);
 
 			Predictions extremes = new Predictions();
 			for (int i = pos; i < size(); ++i) {
@@ -163,7 +163,7 @@ public class NOAA implements Closeable
 			// calculations below will always be valid if array is sorted
 			// (which we control) and the tests in binarySearch lets us get here
 
-			int insertionPoint = (-pos) - 1;
+			int insertionPoint = -(pos + 1);
 			Prediction pLow = get(insertionPoint - 1);
 			Prediction pHigh = get(insertionPoint);
 

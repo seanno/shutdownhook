@@ -3,7 +3,16 @@ body {
 	font: 12px Verdana, Arial, Helvetica;
 }
 
-.picker {
+.header {
+	margin-bottom: 12px;
+	padding: 8px 8px 8px 8px;
+	background: lightgrey;
+	font-size: 1.5em;
+	font-weight: bold;
+}
+
+.extremes {
+	float: right;
 }
 
 .links {

@@ -27,7 +27,7 @@ public class App
 			return;
 		}
 
-		Easy.setSimpleLogFormat("FINE");
+		Easy.setSimpleLogFormat("INFO");
 
 		String action = args[1].toLowerCase();
 		String json = Easy.stringFromSmartyPath(args[0]);

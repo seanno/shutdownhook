@@ -68,6 +68,9 @@ public class Server implements Closeable
 		
 		this.zone = (cfg.LocalZone == null ? ZoneId.systemDefault()
 					 : ZoneId.of(cfg.LocalZone));
+
+		log.info(String.format("Using timezone %s (from %s)",
+							   this.zone, cfg.LocalZone));
 			
 		setupWebServer();
 	}
@@ -116,28 +119,29 @@ public class Server implements Closeable
 	// | Prediction |
 	// +------------+
 
-	// We always request predictions for six timepoints, typically:
+	// We always request predictions for seve timepoints:
 	//
-	// * Now +1 hour
-	// * Now +3 hours
-	// * Now +6 hours
+	// * When (Provided DateTime or Now)
+	// * When +1 hour
+	// * When +3 hours
+	// * When +6 hours
 	// * +1 day after Now at noon
 	// * +2 days after Now at noon
 	// * +3 days after Now at noon
 	//
-	// If we receive a specific dateTime query parameter, instead of "Now"
-	// we start at the given timepoint as the first item, then +1 and +3 hours
-	// but NOT a +6 hours reading.
-	//
-	// This supports in all cases two rows of three predictions, one for "nearterm"
-	// and one for "midterm" values.
+	// This supports a header row for when, then two rows of three predictions,
+	// one for "near-term" and one for "mid-term" values.
 
 	private final static int PREDICTION_COLS = 3;
 	
 	private final static String PREDICTION_TEMPLATE = "prediction.html.tmpl";
+	private final static String TKN_KEY_TIME = "KEY_TIME";
+	private final static String TKN_KEY_METRICS = "KEY_METRICS";
+	private final static String TKN_EXTREMES = "EXTREMES";
 	private final static String TKN_TIMESTAMP = "TIMESTAMP";
 	private final static String TKN_PRED_ROW = "PRED_ROW";
 	private final static String TKN_PRED_COL = "PRED_COL";
+	private final static String TKN_PRED_DT = "PRED_DT";
 	private final static String TKN_PRED_IMG = "PRED_IMG";
 	private final static String TKN_PRED_TIME = "PRED_TIME";
 	private final static String TKN_PRED_METRICS = "PRED_METRICS";
@@ -154,19 +158,11 @@ public class Server implements Closeable
 
 				String dateTime = request.QueryParams.get("dateTime");
 
-				Instant when;
-				boolean includeWhen;
-
-				if (Easy.nullOrEmpty(dateTime)) {
-					when = Instant.now();
-					includeWhen = false;
-				}
-				else {
-					when = Instant.parse(dateTime);
-					includeWhen = true;
-				}
-
-				List<Instant> timepoints = getForecastTimepoints(when, includeWhen);
+				Instant when = (Easy.nullOrEmpty(dateTime)
+								? Instant.now()
+								: Instant.parse(dateTime));
+				
+				List<Instant> timepoints = getForecastTimepoints(when);
 				Tides.TideForecasts forecasts = tides.forecastTides(timepoints, 2);
 
 				HashMap tokens = new HashMap<String,String>();
@@ -180,22 +176,35 @@ public class Server implements Closeable
 						
 					public boolean repeat(String[] args, int counter) {
 
-						if (counter >= forecasts.Forecasts.size()) return(false);
+						// -1 because index 0 isn't part of the :rpt
+						if (counter >= (forecasts.Forecasts.size() - 1)) return(false);
 						
-						iforecast = counter;
-						currentForecast = forecasts.Forecasts.get(iforecast);
+						iforecast = counter; 
+						currentForecast = forecasts.Forecasts.get(iforecast + 1);
 						return(true);
 					}
 
 					public String token(String token, String args) throws Exception {
 						
 						switch (token) {
-							
+
+							case TKN_EXTREMES:
+								return(renderTokenExtremes(forecasts.Extremes));
+								
 						    case TKN_DT:
 								return(renderTokenDT(currentForecast.When, args));
 
+							case TKN_KEY_TIME:
+								return(renderTokenTime(forecasts.Forecasts.get(0)));
+
+							case TKN_KEY_METRICS:
+								return(renderTokenMetrics(forecasts.Forecasts.get(0)));
+
 							case TKN_PRED_IMG:
 								return(renderTokenImage(currentForecast));
+
+							case TKN_PRED_DT:
+								return(currentForecast.When.toString());
 
 							case TKN_PRED_TIME:
 								return(renderTokenTime(currentForecast));
@@ -220,6 +229,22 @@ public class Server implements Closeable
 		});
 	}
 
+
+	private String renderTokenExtremes(List<Tides.TideExtreme> extremes) {
+
+		Tides.TideExtreme ex1 = extremes.get(0);
+		String dt1 = ex1.Forecast.When.atZone(zone).format(dtfToday);
+		dt1 = dt1.replace("AM", "am").replace("PM", "pm");
+			
+		Tides.TideExtreme ex2 = extremes.get(1);
+		String dt2 = ex2.Forecast.When.atZone(zone).format(dtfToday);
+		dt2 = dt2.replace("AM", "am").replace("PM", "pm");
+		
+		return(String.format("%s %s %.1f ft &middot; %s %s %.1f ft",
+							 ex1.Type.toHTML(), dt1, ex1.Forecast.Height,
+							 ex2.Type.toHTML(), dt2, ex2.Forecast.Height));
+	}
+	
 	private String renderTokenImage(Tides.TideForecast forecast) throws Exception {
 		return(cfg.useExternalImageUrl()
 			   ? tides.getTideUrl(forecast.Tide)
@@ -289,15 +314,15 @@ public class Server implements Closeable
 		return(whenNew.toString());
 	}
 
-	private List<Instant> getForecastTimepoints(Instant when, boolean includeWhen) {
+	private List<Instant> getForecastTimepoints(Instant when) {
 
 		List<Instant> timepoints = new ArrayList<Instant>();
 
 		// near-term
-		if (includeWhen) timepoints.add(when);
+		timepoints.add(when);
 		timepoints.add(when.plus(1, ChronoUnit.HOURS));
 		timepoints.add(when.plus(3, ChronoUnit.HOURS));
-		if (!includeWhen) timepoints.add(when.plus(6, ChronoUnit.HOURS));
+		timepoints.add(when.plus(6, ChronoUnit.HOURS));
 
 		// mid-term
 		Instant midTerm = when
