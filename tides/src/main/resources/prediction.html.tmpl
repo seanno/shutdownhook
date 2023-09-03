@@ -17,14 +17,21 @@
 	<script type="text/javascript">
 
 	  $(document).ready(() => {
+
+		const pickerElement = document.getElementById('dateTimePicker');
 		
-		$('#dateTimePicker').flatpickr({
+		const fp = flatpickr(pickerElement, {
 		  enableTime: true,
 		  altInput: true,
 		  altFormat: 'Y-m-d h:i K',
 		  dateFormat: 'Z',
 		  defaultDate: {{TIMESTAMP}}
 		});
+
+		// fix mobile bug (https://github.com/flatpickr/flatpickr/issues/2246)
+		if (fp.mobileInput) {
+		  fp.mobileInput.setAttribute("step", "any");
+		}
 		
 	  });
 	  
