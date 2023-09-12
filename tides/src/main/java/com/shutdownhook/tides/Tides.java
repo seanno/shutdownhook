@@ -47,6 +47,8 @@ public class Tides implements Closeable
 			new TideStore.ClosestTriple(1.00, 120, 120)
 		};
 
+		public Double EqThreshold_UV = 1.0;
+		public Double EqThreshold_PressureMb = 2.0;
 		public Double EqThreshold_WindMps = 0.5;
 		public Double EqThreshold_Humidity = 2.0;
 
@@ -196,7 +198,15 @@ public class Tides implements Closeable
 					if (t1 == null) return(1);
 					if (t2 == null) return(-1);
 
-					int diff = compareDoubleAllOrNothing(t1.PrecipMmph, t2.PrecipMmph,
+					int diff = compareDoubleDiffs(t1.UV, t2.UV,
+											  result.Weather.uv, cfg.EqThreshold_UV);
+					if (diff != 0) return(diff);
+
+					diff = compareDoubleDiffs(t1.PressureMb, t2.PressureMb,
+											  result.Weather.sea_level_pressure, cfg.EqThreshold_PressureMb);
+					if (diff != 0) return(diff);
+
+					diff = compareDoubleAllOrNothing(t1.PrecipMmph, t2.PrecipMmph,
 														 result.Weather.precip);
 					if (diff != 0) return(diff);
 
@@ -306,6 +316,8 @@ public class Tides implements Closeable
 		est.local_day = when.atZone(LOCAL_ZONE).get(ChronoField.DAY_OF_MONTH);
 
 		// for these we just do a linear interpolation
+		est.sea_level_pressure = interp(low.sea_level_pressure, high.sea_level_pressure, fraction);
+		est.uv = interp(low.uv, high.uv, fraction);
 		est.air_temperature = interp(low.air_temperature, high.air_temperature, fraction);
 		est.relative_humidity = interp(low.relative_humidity, high.relative_humidity, fraction);
 		est.precip = interp(low.precip, high.precip, fraction);
@@ -339,6 +351,8 @@ public class Tides implements Closeable
 		hf.conditions = cc.conditions;
 		hf.icon = cc.icon;
 		hf.air_temperature = cc.air_temperature;
+		hf.sea_level_pressure = cc.sea_level_pressure;
+		hf.uv = cc.uv;
 		hf.relative_humidity = cc.relative_humidity;
 		hf.precip = 0.0; // dunno
 		hf.precip_probability = 0.0; // dunno
