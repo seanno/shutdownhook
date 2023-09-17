@@ -38,6 +38,7 @@ public class Server implements Closeable
 		public Tides.Config Tides = new Tides.Config();
 
 		public String PredictionUrl = "/predict";
+		public String TestUrl = "/test";
 		public String ImageUrl = "/image";
 		public String CssUrl = "/tides.css";
 
@@ -80,6 +81,7 @@ public class Server implements Closeable
 		server = WebServer.create(cfg.WebServer);
 
 		registerPredictionHandler();
+		registerTestHandler();
 		if (!cfg.useExternalImageUrl()) registerImageHandler();
 		registerStaticHandlers();
 	}
@@ -115,6 +117,112 @@ public class Server implements Closeable
 		});
 	}
 
+	// +------+
+	// | Test |
+	// +------+
+	
+	private final static String TEST_TEMPLATE = "test.html.tmpl";
+	private final static String TEST_TKN_REF_IMG = "REF_IMG";
+	private final static String TEST_TKN_PRED_IMG = "PRED_IMG";
+	private final static String TEST_TKN_COMP = "COMPARISON";
+
+	private void registerTestHandler() throws Exception {
+
+		String templateText = Easy.stringFromResource(TEST_TEMPLATE);
+		final Template template = new Template(templateText);
+
+		server.registerHandler(cfg.TestUrl, new WebServer.Handler() {
+						
+			public void handle(Request request, Response response) throws Exception {
+
+				String dateTime = request.QueryParams.get("dateTime");
+
+				Instant when = (Easy.nullOrEmpty(dateTime)
+								? Instant.now()
+								: Instant.parse(dateTime));
+				
+				List<Tides.PredictionTest> tests = tides.testPredictions(when);
+
+				HashMap tokens = new HashMap<String,String>();
+				tokens.put(TKN_TIMESTAMP, Long.toString(when.toEpochMilli()));
+				tokens.put(TKN_THIS_URL, cfg.PredictionUrl);
+
+				String html = template.render(tokens, new Template.TemplateProcessor() {
+
+					private Tides.PredictionTest currentTest = null;
+						
+					public boolean repeat(String[] args, int counter) {
+
+						if (counter == tests.size()) return(false);
+						currentTest = tests.get(counter);
+						return(true);
+					}
+
+					public String token(String token, String args) throws Exception {
+						
+						switch (token) {
+
+							case TEST_TKN_REF_IMG:
+								return(renderTokenImage(currentTest.Reference));
+								
+							case TEST_TKN_PRED_IMG:
+								return(renderTokenImage(currentTest.Forecast));
+								
+							case TEST_TKN_COMP:
+								return(renderTokenCompare(currentTest));
+						}
+
+						log.warning("UNKNOWN TOKEN: " + token);
+						return("");
+					}
+				});
+				
+				response.setHtml(html);
+			}
+		});
+	}
+
+	private String renderTokenCompare(Tides.PredictionTest test) {
+		
+		StringBuilder sb = new StringBuilder();
+		sb.append("<table class=\"compare\">");
+		sb.append("<tr><th>&nbsp;</th><th>Reference</th><th>Prediction</th><th>Diff</th></tr>");
+
+		TideStore.Tide tref = test.Reference;
+		TideStore.Tide tpred = test.Forecast.Tide;
+
+		sb.append(compareRowDbl("Height", tref.TideHeight, tpred.TideHeight));
+		sb.append(compareRowInt("DOY", tref.DayOfYear, tpred.DayOfYear));
+		sb.append(compareRowInt("MOD", tref.MinuteOfDay, tpred.MinuteOfDay));
+
+		Weather.Metrics mref = tref.WeatherMetrics;
+		Weather.Metrics mpred = tpred.WeatherMetrics;
+
+		if (mref != null && mpred != null) {
+			sb.append(compareRowDbl("UV", mref.UV, mpred.UV));
+			sb.append(compareRowDbl("PressureMb", mref.PressureMb, mpred.PressureMb));
+			sb.append(compareRowDbl("WindMps", mref.WindMps, mpred.WindMps));
+			sb.append(compareRowDbl("Humidity", mref.Humidity, mpred.Humidity));
+		}
+
+		sb.append("</table>");
+		return(sb.toString());
+	}
+
+	private String compareRowInt(String hdr, int ref, int pred) {
+		
+		int diff = ref - pred; if (diff < 0) diff *= -1;
+		return(String.format("<tr><th>%s</th><td>%d</td><td>%d</td><td>%d</td></tr>",
+							 hdr, ref, pred, diff));
+	}
+
+	private String compareRowDbl(String hdr, double ref, double pred) {
+		
+		double diff = ref - pred; if (diff < 0) diff *= -1.0;
+		return(String.format("<tr><th>%s</th><td>%.1f</td><td>%.1f</td><td>%.1f</td></tr>",
+							 hdr, ref, pred, diff));
+	}
+	
 	// +------------+
 	// | Prediction |
 	// +------------+
@@ -245,10 +353,14 @@ public class Server implements Closeable
 							 ex2.Type.toHTML(), dt2, ex2.Forecast.Height));
 	}
 	
-	private String renderTokenImage(Tides.TideForecast forecast) throws Exception {
+ 	private String renderTokenImage(Tides.TideForecast forecast) throws Exception {
+		return(renderTokenImage(forecast.Tide));
+	}
+
+	private String renderTokenImage(TideStore.Tide tide) throws Exception {
 		return(cfg.useExternalImageUrl()
-			   ? tides.getTideUrl(forecast.Tide)
-			   : cfg.ImageUrl + "?id=" + forecast.Tide.TideId);
+			   ? tides.getTideUrl(tide)
+			   : cfg.ImageUrl + "?id=" + tide.TideId);
 	}
 	
 	private String renderTokenTime(Tides.TideForecast forecast) {
@@ -292,9 +404,8 @@ public class Server implements Closeable
 		sb.append(String.format("%.1f ft %s", forecast.Height,
 								forecast.PredictionType.toHTML()));
 
-		if (forecast.Weather != null) {
-			double degF = Convert.celsiusToFarenheit(forecast.Weather.air_temperature);
-			sb.append(String.format(" %.0f&deg;", degF));
+		if (forecast.WeatherMetrics != null) {
+			sb.append(String.format(" %.0f&deg;", forecast.WeatherMetrics.TempF));
 		}
 		
 		return(sb.toString());

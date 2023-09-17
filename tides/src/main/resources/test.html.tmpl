@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html>
+
+  <head>
+	
+	<link rel="stylesheet"
+		  href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+
+	<link rel="stylesheet" href="/tides.css">
+	
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"
+			integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g="
+			crossorigin="anonymous"></script>
+
+	<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+
+	<script type="text/javascript">
+
+	  $(document).ready(() => {
+
+		const pickerElement = document.getElementById('dateTimePicker');
+		
+		const fp = flatpickr(pickerElement, {
+		  enableTime: true,
+		  altInput: true,
+		  altFormat: 'Y-m-d h:i K',
+		  dateFormat: 'Z',
+		  defaultDate: {{TIMESTAMP}}
+		});
+
+		// fix mobile bug (https://github.com/flatpickr/flatpickr/issues/2246)
+		if (fp.mobileInput) {
+		  fp.mobileInput.setAttribute("step", "any");
+		}
+		
+	  });
+	  
+	</script>
+	
+  </head>
+
+  <body>
+	<form method="GET">
+
+	  <div class="picker">
+		<input type="text" name="dateTime" id="dateTimePicker" />
+		<input type="submit" value="  Go  " />
+	  </div>
+	  
+	  <table>
+		{{:rpt TESTS}}
+		<tr>
+		  <td><img class="p-snap" src="{{REF_IMG}}" /></td>
+		  <td><img class="p-snap" src="{{PRED_IMG}}" /></td>
+		  <td>{{:raw COMPARISON}}</td>
+		</tr>
+		{{:end}}
+	  </table>
+		  
+	</form>
+  </body>
+
+</html>

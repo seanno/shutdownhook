@@ -24,8 +24,6 @@ import com.shutdownhook.weather.Tempest;
 
 public class Tides implements Closeable
 {
-	private final static int TEMPEST_FORECAST_HOURS = 229;
-
 	// +----------------+
 	// | Config & Setup |
 	// +----------------+
@@ -90,7 +88,7 @@ public class Tides implements Closeable
 		public Double Height;
 		public NOAA.PredictionType PredictionType;
 		public TideStore.Tide Tide; // matched tide record
-		public Tempest.HourlyForecast Weather; // predicted weather if available
+		public Weather.Metrics WeatherMetrics; // predicted weather if available
 	}
 
 	public static class TideExtreme 
@@ -113,11 +111,17 @@ public class Tides implements Closeable
 	
 	public TideForecasts forecastTides(List<Instant> timepoints,
 									   int maxExtremes) throws Exception {
+		
+		return(forecastTidesInternal(timepoints, maxExtremes, false));
+	}
+	
+	public TideForecasts forecastTidesInternal(List<Instant> timepoints,
+											   int maxExtremes,
+											   boolean excludeTimepoint) throws Exception {
 
 		TideForecasts forecasts = new TideForecasts();
-		
-		Tempest.Forecast weather = null;
-		if (weatherUseful(timepoints)) weather = tempest.getForecast();
+
+		Weather weather = new Weather(tempest, timepoints);
 
 		Instant first = timepoints.get(0);
 		NOAA.Predictions tides = noaa.getPredictions(first);
@@ -126,27 +130,16 @@ public class Tides implements Closeable
 		for (NOAA.Prediction prediction : extremes) {
 			TideExtreme extreme = new TideExtreme();
 			forecasts.Extremes.add(extreme);
-			extreme.Forecast = forecastTide(prediction.Time, tides, weather);
+			extreme.Forecast = forecastTide(prediction.Time, tides, weather, excludeTimepoint);
 			extreme.Type = prediction.PredictionType;
 		}
 
 		for (Instant when : timepoints) {
 			if (when.isAfter(tides.latestPrediction())) tides = noaa.getPredictions(when);
-			forecasts.Forecasts.add(forecastTide(when, tides, weather));
+			forecasts.Forecasts.add(forecastTide(when, tides, weather, excludeTimepoint));
 		}
 		
 		return(forecasts);
-	}
-
-	private boolean weatherUseful(List<Instant> timepoints) {
-
-		Instant startRange = Instant.now();
-		if (timepoints.get(timepoints.size() - 1).isBefore(startRange)) return(false);
-		
-		Instant endRange = startRange.plus(TEMPEST_FORECAST_HOURS, ChronoUnit.HOURS);
-		if (timepoints.get(0).isAfter(endRange)) return(false);
-
-		return(true);
 	}
 
 	// +--------------+
@@ -158,14 +151,16 @@ public class Tides implements Closeable
 		List<Instant> timepoints = new ArrayList<Instant>();
 		timepoints.add(when);
 
-		TideForecasts forecasts = forecastTides(timepoints, 0);
+		TideForecasts forecasts = forecastTidesInternal(timepoints, 0, false);
 		if (forecasts.Forecasts.size() == 0) return(null);
 
 		return(forecasts.Forecasts.get(0));
 	}
 			
-	private TideForecast forecastTide(Instant when, NOAA.Predictions tides,
-									  Tempest.Forecast weather) throws Exception {
+	private TideForecast forecastTide(Instant when,
+									  NOAA.Predictions tides,
+									  Weather weather,
+									  boolean excludeTimepoint) throws Exception {
 
 		NOAA.Prediction tidePrediction = tides.estimateTide(when);
 
@@ -181,14 +176,15 @@ public class Tides implements Closeable
 			new TideStore.ClosestTriple(tidePrediction.Height, minuteOfDay, dayOfYear);
 
 		List<TideStore.Tide> closestTides = store.queryClosest(match,
-															   cfg.QueryThresholds,
-															   cfg.QueryForecastMaxResults);
+														   cfg.QueryThresholds,
+														   cfg.QueryForecastMaxResults,
+														   (excludeTimepoint ? when : null));
 
 		if (closestTides == null || closestTides.size() == 0) return(null);
 
-		if (weather != null) {
+		result.WeatherMetrics = weather.interpolateMetrics(when);
 
-			result.Weather = interpolateForecast(weather, when);
+		if (result.WeatherMetrics != null) {
 
 			Collections.sort(closestTides, new Comparator<TideStore.Tide>() {
 					
@@ -198,24 +194,24 @@ public class Tides implements Closeable
 					if (t1 == null) return(1);
 					if (t2 == null) return(-1);
 
-					int diff = compareDoubleDiffs(t1.UV, t2.UV,
-											  result.Weather.uv, cfg.EqThreshold_UV);
+					Weather.Metrics w1 = t1.WeatherMetrics;
+					Weather.Metrics w2 = t2.WeatherMetrics;
+					Weather.Metrics wT = result.WeatherMetrics;
+					
+					int diff = compareDoubleDiffs(w1.UV, w2.UV, wT.UV,
+												  cfg.EqThreshold_UV);
 					if (diff != 0) return(diff);
 
-					diff = compareDoubleDiffs(t1.PressureMb, t2.PressureMb,
-											  result.Weather.sea_level_pressure, cfg.EqThreshold_PressureMb);
+					diff = compareDoubleDiffs(w1.PressureMb, w2.PressureMb, wT.PressureMb,
+											  cfg.EqThreshold_PressureMb);
 					if (diff != 0) return(diff);
 
-					diff = compareDoubleAllOrNothing(t1.PrecipMmph, t2.PrecipMmph,
-														 result.Weather.precip);
+					diff = compareDoubleDiffs(w1.WindMps, w2.WindMps, wT.WindMps,
+											  cfg.EqThreshold_WindMps);
 					if (diff != 0) return(diff);
 
-					diff = compareDoubleDiffs(t1.WindMps, t2.WindMps,
-											  result.Weather.wind_avg, cfg.EqThreshold_WindMps);
-					if (diff != 0) return(diff);
-
-					diff = compareDoubleDiffs(t1.Humidity, t2.Humidity,
-											  result.Weather.relative_humidity, cfg.EqThreshold_Humidity);
+					diff = compareDoubleDiffs(w1.Humidity, w2.Humidity, wT.Humidity,
+											  cfg.EqThreshold_Humidity);
 					if (diff != 0) return(diff);
 
 					return(0);
@@ -250,8 +246,7 @@ public class Tides implements Closeable
 	}
 
 	private void outputAlternatives(double tgtHeight, int tgtMoD, int tgtDoY,
-									Tempest.HourlyForecast tgtWeather,
-									List<TideStore.Tide> alternatives) {
+									Weather.Metrics tgtWeather, List<TideStore.Tide> alternatives) {
 
 		System.out.println("=== TARGETS");
 		System.out.println(String.format("HEIGHT: %02f", tgtHeight));
@@ -259,9 +254,11 @@ public class Tides implements Closeable
 		System.out.println(String.format("DAYOFYEAR: %d", tgtDoY));
 
 		if (tgtWeather != null) {
-			System.out.println(String.format("PrecipMmph: %02f", tgtWeather.precip));
-			System.out.println(String.format("WindMps: %02f", tgtWeather.wind_avg));
-			System.out.println(String.format("Humidity: %02f", tgtWeather.relative_humidity));
+			System.out.println(String.format("UV: %02f", tgtWeather.UV));
+			System.out.println(String.format("WindMps: %02f", tgtWeather.WindMps));
+			System.out.println(String.format("TempF: %02f", tgtWeather.TempF));
+			System.out.println(String.format("PresureMb: %02f", tgtWeather.PressureMb));
+			System.out.println(String.format("Humidity: %02f", tgtWeather.Humidity));
 		}
 
 		System.out.println("=== ALTERNATIVES");
@@ -269,105 +266,37 @@ public class Tides implements Closeable
 		for (TideStore.Tide t : alternatives) System.out.println(t.toCSV());
 	}
 																	
-	// +---------------------+
-	// | interpolateForecast |
-	// +---------------------+
+	// +-----------------+
+	// | testPredictions |
+	// +-----------------+
 
-	// Helper to predict weather at a point of time --- iterpolating between
-	// hourly forecasts from the tempest. By the time we get here, we've decided
-	// to use the forecast data ... so if we're out of bounds do our best.
-	
-	private Tempest.HourlyForecast interpolateForecast(Tempest.Forecast forecast,
-													   Instant when) {
-
-		long whenEpochSec = when.getEpochSecond();
-		
-		List<Tempest.HourlyForecast> hourly = forecast.forecast.hourly;
-		int len = hourly.size();
-
-		// no forecast or too early 
-		if (len == 0 || whenEpochSec < hourly.get(0).time) {
-			return(currentToHourly(when, forecast.current_conditions));
-		}
-
-		// too late
-		if (whenEpochSec > hourly.get(len - 1).time) {
-			return(hourly.get(len - 1));
-		}
-
-		// find the first hourly forecast AFTER us.
-		// we know we'll find one because of earlier checks
-		int i = 1; // yes start with the second one!
-		while (i < len && hourly.get(i).time < whenEpochSec) i++;
-
-		// maybe it'll happen!
-		if (whenEpochSec == hourly.get(i).time) return(hourly.get(i));
-
-		Tempest.HourlyForecast low = hourly.get(i - 1);
-		Tempest.HourlyForecast high = hourly.get(i);
-
-		double fraction = (((double)(whenEpochSec - low.time)) /
-						   ((double)(high.time - low.time)));
-
-		Tempest.HourlyForecast est = new Tempest.HourlyForecast();
-
-		est.time = whenEpochSec;
-		est.local_hour = when.atZone(LOCAL_ZONE).get(ChronoField.HOUR_OF_DAY);
-		est.local_day = when.atZone(LOCAL_ZONE).get(ChronoField.DAY_OF_MONTH);
-
-		// for these we just do a linear interpolation
-		est.sea_level_pressure = interp(low.sea_level_pressure, high.sea_level_pressure, fraction);
-		est.uv = interp(low.uv, high.uv, fraction);
-		est.air_temperature = interp(low.air_temperature, high.air_temperature, fraction);
-		est.relative_humidity = interp(low.relative_humidity, high.relative_humidity, fraction);
-		est.precip = interp(low.precip, high.precip, fraction);
-		est.precip_probability = interp(low.precip_probability, high.precip_probability, fraction);
-		est.wind_avg = interp(low.wind_avg, high.wind_avg, fraction);
-		est.wind_gust = interp(low.wind_gust, high.wind_gust, fraction);
-		est.feels_like = interp(low.feels_like, high.feels_like, fraction);
-		
-		// for these we just pick whichever is closer
-		est.conditions = ((fraction < .5) ? low.conditions : high.conditions);
-		est.icon = ((fraction < .5) ? low.icon : high.icon);
-		
-		est.wind_direction = ((fraction < .5) ? low.wind_direction
-							  : high.wind_direction);
-		
-		est.wind_direction_cardinal = ((fraction < .5) ? low.wind_direction_cardinal
-									   : high.wind_direction_cardinal);
-
-		return(est);
+	public static class PredictionTest
+	{
+		public TideStore.Tide Reference;
+		public TideForecast Forecast;
 	}
 
-	private static Tempest.HourlyForecast currentToHourly(Instant when,
-														  Tempest.CurrentConditions cc) {
+	public List<PredictionTest> testPredictions(Instant onDay) throws Exception {
 
-		Tempest.HourlyForecast hf = new Tempest.HourlyForecast();
+		List<TideStore.Tide> tides = store.getTidesForDay(onDay);
 		
-		hf.time = when.getEpochSecond();
-		hf.local_hour = when.atZone(LOCAL_ZONE).get(ChronoField.HOUR_OF_DAY);
-		hf.local_day = when.atZone(LOCAL_ZONE).get(ChronoField.DAY_OF_MONTH);
+		List<Instant> timepoints = new ArrayList<Instant>();
+		for (TideStore.Tide tide : tides) {
+			timepoints.add(Instant.ofEpochSecond(tide.EpochSecond));
+		}
 		
-		hf.conditions = cc.conditions;
-		hf.icon = cc.icon;
-		hf.air_temperature = cc.air_temperature;
-		hf.sea_level_pressure = cc.sea_level_pressure;
-		hf.uv = cc.uv;
-		hf.relative_humidity = cc.relative_humidity;
-		hf.precip = 0.0; // dunno
-		hf.precip_probability = 0.0; // dunno
-		hf.wind_avg = cc.wind_avg;
-		hf.wind_direction = cc.wind_direction;
-		hf.wind_direction_cardinal = cc.wind_direction_cardinal;
-		hf.wind_gust = cc.wind_gust;
-		hf.feels_like = cc.feels_like;
+		TideForecasts forecasts = forecastTidesInternal(timepoints, 0, true);
 
-		return(hf);
-	}
+		List<PredictionTest> tests = new ArrayList<PredictionTest>();
+		for (int i = 0; i < tides.size(); ++i) {
+			PredictionTest test = new PredictionTest();
+			tests.add(test);
+			
+			test.Reference = tides.get(i);
+			test.Forecast = forecasts.Forecasts.get(i);
+		}
 
-
-	private static double interp(double low, double high, double fraction) {
-		return(low + ((high - low) * fraction));
+		return(tests);
 	}
 
 	// +------------+
@@ -404,20 +333,8 @@ public class Tides implements Closeable
 
 		// weather
 
-		Tempest.Observation obs =
-			tempest.getObservation(cfg.Tempest.Stations.get(0).StationId);
-
-		Tempest.Metrics metrics = obs.obs.get(0);
-		
-		tide.UV = metrics.uv;
-		tide.Lux = metrics.brightness;
-		tide.WindMps = metrics.wind_avg;
-		tide.PrecipMmph = metrics.precip;
-		tide.PressureMb = metrics.sea_level_pressure;
-		tide.Humidity = metrics.relative_humidity;
-
-		double tempC = metrics.air_temperature;
-		tide.TempF = Convert.celsiusToFarenheit(tempC);
+		String stationId = cfg.Tempest.Stations.get(0).StationId;
+		tide.WeatherMetrics = Weather.getCurrent(tempest, stationId);
 
 		// tide
 
