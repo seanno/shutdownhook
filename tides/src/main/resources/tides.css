@@ -25,6 +25,12 @@ body {
 	grid-gap: 16px;
 }
 
+@media only screen and (max-width: 768px) {
+	.predictions {
+		display: block;
+	}
+}
+
 .p-header {
 	margin-bottom: 4px;
 	font-size: 1.2em;
@@ -37,3 +43,4 @@ body {
 .p-snap {
 	width: 100%;
 }
+
