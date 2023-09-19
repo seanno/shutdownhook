@@ -197,7 +197,7 @@ public class Tides implements Closeable
 					Weather.Metrics w1 = t1.WeatherMetrics;
 					Weather.Metrics w2 = t2.WeatherMetrics;
 					Weather.Metrics wT = result.WeatherMetrics;
-					
+
 					int diff = compareDoubleDiffs(w1.UV, w2.UV, wT.UV,
 												  cfg.EqThreshold_UV);
 					if (diff != 0) return(diff);
@@ -225,14 +225,19 @@ public class Tides implements Closeable
 		return(result);
 	}
 
-	private int compareDoubleAllOrNothing(double d1, double d2, double target) {
+	private int compareDoubleAllOrNothing(Double d1, Double d2, Double target) {
+
+		if (d1 == null || d2 == null || target == null) return(0);
+		
 		return(compareDoubleDiffs(d1 == 0.0 ? 0.0 : 1.0,
 								  d2 == 0.0 ? 0.0 : 1.0,
 								  target == 0.0 ? 0.0 : 1.0,
 								  0.0));
 	}
 	
-	private int compareDoubleDiffs(double d1, double d2, double target, double eqThreshold) {
+	private int compareDoubleDiffs(Double d1, Double d2, Double target, Double eqThreshold) {
+
+		if (d1 == null || d2 == null || target == null) return(0);
 
 		double diff1 = d1 - target; if (diff1 < 0) diff1 *= -1;
 		double diff2 = d2 - target; if (diff2 < 0) diff2 *= -1;

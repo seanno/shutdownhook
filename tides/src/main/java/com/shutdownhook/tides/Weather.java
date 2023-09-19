@@ -115,6 +115,14 @@ public class Weather
 
 			return(m);
 		}
+
+		@Override
+		public String toString() {
+			return(String.format("EpochSecond=%d; UV=%.1f; WindMps=%.1f; " +
+								 "TempF=%.1f; PressureMb=%.1f; Humidity=%.1f; Lux=%.1f",
+								 EpochSecond, UV, WindMps, TempF, PressureMb,
+								 Humidity, Lux));
+		}
 	}
 
 	// +------------+
