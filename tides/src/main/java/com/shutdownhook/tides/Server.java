@@ -140,6 +140,8 @@ public class Server implements Closeable
 				Instant when = (Easy.nullOrEmpty(dateTime)
 								? Instant.now()
 								: Instant.parse(dateTime));
+
+				when = when.atZone(zone).truncatedTo(ChronoUnit.DAYS).toInstant();
 				
 				List<Tides.PredictionTest> tests = tides.testPredictions(when);
 

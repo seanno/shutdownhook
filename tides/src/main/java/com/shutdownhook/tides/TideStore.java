@@ -250,9 +250,8 @@ public class TideStore extends SqlStore
 	private final static String GETTIDESFORDAY_QUERY =
 		"select * from tides where epoch_second >= ? and epoch_second < ? ";
 
-	public List<Tide> getTidesForDay(Instant onDay) throws Exception {
+	public List<Tide> getTidesForDay(Instant start) throws Exception {
 
-		Instant start = onDay.truncatedTo(ChronoUnit.DAYS);
 		Instant end = start.plus(1, ChronoUnit.DAYS);
 		
 		List<Tide> tides = new ArrayList<Tide>();
