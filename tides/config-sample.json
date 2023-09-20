@@ -1,0 +1,32 @@
+{
+  "Tides": {
+	"Tempest": {
+	  "Stations": [ {
+		"StationId": "xxxxx",
+		"AccessToken": "xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx"
+	  } ]
+	},
+
+	"Camera": {
+	  "URL": "http://xxx.xxx.xxx.xxx/tmpfs/auto.jpg",
+	  "UserName": "xxxxx",
+	  "Password": "xxxxx"
+	},
+
+	"NOAA": {
+	  "StationId": "xxxxx"
+	},
+
+	"Store": {
+	  "FilesPath": "/tmp/tide-images"
+	  "Sql": {
+		"ConnectionString": "jdbc:sqlite:/tmp/tide-db.sql"
+	  }
+	}
+  },
+
+  "WebServer": {
+	
+  }
+}
+
