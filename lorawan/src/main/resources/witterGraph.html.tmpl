@@ -36,7 +36,7 @@
 
 		const ctx = document.getElementById('waterChart');
 
-		const response = await fetch('{{DATA_URL}}?days={{DAYS}}');
+		const response = await fetch('{{DATA_URL}}?days={{DAYS}}&start={{START}}');
 		const data = await response.json();
 		const parsed = data.map((o) => ({ x: Date.parse(o.When),
 										  y: (0.0328084 * o.Value) }));

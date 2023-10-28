@@ -7,6 +7,7 @@ package com.shutdownhook.lorawan;
 
 import java.io.Closeable;
 import java.time.Instant;
+import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
@@ -90,6 +91,7 @@ public class Server implements Closeable
 	private final static String TKN_DATA_URL = "DATA_URL";
 	private final static String TKN_GRAPH_URL = "GRAPH_URL";
 	private final static String TKN_DAYS = "DAYS";
+	private final static String TKN_START = "START";
 
 	private void registerWitterGraph() throws Exception {
 
@@ -102,10 +104,14 @@ public class Server implements Closeable
 				String daysStr = request.QueryParams.get("days");
 				int days = (daysStr == null ? cfg.WitterDataDaysDefault : Integer.parseInt(daysStr));
 
+				String start = request.QueryParams.get("start");
+				if (Easy.nullOrEmpty(start)) start = "";
+				
 				HashMap tokens = new HashMap<String,String>();
 				tokens.put(TKN_DATA_URL, cfg.WitterDataUrl);
 				tokens.put(TKN_GRAPH_URL, cfg.WitterGraphUrl);
 				tokens.put(TKN_DAYS, Integer.toString(days));
+				tokens.put(TKN_START, start);
 				
 				response.setHtml(template.render(tokens));
 			}
@@ -127,9 +133,20 @@ public class Server implements Closeable
 				String zoneStr = request.QueryParams.get("tz");
 				ZoneId zone = ZoneId.of(zoneStr == null ? cfg.WitterDefaultTimeZone : zoneStr);
 
-				Instant start = Instant.now().minus(days, ChronoUnit.DAYS);
+				Instant start, end;
+
+				String startStr = request.QueryParams.get("start");
+				if (Easy.nullOrEmpty(startStr)) {
+					start = Instant.now().minus(days, ChronoUnit.DAYS);
+					end = null;
+				}
+				else {
+					start = LocalDate.parse(startStr).atStartOfDay().atZone(zone).toInstant();
+					end = start.plus(days, ChronoUnit.DAYS);
+				}
+
 				List<MetricStore.Metric> metrics = store.getMetrics(cfg.WitterMetric, start,
-																	null, null, zone);
+																	end, null, zone);
 
 				response.setJson(new Gson().toJson(metrics));
 			}

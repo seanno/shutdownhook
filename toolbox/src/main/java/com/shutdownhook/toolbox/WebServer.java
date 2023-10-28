@@ -367,7 +367,8 @@ public class WebServer implements Closeable
 		if (input != null && !input.isEmpty()) {
 			for (String pair : input.split("&")) {
 				String[] kv = pair.split("=");
-				params.put(Easy.urlDecode(kv[0]), Easy.urlDecode(kv[1]));
+				String v = (kv.length > 1 ? Easy.urlDecode(kv[1]) : "");
+				params.put(Easy.urlDecode(kv[0]), v);
 			}
 		}
 
