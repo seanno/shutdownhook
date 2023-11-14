@@ -44,7 +44,7 @@ public class SecureServer extends WebServer
 	// | SecureServer |
 	// +--------------+
 
-	public SecureServer(WebServer.Config cfg) {
+	public SecureServer(WebServer.Config cfg) throws Exception {
 		super(cfg);
 	}
 	

@@ -558,6 +558,21 @@ public class Easy
 		return(sb.toString());
 	}
 
+	public static Map<String,String> parseQueryString(String input) {
+
+		Map<String,String> params = new HashMap<String,String>();
+
+		if (input != null && !input.isEmpty()) {
+			for (String pair : input.split("&")) {
+				String[] kv = pair.split("=");
+				String v = (kv.length > 1 ? urlDecode(kv[1]) : "");
+				params.put(urlDecode(kv[0]), v);
+			}
+		}
+
+		return(params);
+	}
+
 	// +-----------------+
 	// | Hashes and such |
 	// +-----------------+

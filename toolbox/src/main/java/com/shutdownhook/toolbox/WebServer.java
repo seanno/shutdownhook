@@ -18,7 +18,9 @@ import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.lang.InterruptedException;
 import java.lang.Runtime;
+import java.math.BigInteger;
 import java.net.InetSocketAddress;
+import java.security.SecureRandom;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -54,6 +56,10 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
+		// if non-empty, the provided config will be used to protect all routes
+		public OAuth2Login.Config OAuth2;
+		public String OAuth2CookieName = "SHOOK_OAUTH2";
+
 		// optional directory holding static pages. Each .html or .js file in
 		// this directory will be exposed as a static route at /basename.
 		public String StaticPagesDirectory;
@@ -84,7 +90,7 @@ public class WebServer implements Closeable
 		public String Body;
 
 		public Map<String,String> parseBodyAsQueryString() {
-			return(WebServer.parseQueryString(Body));
+			return(Easy.parseQueryString(Body));
 		}
 	}
 
@@ -144,7 +150,9 @@ public class WebServer implements Closeable
 		server.setExecutor();
 
 		server.registerStaticRoutes();
-		
+
+		server.registerAuth();
+
 		return(server);
 	}
 
@@ -157,6 +165,8 @@ public class WebServer implements Closeable
 
 		log.info("WebServer Shutting down");
 
+		if (oauth2 != null) oauth2.close();
+		
 		server.stop(0);
 
 		try {
@@ -235,7 +245,7 @@ public class WebServer implements Closeable
 				
 				try {
 					Request request = setupRequest(exchange);
-					handler.handle(request, response);
+					if (!redirectForAuth(request, response)) handler.handle(request, response);
 				}
 				catch (Exception e) {
 					
@@ -266,8 +276,9 @@ public class WebServer implements Closeable
 	// | WebServer Private |
 	// +-------------------+
 
-	public WebServer(Config cfg) {
+	public WebServer(Config cfg) throws Exception {
 		this.cfg = cfg;
+		if (cfg.OAuth2 != null) oauth2 = new OAuth2Login(cfg.OAuth2);
 	}
 
 	protected void createHttpServer(InetSocketAddress address) throws Exception {
@@ -322,7 +333,7 @@ public class WebServer implements Closeable
 		request.Headers = exchange.getRequestHeaders();
 
 		// query string
-		request.QueryParams = parseQueryString(exchange.getRequestURI().getRawQuery());
+		request.QueryParams = Easy.parseQueryString(exchange.getRequestURI().getRawQuery());
 
 		// cookies
 		request.Cookies = new HashMap<String,String>();
@@ -358,21 +369,6 @@ public class WebServer implements Closeable
 		}
 
 		return(request);
-	}
-
-	private static Map<String,String> parseQueryString(String input) {
-
-		Map<String,String> params = new HashMap<String,String>();
-
-		if (input != null && !input.isEmpty()) {
-			for (String pair : input.split("&")) {
-				String[] kv = pair.split("=");
-				String v = (kv.length > 1 ? Easy.urlDecode(kv[1]) : "");
-				params.put(Easy.urlDecode(kv[0]), v);
-			}
-		}
-
-		return(params);
 	}
 
 	private void setBaseUrl(HttpExchange exchange, Request request) {
@@ -424,6 +420,66 @@ public class WebServer implements Closeable
 		}
 	}
 
+	// +--------+
+	// | OAuth2 |
+	// +--------+
+
+	private void registerAuth() {
+		
+		if (oauth2 == null) return;
+
+		log.info("Configuring OAuth2 authentication (" + cfg.OAuth2.RedirectPath + ")");
+		
+		registerHandler(cfg.OAuth2.RedirectPath, new Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				OAuth2Login.State state = getOAuth2State(request);
+				String error = oauth2.handleReturnURL(request.Base, request.Path, state);
+
+				if (error != null) {
+					response.Status = 502;
+					response.Body = error;
+					return;
+				}
+
+				response.setSessionCookie(cfg.OAuth2CookieName, state.dehydrate(), request);
+
+				// nyi - redirect somewhere
+				// nyi - redirect somewhere
+				// nyi - redirect somewhere
+				// nyi - redirect somewhere
+				// nyi - redirect somewhere
+				response.setText("DID IT! " + state.dehydrate());
+			}
+		});
+		
+	}
+	
+	private boolean redirectForAuth(Request request, Response response) {
+
+		// quick exits
+
+		if (oauth2 == null) return(false);
+		if (request.Path.startsWith(cfg.OAuth2.RedirectPath)) return(false);
+
+		// already logged in?
+		
+		OAuth2Login.State state = getOAuth2State(request);
+		if (state.isAuthenticated()) return(false);
+
+		// ok, fine ... redirect to auth url
+		String url = oauth2.getAuthenticationURL(request.Base, state);
+		response.setSessionCookie(cfg.OAuth2CookieName, state.dehydrate(), request);
+		response.redirect(url);
+
+		return(true);
+	}
+
+	private OAuth2Login.State getOAuth2State(Request request) {
+		String dehydrated = request.Cookies.get(cfg.OAuth2CookieName);
+		return(OAuth2Login.State.rehydrate(dehydrated));
+	}
+	
 	// +---------+
 	// | Helpers |
 	// +---------+
@@ -448,6 +504,7 @@ public class WebServer implements Closeable
 	public static void main(String args[]) throws Exception{
 		
 		Config cfg = new Config();
+			
 		if (args.length > 1 && args[1].equalsIgnoreCase("secure")) {
 			log.info("Running secure server");
 			cfg.SSLCertificateFile = "@localhost.crt";
@@ -463,6 +520,7 @@ public class WebServer implements Closeable
 	protected HttpServer server;
 	
 	private ExecutorService pool;
+	private OAuth2Login oauth2;
 	
 	private final static Logger log = Logger.getLogger(WebServer.class.getName());
 }
