@@ -51,6 +51,11 @@ public class OAuth2Login implements Closeable
 			"https://github.com/login/oauth/authorize",
 			"https://github.com/login/oauth/access_token",
 			"user:email"));
+
+		PROVIDER_MAP.put(PROVIDER_OTHER, new ProviderInfo(
+			null,
+			null,
+			"openid email"));
 	}
 
 	public static class ProviderInfo
