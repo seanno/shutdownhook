@@ -88,6 +88,7 @@ public class WebServer implements Closeable
 		public Map<String,String> Cookies;
 		public Map<String,List<String>> Headers;
 		public String Body;
+		public OAuth2Login.State OAuth2; // only if logged in
 
 		public Map<String,String> parseBodyAsQueryString() {
 			return(Easy.parseQueryString(Body));
@@ -441,15 +442,11 @@ public class WebServer implements Closeable
 					response.Body = error;
 					return;
 				}
-
+				
+				String targetURL = state.popTransitoryRedirect();
 				response.setSessionCookie(cfg.OAuth2CookieName, state.dehydrate(), request);
 
-				// nyi - redirect somewhere
-				// nyi - redirect somewhere
-				// nyi - redirect somewhere
-				// nyi - redirect somewhere
-				// nyi - redirect somewhere
-				response.setText("DID IT! " + state.dehydrate());
+				response.redirect(targetURL);
 			}
 		});
 		
@@ -465,10 +462,13 @@ public class WebServer implements Closeable
 		// already logged in?
 		
 		OAuth2Login.State state = getOAuth2State(request);
-		if (state.isAuthenticated()) return(false);
+		if (state.isAuthenticated()) {
+			request.OAuth2 = state;
+			return(false);
+		}
 
 		// ok, fine ... redirect to auth url
-		String url = oauth2.getAuthenticationURL(request.Base, state);
+		String url = oauth2.getAuthenticationURL(request.Base, request.Path, state);
 		response.setSessionCookie(cfg.OAuth2CookieName, state.dehydrate(), request);
 		response.redirect(url);
 

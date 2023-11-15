@@ -16,10 +16,56 @@ import java.util.HashMap;
 import java.util.logging.Logger;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonParser;
 
 public class OAuth2Login implements Closeable
 {
+	// +-----------+
+	// | Providers |
+	// +-----------+
+
+	public static final String PROVIDER_GOOGLE = "google";
+	public static final String PROVIDER_FACEBOOK = "facebook";
+	public static final String PROVIDER_GITHUB = "github";
+	public static final String PROVIDER_OTHER = "other";
+
+	public static final String GITHUB_USER_API = "https://api.github.com/user";
+	public static final String GITHUB_EMAILS_API = "https://api.github.com/user/emails";
+
+	public static final Map<String,ProviderInfo> PROVIDER_MAP =
+		new HashMap<String,ProviderInfo>();
+
+	static {
+		PROVIDER_MAP.put(PROVIDER_GOOGLE, new ProviderInfo(
+		    "https://accounts.google.com/o/oauth2/auth",
+			"https://oauth2.googleapis.com/token",
+			"openid email"));
+
+		PROVIDER_MAP.put(PROVIDER_FACEBOOK, new ProviderInfo(
+			"https://www.facebook.com/v11.0/dialog/oauth",
+			"https://graph.facebook.com/v11.0/oauth/access_token",
+			"openid email"));
+		
+		PROVIDER_MAP.put(PROVIDER_GITHUB, new ProviderInfo(
+			"https://github.com/login/oauth/authorize",
+			"https://github.com/login/oauth/access_token",
+			"user:email"));
+	}
+
+	public static class ProviderInfo
+	{
+		public ProviderInfo(String authURL, String tokenURL, String scope) {
+			this.AuthURL = authURL;
+			this.TokenURL = tokenURL;
+			this.Scope = scope;
+		}
+		
+		public String AuthURL;
+		public String TokenURL;
+		public String Scope;
+	}
+
 	// +-----------------------+
 	// | Configuration & Setup |
 	// +-----------------------+
@@ -29,9 +75,16 @@ public class OAuth2Login implements Closeable
 		public String ClientId;
 		public String ClientSecret;
 
-		public String Scope = "openid email";
-		public String AuthURL = "https://accounts.google.com/o/oauth2/auth";
-		public String TokenURL = "https://oauth2.googleapis.com/token";
+		// See above for provider labels (case sensitive!). If using "other",
+		// you MUST specify AuthURL/TokenURL/Scope. Otherwise these values are
+		// set using PROVIDER_MAP iff they are null in the provider config. This
+		// override behavior is most useful to set a different Scope, e.g., if
+		// you want to use the returned token to make provider-specific API calls.
+
+		public String Provider = "google";
+		public String AuthURL;
+		public String TokenURL;
+		public String Scope;
 
 		public String RedirectPath = "/__oauth2_redirect";
 
@@ -39,6 +92,14 @@ public class OAuth2Login implements Closeable
 	}
 
 	public OAuth2Login(Config cfg) throws Exception {
+		
+		ProviderInfo info = PROVIDER_MAP.get(cfg.Provider);
+		if (info != null) {
+			if (cfg.AuthURL == null) cfg.AuthURL = info.AuthURL;
+			if (cfg.TokenURL == null) cfg.TokenURL = info.TokenURL;
+			if (cfg.Scope == null) cfg.Scope = info.Scope;
+		}
+		
 		this.cfg = cfg;
 		this.requests = new WebRequests(cfg.Requests);
 		this.parser = new JsonParser();
@@ -63,6 +124,7 @@ public class OAuth2Login implements Closeable
 		private String email;
 		private String token;
 		private String transitoryState;
+		private String transitoryRedirect;
 
 		public static State rehydrate(String dehydrated) {
 			
@@ -70,21 +132,31 @@ public class OAuth2Login implements Closeable
 			if (Easy.nullOrEmpty(dehydrated)) return(state);
 			
 			String[] fields = dehydrated.split("\\|");
+			int c = fields.length;
+			
 			state.id = fields[0].equals("") ? null : fields[0];
-			state.email = fields[1].equals("") ? null : fields[1];
-			state.token = fields[2].equals("") ? null : fields[2];
-			state.transitoryState = fields[3].equals("") ? null : fields[3];
+			state.email = (c < 2 || fields[1].equals("")) ? null : fields[1];
+			state.token = (c < 3 || fields[2].equals("")) ? null : fields[2];
+			state.transitoryState = (c < 4 || fields[3].equals("")) ? null : fields[3];
+			state.transitoryRedirect = (c < 5 || fields[4].equals("")) ? null : fields[4];
 			
 			return(state);
 		}
 
 		public String dehydrate() {
 			
-			return(String.format("%s|%s|%s|%s",
-								 id == null ? "" : id,
-								 email == null ? "" : email,
-								 token == null ? "" : token,
-								 transitoryState == null ? "" : transitoryState));
+			return(String.format("%s|%s|%s|%s|%s",
+					 id == null ? "" : id,
+					 email == null ? "" : email,
+					 token == null ? "" : token,
+					 transitoryState == null ? "" : transitoryState,
+					 transitoryRedirect == null ? "" : transitoryRedirect));
+		}
+
+		public String popTransitoryRedirect() {
+			String targetURL = (transitoryRedirect == null ? "/" : transitoryRedirect);
+			transitoryRedirect = null;
+			return(targetURL);
 		}
 	}
 
@@ -92,7 +164,7 @@ public class OAuth2Login implements Closeable
 	// | getAuthenticationURL |
 	// +----------------------+
 
-	public String getAuthenticationURL(String baseURL, State state) {
+	public String getAuthenticationURL(String baseURL, String targetURL, State state) {
 
 		Map<String,String> queryParams = new HashMap<String,String>();
 		queryParams.put("client_id", cfg.ClientId);
@@ -101,6 +173,7 @@ public class OAuth2Login implements Closeable
 		queryParams.put("response_type", "code");
 		queryParams.put("access_type", "online");
 
+		state.transitoryRedirect = targetURL;
 		state.transitoryState = new BigInteger(130, new SecureRandom()).toString(32);
 		queryParams.put("state", state.transitoryState);
 
@@ -146,6 +219,7 @@ public class OAuth2Login implements Closeable
 		form.put("redirect_uri", Easy.urlPaste(baseURL, cfg.RedirectPath));
 		
 		WebRequests.Params params = new WebRequests.Params();
+		params.setAccept("application/json");
 		params.setForm(form);
 
 		WebRequests.Response response = requests.fetch(cfg.TokenURL, params);
@@ -173,21 +247,66 @@ public class OAuth2Login implements Closeable
 
 	private boolean parseTokenJSON(String body, State state) {
 
+		//log.info(">>>TOKEN>>>\n" + body + "\n<<<");
 		JsonObject jsonResponse = parser.parse(body).getAsJsonObject();
 
 		if (!jsonResponse.has("access_token")) return(false);
 		state.token = jsonResponse.get("access_token").getAsString();
 
-		if (!jsonResponse.has("id_token")) return(true);
-		String idToken = jsonResponse.get("id_token").getAsString();
+		if (cfg.Provider.equals(PROVIDER_GITHUB)) {
+			fetchGithubInfo(state);
+		}
+		else if (jsonResponse.has("id_token")) {
+			parseIdToken(jsonResponse.get("id_token").getAsString(), state);
+		}
+
+		return(true);
+	}
+
+	private void parseIdToken(String idToken, State state) {
+
 		String payloadEnc = idToken.split("\\.")[1];
 		String payloadTxt = Easy.base64urlDecode(payloadEnc);
+		//log.info(">>>PAYLOAD>>>\n" + payloadTxt + "\n<<<");
 		JsonObject jsonIdToken = parser.parse(payloadTxt).getAsJsonObject();
-		
+
 		state.id = jsonIdToken.get("sub").getAsString();
-		
-		if (jsonIdToken.has("email")) {
-			state.email = jsonIdToken.get("email").getAsString();
+		if (jsonIdToken.has("email")) state.email = jsonIdToken.get("email").getAsString();
+	}
+
+	private boolean fetchGithubInfo(State state) {
+
+		WebRequests.Params params = new WebRequests.Params();
+		params.setAccept("application/vnd.github+json");
+		params.addHeader("Authorization", "Bearer " + state.getToken());
+
+		WebRequests.Response response = requests.fetch(GITHUB_USER_API, params);
+		if (!response.successful()) return(false);
+
+		JsonObject jsonUser = parser.parse(response.Body).getAsJsonObject();
+		state.id = jsonUser.get("login").getAsString();
+
+		if (jsonUser.has("email")) {
+			// if user has made their email public, easy short-circuit
+			state.email = jsonUser.get("email").getAsString();
+		}
+		else {
+			// otherwise look in here
+		    response = requests.fetch(GITHUB_EMAILS_API, params);
+			if (!response.successful()) return(false);
+
+			JsonArray jsonEmails = parser.parse(response.Body).getAsJsonArray();
+			if (jsonEmails.size() == 0) return(true);
+
+			// default to first email if none are "primary"
+			state.email = jsonEmails.get(0).getAsJsonObject().get("email").getAsString();
+			
+			for (int i = 0; i < jsonEmails.size(); ++i) {
+				if (jsonEmails.get(i).getAsJsonObject().get("primary").getAsBoolean()) {
+					state.email = jsonEmails.get(i).getAsJsonObject().get("email").getAsString();
+					break;
+				}
+			}
 		}
 
 		return(true);
