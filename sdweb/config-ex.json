@@ -5,7 +5,7 @@
   "SSLCertificateKeyFile": "@localhost.key",
 
   "OAuth2": {
-	"Provider": "google",
+	"Provider": "github",
 	"ClientId": "YOUR_CLIENT_ID",
 	"ClientSecret": "YOUR_CLIENT_SECRET"
   }
