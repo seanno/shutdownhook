@@ -1,0 +1,13 @@
+{
+  "Port": 3000,
+  
+  "SSLCertificateFile": "@localhost.crt",
+  "SSLCertificateKeyFile": "@localhost.key",
+
+  "OAuth2": {
+	"Provider": "google",
+	"ClientId": "YOUR_CLIENT_ID",
+	"ClientSecret": "YOUR_CLIENT_SECRET"
+  }
+  
+}
