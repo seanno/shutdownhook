@@ -262,7 +262,7 @@ public class OAuth2Login implements Closeable
 		//log.info(">>>TOKEN>>>\n" + body + "\n<<<");
 		JsonObject jsonResponse = parser.parse(body).getAsJsonObject();
 
-		if (!jsonResponse.has("access_token")) return(false);
+		if (!hasNonNull(jsonResponse, "access_token")) return(false);
 		state.token = jsonResponse.get("access_token").getAsString();
 
 		if (cfg.Provider.equals(PROVIDER_GITHUB)) {
@@ -271,7 +271,7 @@ public class OAuth2Login implements Closeable
 		else if (cfg.Provider.equals(PROVIDER_AMAZON)) {
 			fetchAmazonInfo(state);
 		}
-		else if (jsonResponse.has("id_token")) {
+		else if (hasNonNull(jsonResponse, "id_token")) {
 			parseIdToken(jsonResponse.get("id_token").getAsString(), state);
 		}
 
@@ -286,7 +286,7 @@ public class OAuth2Login implements Closeable
 		JsonObject jsonIdToken = parser.parse(payloadTxt).getAsJsonObject();
 
 		state.id = jsonIdToken.get("sub").getAsString();
-		if (jsonIdToken.has("email")) state.email = jsonIdToken.get("email").getAsString();
+		if (hasNonNull(jsonIdToken, "email")) state.email = jsonIdToken.get("email").getAsString();
 	}
 
 	private boolean fetchGithubInfo(State state) {
@@ -301,7 +301,7 @@ public class OAuth2Login implements Closeable
 		JsonObject jsonUser = parser.parse(response.Body).getAsJsonObject();
 		state.id = jsonUser.get("login").getAsString();
 
-		if (jsonUser.has("email")) {
+		if (hasNonNull(jsonUser, "email")) {
 			// if user has made their email public, easy short-circuit
 			state.email = jsonUser.get("email").getAsString();
 		}
@@ -340,6 +340,17 @@ public class OAuth2Login implements Closeable
 		state.id = jsonProfile.get("user_id").getAsString();
 		state.email = jsonProfile.get("email").getAsString();
 
+		return(true);
+	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	private boolean hasNonNull(JsonObject json, String field) {
+		if (!json.has(field)) return(false);
+		if (json.get(field) == null) return(false);
+		if (json.get(field).isJsonNull()) return(false);
 		return(true);
 	}
 
