@@ -28,10 +28,12 @@ public class OAuth2Login implements Closeable
 	public static final String PROVIDER_GOOGLE = "google";
 	public static final String PROVIDER_FACEBOOK = "facebook";
 	public static final String PROVIDER_GITHUB = "github";
+	public static final String PROVIDER_AMAZON = "amazon";
 	public static final String PROVIDER_OTHER = "other";
 
 	public static final String GITHUB_USER_API = "https://api.github.com/user";
 	public static final String GITHUB_EMAILS_API = "https://api.github.com/user/emails";
+	public static final String AMAZON_PROFILE_API = "https://api.amazon.com/user/profile";
 
 	public static final Map<String,ProviderInfo> PROVIDER_MAP =
 		new HashMap<String,ProviderInfo>();
@@ -51,6 +53,11 @@ public class OAuth2Login implements Closeable
 			"https://github.com/login/oauth/authorize",
 			"https://github.com/login/oauth/access_token",
 			"user:email"));
+
+		PROVIDER_MAP.put(PROVIDER_AMAZON, new ProviderInfo(
+			"https://www.amazon.com/ap/oa",
+			"https://api.amazon.com/auth/o2/token",
+			"profile"));
 
 		PROVIDER_MAP.put(PROVIDER_OTHER, new ProviderInfo(
 			null,
@@ -261,6 +268,9 @@ public class OAuth2Login implements Closeable
 		if (cfg.Provider.equals(PROVIDER_GITHUB)) {
 			fetchGithubInfo(state);
 		}
+		else if (cfg.Provider.equals(PROVIDER_AMAZON)) {
+			fetchAmazonInfo(state);
+		}
 		else if (jsonResponse.has("id_token")) {
 			parseIdToken(jsonResponse.get("id_token").getAsString(), state);
 		}
@@ -313,6 +323,22 @@ public class OAuth2Login implements Closeable
 				}
 			}
 		}
+
+		return(true);
+	}
+
+	private boolean fetchAmazonInfo(State state) {
+
+		WebRequests.Params params = new WebRequests.Params();
+		params.setAccept("application/json");
+		params.addHeader("Authorization", "Bearer " + state.getToken());
+
+		WebRequests.Response response = requests.fetch(AMAZON_PROFILE_API, params);
+		if (!response.successful()) return(false);
+
+		JsonObject jsonProfile = parser.parse(response.Body).getAsJsonObject();
+		state.id = jsonProfile.get("user_id").getAsString();
+		state.email = jsonProfile.get("email").getAsString();
 
 		return(true);
 	}
