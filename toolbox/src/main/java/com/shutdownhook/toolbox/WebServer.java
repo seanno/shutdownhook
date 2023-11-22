@@ -54,6 +54,9 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
+		// If non-empty, will be used to encrypt / decrypt session cookies automatically
+		public Encrypt.Config CookieEncrypt;
+
 		// if non-empty, the provided config will be used to protect all routes
 		public OAuth2Login.Config OAuth2;
 		public String OAuth2CookieName = "SHOOK_OAUTH2";
@@ -76,6 +79,10 @@ public class WebServer implements Closeable
 	// +---------+
 
 	public static class Request {
+		
+		public Request(Encrypt cookieEncrypt) { this.cookieEncrypt = cookieEncrypt; }
+		private Encrypt cookieEncrypt;
+		
 		public String Base;
 		public String Path;
 		public String Method;
@@ -98,6 +105,10 @@ public class WebServer implements Closeable
 	// +----------+
 
 	public static class Response {
+
+		public Response(Encrypt cookieEncrypt) { this.cookieEncrypt = cookieEncrypt; }
+		private Encrypt cookieEncrypt;
+		
 		public int Status;
 		public String Body;
 		public File BodyFile;
@@ -116,7 +127,9 @@ public class WebServer implements Closeable
 
 		public void setSessionCookie(String name, String val, Request request) {
 
-			String cookie = name + "=" + Easy.urlEncode(val) + "; HttpOnly";
+			String valX = (cookieEncrypt == null ? val : cookieEncrypt.encrypt(val));
+				
+			String cookie = name + "=" + Easy.urlEncode(valX) + "; HttpOnly";
 			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
 
 			addHeader("Set-Cookie", cookie);
@@ -150,6 +163,8 @@ public class WebServer implements Closeable
 
 		server.registerStaticRoutes();
 
+		if (cfg.CookieEncrypt != null) server.cookieEncrypt = new Encrypt(cfg.CookieEncrypt);
+		
 		server.registerAuth();
 
 		return(server);
@@ -239,7 +254,7 @@ public class WebServer implements Closeable
 									   handler.getClass().getName(),
 									   exchange.getRequestURI()));
 
-				Response response = new Response();
+				Response response = new Response(cookieEncrypt);
 				response.Status = 200; // optimistic!
 				
 				try {
@@ -321,7 +336,7 @@ public class WebServer implements Closeable
 
 	private Request setupRequest(HttpExchange exchange) throws IOException, IllegalArgumentException {
 
-		Request request = new Request();
+		Request request = new Request(cookieEncrypt);
 
 		setBaseUrl(exchange, request);
 		
@@ -344,7 +359,9 @@ public class WebServer implements Closeable
 					String[] nv = cookie.split("=");
 					if (nv.length != 2) continue;
 					try {
-						request.Cookies.put(nv[0].trim(), Easy.urlDecode(nv[1].trim()));
+						String val = Easy.urlDecode(nv[1].trim());
+						if (cookieEncrypt != null) val = cookieEncrypt.decrypt(val);
+						request.Cookies.put(nv[0].trim(), val);
 					} catch (Exception e) {
 						// we encode all of ours so just ignore this
 					}
@@ -519,6 +536,7 @@ public class WebServer implements Closeable
 	
 	private ExecutorService pool;
 	private OAuth2Login oauth2;
+	private Encrypt cookieEncrypt;
 	
 	private final static Logger log = Logger.getLogger(WebServer.class.getName());
 }
