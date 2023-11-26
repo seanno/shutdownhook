@@ -201,7 +201,7 @@ public class SqlStore
 	// | Members |
 	// +---------+
 
-	private Config cfg;
+	protected Config cfg;
 	
 	private final static Logger log = Logger.getLogger(SqlStore.class.getName());
 }
