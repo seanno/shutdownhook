@@ -6,6 +6,7 @@
 package com.shutdownhook.dss.server;
 
 import java.io.Closeable;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -27,7 +28,7 @@ public class Server implements Closeable
 		public WebServer.Config WebServer = new WebServer.Config();
 		public SqlStore.Config Sql = new SqlStore.Config();
 
-		public String ListConnectionsUrl = "/connections";
+		public String ListQueriesUrl = "/queries";
 		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -38,6 +39,7 @@ public class Server implements Closeable
 		this.cfg = cfg;
 		this.gson = new Gson();
 		this.store = new QueryStore(cfg.Sql);
+		this.runner = new QueryRunner();
 		setupWebServer();
 	}
 	
@@ -45,7 +47,8 @@ public class Server implements Closeable
 
 		server = WebServer.create(cfg.WebServer);
 
-		registerListConnections();
+		registerListQueries();
+		registerRunQuery();
 		
 		server.registerEmptyHandler("/favicon.ico", 404);
 	}
@@ -58,18 +61,68 @@ public class Server implements Closeable
 	public void runSync() throws Exception { server.runSync(); }
 	public void close() { server.close(); }
 
-	// +-------------------------+
-	// | registerListConnections |
-	// +-------------------------+
+	// +---------------------+
+	// | registerListQueries |
+	// +---------------------+
 
-	private void registerListConnections() throws Exception {
-		server.registerHandler(cfg.ListConnectionsUrl, new WebServer.Handler() {
+	private void registerListQueries() throws Exception {
+		server.registerHandler(cfg.ListQueriesUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
-				response.setJson(gson.toJson(store.listConnections(getAuthEmail(request))));
+				response.setJson(gson.toJson(store.listQueries(getAuthEmail(request))));
 			}
 		});
 	}
 	
+	// +------------------+
+	// | registerRunQuery |
+	// +------------------+
+
+	public static class RunQueryBody
+	{
+		public String Connection;
+		public String Sql; 
+		public String QueryId;
+		public Object[] Params;
+	}
+	
+	private void registerRunQuery() throws Exception {
+		/*
+		server.registerHandler(cfg.RunQueryUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				if (!"POST".equals(request.Method)) throw new Exception("invalid method");
+				if (request.Body == null) throw new Exception("body required");
+				
+				String user = getAuthEmail(request);
+				RunQueryBody body = new Gson().fromJson(request.Body, RunQueryBody.class);
+
+				QueryStore.ExecuteInfo exInfo;
+				String connectionString;
+				String sql;
+				
+				if (body.Sql != null) {
+					// user must be an editor to run arbitrary sql
+					exInfo = store.lookupConnectionForExecute(body.Connection, user);
+					if (exInfo == null) { response.Status = 401; return; }
+					exInfo.Sql = body.Sql;
+				}
+				else if (body.QueryId != null) {
+					exInfo = store.lookupQueryForExecute(UUID.fromString(body.QueryId), user);
+					if (exInfo == null) { response.Status = 401; return; }
+				}
+				else {
+					throw new Exception("body must include Sql or QueryId");
+				}
+
+				QueryRunner.Result result =
+					runner.run(exInfo.ConnectionString, exInfo.Sql, body.Params);
+				
+				response.setJson(gson.toJson(result));
+			}
+		});
+		*/
+	}
+
 	// +---------+
 	// | Helpers |
 	// +---------+
@@ -87,6 +140,7 @@ public class Server implements Closeable
 	private Config cfg;
 	private WebServer server;
 	private QueryStore store;
+	private QueryRunner runner;
 	private Gson gson;
 
 	private final static Logger log = Logger.getLogger(Server.class.getName());

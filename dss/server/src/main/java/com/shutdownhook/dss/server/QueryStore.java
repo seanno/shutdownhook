@@ -3,17 +3,6 @@
 ** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
 */
 
-// Access notes:
-// "access.is_editor" on a connection means that a user is allowed to create
-// and save queries. Anybody with access to the connection can run these queries,
-// but only the owner can edit them (through the UX).
-// anybody given access to the DSS Metadata Store can of course edit these
-// tables directly to do whatever they want with them, including seeing the
-// saved connection strings.
-//
-// add logging by query execution and user!
-
-
 package com.shutdownhook.dss.server;
 
 import java.sql.PreparedStatement;
@@ -31,229 +20,364 @@ import com.shutdownhook.toolbox.SqlStore;
 
 public class QueryStore extends SqlStore
 {
-	// note: these are sql-safe strings
-	public final static String DSS_CONNECTION_NAME = "__dss__";
-	public final static String DSS_CONNECTION_DESCRIPTION = "DSS Metadata Store";
-
 	// +----------------+
 	// | Config & Setup |
 	// +----------------+
+
+	public final static String DSS_CONNECTION_NAME = "__dss__";
+	public final static String DSS_CONNECTION_DESCRIPTION = "DSS Metadata Store";
 
 	public QueryStore(SqlStore.Config cfg) throws Exception {
 		super(cfg);
 		this.ensuredSchema = false;
 	}
 
-	// +-----------------+
-	// | listConnections |
-	// +-----------------+
-
-	// List all connections for which user has access
-
-	public static class ListConnectionsItem
-	{
-		public String Name;
-		public String Description;
-		public Boolean IsEditor;
-
-		static public ListConnectionsItem fromRow(ResultSet rs) throws SQLException {
-			ListConnectionsItem item = new ListConnectionsItem();
-			item.Name = rs.getString("name");
-			item.Description = rs.getString("description");
-			item.IsEditor = (rs.getInt("is_editor") != 0);
-			return(item);
-		}
-	}
-	
-	public final static String LIST_CONNECTIONS_SQL =
-		"select " + 
-		"  c.name name, " +
-		"  c.description description, " +
-		"  a.is_editor is_editor " +
-		"from " +
-		"  connections c " +
-		"inner join " +
-		"  access a on c.name = a.connection_name and a.user = ? ";
-		
-	public List<ListConnectionsItem> listConnections(final String user)
-		throws Exception {
-
-		ensureSchema(user);
-		
-		List<ListConnectionsItem> items = new ArrayList<ListConnectionsItem>();
-		
-		query(LIST_CONNECTIONS_SQL, new SqlStore.QueryHandler() {
-				
-			public void prepare(PreparedStatement stmt) throws Exception {
-				stmt.setString(1, user);
-			}
-				
-			public void row(ResultSet rs, int irow) throws Exception {
-				ListConnectionsItem item = ListConnectionsItem.fromRow(rs);
-				items.add(item);
-			}
-		});
-
-		return(items);
-	}
-	
 	// +-------------+
 	// | listQueries |
 	// +-------------+
 
-	// List all queries in a connection (checking access)
+	// Lists all connections the user has access to, including a list
+	// of existing queries for each connection that the user can run
 	
-	public final static String LIST_QUERIES_SQL =
-		"select " +
-		"  q.id query_id, " +
-		"  q.description description, " +
-		"  q.owner owner " +
-		"from " +
-		"  queries q " +
-		"inner join " +
-		"  access a on q.connection_name = a.connection_name and a.user = ? " +
-		"where " +
-		"  q.connection_name = ? ";
-
-	public static class ListQueriesItem
+	public static class QueryListItem
 	{
 		public UUID Id;
 		public String Description;
 		public String Owner;
-
-		static public ListQueriesItem fromRow(ResultSet rs) throws SQLException {
-			ListQueriesItem item = new ListQueriesItem();
-			item.Id = UUID.fromString(rs.getString("query_id"));
-			item.Description = rs.getString("description");
-			item.Owner = rs.getString("owner");
-			return(item);
-		}
+		public Boolean IsShared;
 	}
 
-	public List<ListQueriesItem> listQueries(final String connection, final String user)
-		throws Exception {
+	public static class ConnectionListItem
+	{
+		public String Name;
+		public String Description;
+		public Boolean CanCreate;
+		public List<QueryListItem> Queries = new ArrayList<QueryListItem>();
+	}
+
+	private final static String LIST_QUERIES_SQL =
+		"select " +
+		"  c.name connection_name, " +
+		"  c.description connection_description, " +
+		"  a.can_create can_create, " +
+		"  q.id query_id, " +
+		"  q.description query_description, " +
+		"  q.owner owner, " +
+		"  q.is_shared is_shared " +
+		"from " +
+		"  connections c " +
+		"inner join " +
+		"  access a on c.name = a.connection_name and a.user = ? " +
+		"left outer join " +
+		"  queries q on c.name = q.connection_name and (q.is_shared or q.owner = ?) " +
+		"order by " +
+		"  c.name, c.description, q.description ";
+
+	public List<ConnectionListItem> listQueries(String user) throws Exception {
 
 		ensureSchema(user);
-		
-		List<ListQueriesItem> items = new ArrayList<ListQueriesItem>();
+
+		List<ConnectionListItem> connections = new ArrayList<ConnectionListItem>();
 		
 		query(LIST_QUERIES_SQL, new SqlStore.QueryHandler() {
 				
 			public void prepare(PreparedStatement stmt) throws Exception {
 				stmt.setString(1, user);
-				stmt.setString(2, connection);
+				stmt.setString(2, user);
 			}
 				
 			public void row(ResultSet rs, int irow) throws Exception {
-				ListQueriesItem item = ListQueriesItem.fromRow(rs);
-				items.add(item);
+				
+				String connectionName = rs.getString("connection_name");
+				if (c == null || !c.Name.equals(connectionName)) {
+					c = new ConnectionListItem();
+					connections.add(c);
+					c.Name = connectionName;
+					c.Description = rs.getString("connection_description");
+					c.CanCreate = (rs.getInt("can_create") != 0);
+				}
+
+				String idStr = rs.getString("query_id");
+				if (idStr != null) { 
+					QueryListItem q = new QueryListItem();
+					c.Queries.add(q);
+					q.Id = UUID.fromString(idStr);
+					q.Description = rs.getString("query_description");
+					q.Owner = rs.getString("owner");
+					q.IsShared = (rs.getInt("is_shared") != 0);
+				}
 			}
+
+			private ConnectionListItem c = null;
 		});
 
-		return(items);
+		return(connections);
 	}
 
-	// +----------+
-	// | getQuery |
-	// +----------+
+	// +------------------------------+
+	// | getConnectionStringForCreate |
+	// | canCreateInConnection        |
+	// +------------------------------+
 
-	public static enum ParamType
-	{
-		string,
-		integer,
-		date,
-		datetime
-	}
+	// returns connection string if user is allowed to create or run ad hoc
+	// sql in the given connection
 	
-	public static class Param
-	{
-		public String Name;
-		public ParamType Type;
-		public String Default;
-	}
-	
-	public static class Statement
-	{
-		public String Sql;
-		public Param[] Params;
-	}
-	
-	public static class Query
-	{
-		public UUID Id;
-		public String Description;
-		public String Owner;
-		public Boolean IsEditor;
-		public String ConnectionString;
-		public Statement Statement;
-
-		public String toJson() {
-			return(new Gson().toJson(this));
-		}
-		
-		public static Query fromRow(ResultSet rs, boolean forExecute)
-			throws SQLException{
-
-			Query q = new Query();
-			
-			q.Id = UUID.fromString(rs.getString("query_id"));
-			q.Description = rs.getString("description");
-			q.Owner = rs.getString("owner");
-			q.IsEditor = (rs.getInt("is_editor") != 0);
-
-			if (forExecute) {
-				q.ConnectionString = rs.getString("connection_string");
-			}
-			
-			if (forExecute || q.IsEditor) {
-				String json = rs.getString("statement_json");
-				q.Statement = new Gson().fromJson(json, Statement.class);
-			}
-
-			return(q);
-		}
-	}
-
-	public final static String GET_QUERY_SQL =
+	final static String GET_CONNECTION_STRING_FOR_CREATE_SQL =
 		"select " +
-		"  q.id query_id, " +
-		"  q.description description, " +
-		"  q.owner owner, " +
-		"  a.is_editor is_editor, " +
-		"  c.connection_string connection_string, " +
-		"  q.statement_json statement_json " +
+		"  c.connection_string connection_string " +
 		"from " +
-		"  queries q " +
+		"  connections c " +
 		"inner join " +
-		"  connections c on q.connection_name = c.connection_name " +
-		"inner join " +
-		"  access a on q.connection_name = a.connection_name and a.user = ? " +
+		"  access a on c.name = a.connection_name and a.user = ? and a.can_create = 1 " +
 		"where " +
-		"  q.id = ? ";
+		"  c.name = ? ";
 
-	public Query getQuery(final UUID id, final String user, final boolean forExecute)
-		throws Exception {
+	public String getConnectionStringForCreate(String connectionName, String user) throws Exception {
 
 		ensureSchema(user);
-		
-		SqlStore.Return<Query> query = new SqlStore.Return<Query>();
-		
-		query(GET_QUERY_SQL, new SqlStore.QueryHandler() {
+
+		SqlStore.Return<String> connectionString = new SqlStore.Return<String>();
+
+		query(GET_CONNECTION_STRING_FOR_CREATE_SQL, new SqlStore.QueryHandler() {
 				
 			public void prepare(PreparedStatement stmt) throws Exception {
 				stmt.setString(1, user);
-				stmt.setString(2, id.toString());
+				stmt.setString(2, connectionName);
 			}
 				
 			public void row(ResultSet rs, int irow) throws Exception {
-				if (irow > 0) throw new Exception("gQI mult rows: " + id.toString());
-				query.Value = Query.fromRow(rs, forExecute);
+				connectionString.Value = rs.getString("connection_string");
 			}
 		});
 
-		return(query.Value);
+		return(connectionString.Value);
 	}
 
+	public boolean canCreateInConnection(String connectionName, String user) throws Exception {
+		String connectionString = getConnectionStringForCreate(connectionName, user);
+		return(connectionString != null);
+	}
+
+	// +-----------------------+
+	// | getQueryExecutionInfo |
+	// +-----------------------+
+
+	// returns information needed to execute an existing query to which user has access
+	
+	final static String GET_QUERY_EXECUTION_INFO_SQL =
+		"select " +
+		"  c.connection_string connection_string, " +
+		"  q.statement statement " +
+		"from " +
+		"  queries q " +
+		"inner join " +
+		"  connections c on q.connection_name = c.name " +
+		"inner join " +
+		"  access a on q.connection_name = a.connection_name and a.user = ? " +
+		"where " +
+		"  q.id = ? and " +
+		"  (q.owner = ? or q.is_shared = 1) ";
+
+	public static class ExecutionInfo
+	{
+		public String ConnectionString;
+		public String Statement;
+	}
+
+	public ExecutionInfo getQueryExecutionInfo(UUID queryId, String user) throws Exception {
+
+		ensureSchema(user);
+		
+		SqlStore.Return<ExecutionInfo> info = new SqlStore.Return<ExecutionInfo>();
+
+		query(GET_QUERY_EXECUTION_INFO_SQL, new SqlStore.QueryHandler() {
+				
+			public void prepare(PreparedStatement stmt) throws Exception {
+				stmt.setString(1, user);
+				stmt.setString(2, queryId.toString());
+				stmt.setString(3, user);
+			}
+				
+			public void row(ResultSet rs, int irow) throws Exception {
+				info.Value = new ExecutionInfo();
+				info.Value.ConnectionString = rs.getString("connection_string");
+				info.Value.Statement = rs.getString("statement");
+			}
+		});
+
+		return(info.Value);
+	}
+
+	// +-----------------+
+	// | getQueryDetails |
+	// +-----------------+
+
+	// fetches details about a query that the user has access to.
+	// if the user is the owner, the statement is also returned.
+
+	public static class QueryParam
+	{
+		public String Name;
+		public String Default;
+	}
+	
+	public static class QueryDetails
+	{
+		public UUID Id;
+		public String ConnectionName;
+		public String Description;
+		public String Owner;
+		public Boolean IsShared;
+		public QueryParam[] Params;
+		public String Statement;
+	}
+
+	private final static String QUERY_DETAILS_SQL =
+		"select " +
+		"  q.id id, " +
+		"  q.connection_name connection_name, " +
+		"  q.description description, " +
+		"  q.owner owner, " +
+		"  q.is_shared is_shared, " +
+		"  q.params_json params_json, " +
+		"  case when (q.owner = ?) then q.statement else null end statement " +
+		"from " +
+		"  queries q " +
+		"inner join " +
+		"  access a on c.name = a.connection_name and a.user = ? " +
+		"where " +
+		"  (q.id = ?) and (q.is_shared or q.owner = ?)";
+
+	public QueryDetails getQueryDetails(UUID id, String user) throws Exception {
+
+		ensureSchema(user);
+
+		SqlStore.Return<QueryDetails> details = new SqlStore.Return<QueryDetails>();
+			
+		query(QUERY_DETAILS_SQL, new SqlStore.QueryHandler() {
+				
+			public void prepare(PreparedStatement stmt) throws Exception {
+				stmt.setString(1, user);
+				stmt.setString(2, user);
+				stmt.setString(3, id.toString());
+				stmt.setString(4, user);
+			}
+				
+			public void row(ResultSet rs, int irow) throws Exception {
+
+				QueryDetails qd = new QueryDetails();
+				details.Value = qd;
+
+				qd.Id = UUID.fromString(rs.getString("id"));
+				qd.Description = rs.getString("description");
+				qd.ConnectionName = rs.getString("connection_name");
+				qd.Owner = rs.getString("owner");
+				qd.IsShared = (rs.getInt("is_shared") != 0);
+				qd.Statement = rs.getString("statement");
+
+				String paramsJson = rs.getString("params_json");
+				if (!Easy.nullOrEmpty(paramsJson)) {
+					qd.Params = new Gson().fromJson(paramsJson, QueryParam[].class);
+				}
+			}
+		});
+
+		return(details.Value);
+	}
+																	 
+	// +-----------+
+	// | saveQuery |
+	// +-----------+
+
+	// inserts or updates a query. User must have create access in the connection to
+	// insert; must be owner to update. connection/owner are never changed on update
+	
+	final static String UPDATE_QUERY_SQL =
+		"update queries " +
+		"set description = ?, is_shared = ?, params_json = ?, statement = ? " +
+		"where id = ? ";
+
+	final static String INSERT_QUERY_SQL =
+		"insert into queries " +
+		"(id, connection_name, owner, description, is_shared, params_json, statement) " +
+		"values (?,?,?,?,?,?,?) ";
+
+	public UUID saveQuery(QueryDetails details, String user) throws Exception {
+
+		ensureSchema(user);
+
+		if (details.Id != null) {
+			
+			QueryDetails detailsCurrent = getQueryDetails(details.Id, user);
+			
+			if (detailsCurrent == null) throw new Exception("saveQuery: no access to update");
+			if (!detailsCurrent.Owner.equals(user)) throw new Exception("saveQuery: owner mismatch");
+
+			return(updateQuery(details));
+		}
+
+		if (!canCreateInConnection(details.ConnectionName, user)) {
+			throw new Exception("saveQuery: can't create in connection");
+		}
+
+		details.Id = UUID.randomUUID();
+		details.Owner = user;
+
+		return(insertQuery(details));
+	}
+
+	private UUID updateQuery(QueryDetails details) throws Exception {
+
+		String paramsJson = (details.Params == null ? null : new Gson().toJson(details.Params));
+
+		SqlStore.Return<Boolean> ok = new SqlStore.Return<Boolean>();
+		ok.Value = false;
+		
+		update(UPDATE_QUERY_SQL, new SqlStore.UpdateHandler() {
+				
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, details.Description);
+				stmt.setInt(2, details.IsShared ? 1 : 0);
+				stmt.setString(3, paramsJson);
+				stmt.setString(4, details.Statement);
+				stmt.setString(5, details.Id.toString());
+			}
+				
+			public void confirm(int rowsAffected, int iter) {
+				ok.Value = true;
+			}
+		});
+
+		return(ok.Value ? details.Id : null);
+	}
+
+	private UUID insertQuery(QueryDetails details) throws Exception {
+
+		String paramsJson = (details.Params == null ? null : new Gson().toJson(details.Params));
+
+		SqlStore.Return<Boolean> ok = new SqlStore.Return<Boolean>();
+		ok.Value = false;
+		
+		update(INSERT_QUERY_SQL, new SqlStore.UpdateHandler() {
+				
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, details.Id.toString());
+				stmt.setString(2, details.ConnectionName);
+				stmt.setString(3, details.Owner);
+				stmt.setString(4, details.Description);
+				stmt.setInt(5, details.IsShared ? 1 : 0);
+				stmt.setString(6, paramsJson);
+				stmt.setString(7, details.Statement);
+			}
+				
+			public void confirm(int rowsAffected, int iter) {
+				ok.Value = true;
+			}
+		});
+
+		return(ok.Value ? details.Id : null);
+	}
+	
 	// +--------------+
 	// | ensureSchema |
 	// +--------------+
@@ -355,7 +479,7 @@ public class QueryStore extends SqlStore
 
 		String sql =
 			"select user from access " +
-			"where connection_name = ? and is_editor = 1 " +
+			"where connection_name = ? and can_create = 1 " +
 			"limit 1";
 		
 		SqlStore.Return<String> user = new SqlStore.Return<String>();
@@ -380,7 +504,7 @@ public class QueryStore extends SqlStore
 
 		String sql =
 			"insert into access " +
-			"(connection_name, user, is_editor) values(?,?,?)";
+			"(connection_name, user, can_create) values(?,?,?)";
 
 		update(sql, new SqlStore.UpdateHandler() {
 				
@@ -412,7 +536,7 @@ public class QueryStore extends SqlStore
 		"( " +
 		"    connection_name varchar(64) not null, " +
 		"    user varchar(128) not null, " +
-		"    is_editor boolean null, " +
+		"    can_create boolean null, " +
 		"    note varchar(256) null, " +
 		" " +
 		"    primary key (connection_name, user) " +
@@ -424,8 +548,10 @@ public class QueryStore extends SqlStore
 		"    id char(36) not null, " +
 		"    connection_name varchar(64) not null, " +
 		"    description varchar(64) not null, " +
-		"    statement_json text not null, " +
+		"    statement text not null, " +
+		"    params_json text not null, " +
 		"    owner varchar(128) not null, " +
+		"    is_shared boolean null, " +
 		"    note varchar(256) null, " +
 		" " +
 		"    primary key (id) " +

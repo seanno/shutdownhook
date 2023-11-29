@@ -54,12 +54,19 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
+		// If non-empty, will be sent in response as Access-Control-Allow-Origin
+		public String AllowedOrigin;
+		
 		// If non-empty, will be used to encrypt / decrypt session cookies automatically
 		public Encrypt.Config CookieEncrypt;
 
 		// if non-empty, the provided config will be used to protect all routes
 		public OAuth2Login.Config OAuth2;
 		public String OAuth2CookieName = "SHOOK_OAUTH2";
+
+		// if non-empty, will be used as fixed OAuth2 state (id|email|token)
+		// This OVERRIDES OAuth2 settings --- TEST/DEV ONLY!
+		public String OAuth2ForceState;
 
 		// optional directory holding static pages. Each .html or .js file in
 		// this directory will be exposed as a static route at /basename.
@@ -310,12 +317,16 @@ public class WebServer implements Closeable
 	
 	private void sendResponse(HttpExchange exchange, Response response) throws IOException {
 
+		if (cfg.AllowedOrigin != null) {
+			response.addHeader("Access-Control-Allow-Origin", cfg.AllowedOrigin);
+		}
+		
 		if (response.Headers != null) {
 			for (String name : response.Headers.keySet()) {
 				exchange.getResponseHeaders().add(name, response.Headers.get(name));
 			}
 		}
-		
+
 		if (response.ContentType != null) {
 			exchange.getResponseHeaders().add("Content-Type", response.ContentType);
 		}
@@ -441,6 +452,11 @@ public class WebServer implements Closeable
 	// +--------+
 
 	private void registerAuth() {
+
+		if (cfg.OAuth2ForceState != null) {
+			log.warning("USING FORCED OAUTH2 STATE --- this should never show in prod!");
+			return;
+		}
 		
 		if (oauth2 == null) return;
 
@@ -469,6 +485,13 @@ public class WebServer implements Closeable
 	
 	private boolean redirectForAuth(Request request, Response response) {
 
+		// force for dev/test
+		
+		if (cfg.OAuth2ForceState != null) {
+			request.OAuth2 = OAuth2Login.State.rehydrate(cfg.OAuth2ForceState);
+			return(false);
+		}
+		
 		// quick exits
 
 		if (oauth2 == null) return(false);
