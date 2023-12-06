@@ -55,6 +55,12 @@ public class QueryStore extends SqlStore
 		public List<QueryListItem> Queries = new ArrayList<QueryListItem>();
 	}
 
+	public static class QueryTree
+	{
+		public String User;
+		public List<ConnectionListItem> Connections = new ArrayList<ConnectionListItem>();
+	}
+
 	private final static String LIST_QUERIES_SQL =
 		"select " +
 		"  c.name connection_name, " +
@@ -73,11 +79,12 @@ public class QueryStore extends SqlStore
 		"order by " +
 		"  c.name, c.description, q.description ";
 
-	public List<ConnectionListItem> listQueries(String user) throws Exception {
+	public QueryTree listQueries(String user) throws Exception {
 
 		ensureSchema(user);
 
-		List<ConnectionListItem> connections = new ArrayList<ConnectionListItem>();
+		QueryTree queryTree = new QueryTree();
+		queryTree.User = user;
 		
 		query(LIST_QUERIES_SQL, new SqlStore.QueryHandler() {
 				
@@ -91,7 +98,7 @@ public class QueryStore extends SqlStore
 				String connectionName = rs.getString("connection_name");
 				if (c == null || !c.Name.equals(connectionName)) {
 					c = new ConnectionListItem();
-					connections.add(c);
+					queryTree.Connections.add(c);
 					c.Name = connectionName;
 					c.Description = rs.getString("connection_description");
 					c.CanCreate = (rs.getInt("can_create") != 0);
@@ -111,7 +118,7 @@ public class QueryStore extends SqlStore
 			private ConnectionListItem c = null;
 		});
 
-		return(connections);
+		return(queryTree);
 	}
 
 	// +------------------------------+
@@ -228,8 +235,12 @@ public class QueryStore extends SqlStore
 		public String Description;
 		public String Owner;
 		public Boolean IsShared;
-		public QueryParam[] Params;
+		public String ParamsCsv;
 		public String Statement;
+
+		public static QueryDetails fromJson(String json) {
+			return(new Gson().fromJson(json, QueryDetails.class));
+		}
 	}
 
 	private final static String QUERY_DETAILS_SQL =
@@ -239,12 +250,12 @@ public class QueryStore extends SqlStore
 		"  q.description description, " +
 		"  q.owner owner, " +
 		"  q.is_shared is_shared, " +
-		"  q.params_json params_json, " +
+		"  q.params_csv params_csv, " +
 		"  case when (q.owner = ?) then q.statement else null end statement " +
 		"from " +
 		"  queries q " +
 		"inner join " +
-		"  access a on c.name = a.connection_name and a.user = ? " +
+		"  access a on q.connection_name = a.connection_name and a.user = ? " +
 		"where " +
 		"  (q.id = ?) and (q.is_shared or q.owner = ?)";
 
@@ -274,17 +285,42 @@ public class QueryStore extends SqlStore
 				qd.Owner = rs.getString("owner");
 				qd.IsShared = (rs.getInt("is_shared") != 0);
 				qd.Statement = rs.getString("statement");
-
-				String paramsJson = rs.getString("params_json");
-				if (!Easy.nullOrEmpty(paramsJson)) {
-					qd.Params = new Gson().fromJson(paramsJson, QueryParam[].class);
-				}
+				qd.ParamsCsv = rs.getString("params_csv");
 			}
 		});
 
 		return(details.Value);
 	}
 																	 
+	// +-------------+
+	// | deleteQuery |
+	// +-------------+
+
+	final static String DELETE_QUERY_SQL =
+		"delete from queries where id = ? and owner = ?";
+
+	public boolean deleteQuery(UUID id, String user) throws Exception {
+
+		ensureSchema(user);
+
+		SqlStore.Return<Boolean> success = new SqlStore.Return<Boolean>();
+		success.Value = false;
+			
+		update(DELETE_QUERY_SQL, new SqlStore.UpdateHandler() {
+				
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				stmt.setString(1, id.toString());
+				stmt.setString(2, user);
+			}
+				
+			public void confirm(int rowsAffected, int iter) {
+				success.Value = (rowsAffected == 1);
+			}
+		});
+
+		return(success.Value);
+	}
+
 	// +-----------+
 	// | saveQuery |
 	// +-----------+
@@ -294,12 +330,12 @@ public class QueryStore extends SqlStore
 	
 	final static String UPDATE_QUERY_SQL =
 		"update queries " +
-		"set description = ?, is_shared = ?, params_json = ?, statement = ? " +
-		"where id = ? ";
+		"set description = ?, is_shared = ?, params_csv = ?, statement = ? " +
+		"where id = ? and owner = ? ";
 
 	final static String INSERT_QUERY_SQL =
 		"insert into queries " +
-		"(id, connection_name, owner, description, is_shared, params_json, statement) " +
+		"(id, connection_name, owner, description, is_shared, params_csv, statement) " +
 		"values (?,?,?,?,?,?,?) ";
 
 	public UUID saveQuery(QueryDetails details, String user) throws Exception {
@@ -307,13 +343,7 @@ public class QueryStore extends SqlStore
 		ensureSchema(user);
 
 		if (details.Id != null) {
-			
-			QueryDetails detailsCurrent = getQueryDetails(details.Id, user);
-			
-			if (detailsCurrent == null) throw new Exception("saveQuery: no access to update");
-			if (!detailsCurrent.Owner.equals(user)) throw new Exception("saveQuery: owner mismatch");
-
-			return(updateQuery(details));
+			return(updateQuery(details, user));
 		}
 
 		if (!canCreateInConnection(details.ConnectionName, user)) {
@@ -326,9 +356,7 @@ public class QueryStore extends SqlStore
 		return(insertQuery(details));
 	}
 
-	private UUID updateQuery(QueryDetails details) throws Exception {
-
-		String paramsJson = (details.Params == null ? null : new Gson().toJson(details.Params));
+	private UUID updateQuery(QueryDetails details, String user) throws Exception {
 
 		SqlStore.Return<Boolean> ok = new SqlStore.Return<Boolean>();
 		ok.Value = false;
@@ -338,9 +366,10 @@ public class QueryStore extends SqlStore
 			public void prepare(PreparedStatement stmt, int iter) throws Exception {
 				stmt.setString(1, details.Description);
 				stmt.setInt(2, details.IsShared ? 1 : 0);
-				stmt.setString(3, paramsJson);
+				stmt.setString(3, details.ParamsCsv);
 				stmt.setString(4, details.Statement);
 				stmt.setString(5, details.Id.toString());
+				stmt.setString(6, user);
 			}
 				
 			public void confirm(int rowsAffected, int iter) {
@@ -353,8 +382,6 @@ public class QueryStore extends SqlStore
 
 	private UUID insertQuery(QueryDetails details) throws Exception {
 
-		String paramsJson = (details.Params == null ? null : new Gson().toJson(details.Params));
-
 		SqlStore.Return<Boolean> ok = new SqlStore.Return<Boolean>();
 		ok.Value = false;
 		
@@ -366,7 +393,7 @@ public class QueryStore extends SqlStore
 				stmt.setString(3, details.Owner);
 				stmt.setString(4, details.Description);
 				stmt.setInt(5, details.IsShared ? 1 : 0);
-				stmt.setString(6, paramsJson);
+				stmt.setString(6, details.ParamsCsv);
 				stmt.setString(7, details.Statement);
 			}
 				
@@ -549,7 +576,7 @@ public class QueryStore extends SqlStore
 		"    connection_name varchar(64) not null, " +
 		"    description varchar(64) not null, " +
 		"    statement text not null, " +
-		"    params_json text not null, " +
+		"    params_csv text null, " +
 		"    owner varchar(128) not null, " +
 		"    is_shared boolean null, " +
 		"    note varchar(256) null, " +

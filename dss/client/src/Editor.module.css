@@ -1,0 +1,23 @@
+
+.container {
+	padding-top: 5px;
+	margin: 0px;
+}
+
+.metadata {
+	margin-bottom: 12px;
+}
+
+.metadata .label {
+	margin-right: 8px;
+}
+
+.codemirror {
+	border: 1px solid grey;
+}
+
+.buttons button {
+	margin-left: 0px;
+	margin-right: 12px;
+	margin-top: 12px;
+}

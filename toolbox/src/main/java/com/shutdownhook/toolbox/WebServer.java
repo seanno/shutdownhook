@@ -54,8 +54,10 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
-		// If non-empty, will be sent in response as Access-Control-Allow-Origin
+		// If AllowedOrigin is non-empty, these are used to support CORS
 		public String AllowedOrigin;
+		public String AllowedMethods = "GET,PUT,POST,OPTIONS";
+		public String AllowedHeaders = "Content-Type,Authorization";
 		
 		// If non-empty, will be used to encrypt / decrypt session cookies automatically
 		public Encrypt.Config CookieEncrypt;
@@ -257,16 +259,22 @@ public class WebServer implements Closeable
 				
 			public void handle(HttpExchange exchange) {
 				
-				log.info(String.format("WebServer %s: %s",
+				log.info(String.format("WebServer %s: %s (%s)",
 									   handler.getClass().getName(),
-									   exchange.getRequestURI()));
+									   exchange.getRequestURI(),
+									   exchange.getRequestMethod()));
 
 				Response response = new Response(cookieEncrypt);
 				response.Status = 200; // optimistic!
 				
 				try {
 					Request request = setupRequest(exchange);
-					if (!redirectForAuth(request, response)) handler.handle(request, response);
+					
+					if (!handlePreflight(request, response) &&
+						!redirectForAuth(request, response)) {
+						
+						handler.handle(request, response);
+					}
 				}
 				catch (Exception e) {
 					
@@ -317,9 +325,7 @@ public class WebServer implements Closeable
 	
 	private void sendResponse(HttpExchange exchange, Response response) throws IOException {
 
-		if (cfg.AllowedOrigin != null) {
-			response.addHeader("Access-Control-Allow-Origin", cfg.AllowedOrigin);
-		}
+		handleCORS(response);
 		
 		if (response.Headers != null) {
 			for (String name : response.Headers.keySet()) {
@@ -518,6 +524,30 @@ public class WebServer implements Closeable
 		return(OAuth2Login.State.rehydrate(dehydrated));
 	}
 	
+	// +------+
+	// | CORS |
+	// +------+
+
+	private boolean handlePreflight(Request request, Response response) {
+		
+		if (cfg.AllowedOrigin == null) return(false);
+		if (!request.Method.equalsIgnoreCase("OPTIONS")) return(false);
+
+		response.addHeader("Access-Control-Allow-Origin", cfg.AllowedOrigin);
+		response.addHeader("Access-Control-Allow-Methods", cfg.AllowedMethods);
+		response.addHeader("Access-Control-Allow-Headers", cfg.AllowedHeaders);
+		response.addHeader("Access-Control-Allow-Credentials", "true");
+		response.Status = 204; // success with no content
+		
+		return(true);
+	}
+
+	private void handleCORS(Response response) {
+		
+		if (cfg.AllowedOrigin == null) return;
+		
+		response.addHeader("Access-Control-Allow-Origin", cfg.AllowedOrigin);
+	}
 	// +---------+
 	// | Helpers |
 	// +---------+

@@ -65,12 +65,37 @@ public class SqlStore
 	// | query |
 	// +-------+
 
+	// select statement returning a single result set
+	
 	public interface QueryHandler {
 		default public void prepare(PreparedStatement stmt) throws Exception { } 
 		public void row(ResultSet rs, int irow) throws Exception;
 	}
 
 	public void query(String sql, QueryHandler handler) throws Exception {
+
+		execute(sql, new ExecuteHandler() {
+			public void prepare(PreparedStatement stmt) throws Exception {
+				handler.prepare(stmt);
+			}
+				
+			public void row(ResultSet rs, int irow, int iresult) throws Exception {
+				if (iresult == 0) handler.row(rs, irow);
+			}
+		});
+	}
+
+	// +---------+
+	// | execute |
+	// +---------+
+	
+	public interface ExecuteHandler {
+		default public void prepare(PreparedStatement stmt) throws Exception { } 
+		default public void row(ResultSet rs, int irow, int iresult) throws Exception { }
+		default public void update(int count, int iresult) throws Exception { }
+	}
+
+	public void execute(String sql, ExecuteHandler handler) throws Exception {
 
 		Connection cxn = null;
 		PreparedStatement stmt = null;
@@ -81,11 +106,32 @@ public class SqlStore
 			stmt = cxn.prepareStatement(sql);
 			handler.prepare(stmt);
 
-			rs = stmt.executeQuery();
+			boolean isResultSet = stmt.execute();
 			int irow = 0;
+			int iresult = 0;
 			
-			while (rs != null && rs.next()) {
-				handler.row(rs, irow++);
+			while (true) {
+				
+				if (isResultSet) {
+					// iterate result set
+					rs = stmt.getResultSet();
+					while (rs != null && rs.next()) {
+						handler.row(rs, irow++, iresult);
+					}
+				}
+				else {
+					int updateCount = stmt.getUpdateCount();
+					if (updateCount == -1) {
+						// no more results
+						break;
+					}
+
+					// tell handler about update 
+					handler.update(updateCount, iresult);
+				}
+
+				++iresult;
+				isResultSet = stmt.getMoreResults();
 			}
 		}
 		finally {

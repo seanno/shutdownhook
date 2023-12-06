@@ -1,0 +1,51 @@
+
+.container {
+	border-top: 4px solid lightgrey;
+}
+
+.container h1 {
+	font-size: larger;
+	margin-left: 2px;
+	margin-top: 2px;
+}
+
+.buttons {
+	float: right;
+	padding-top: 6px;
+	padding-bottom: 8px;
+}
+
+.results {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 18px;
+}
+
+.results td, .results th {
+	border: 1px solid black;
+	padding: 6px;
+	font-size: smaller;
+}
+
+.params {
+	display: grid;
+    grid-template-columns: 100px 1fr;
+}
+
+.label {
+	margin-right: 8px;
+	grid-column: 1;
+	text-align: right; 
+}
+
+.param {
+	margin-bottom: 6px;
+	grid-column: 2;
+}
+
+.error {
+	margin-top: 18px;
+	color: red;
+}
+
+

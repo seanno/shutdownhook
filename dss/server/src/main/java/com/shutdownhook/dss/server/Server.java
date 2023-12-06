@@ -6,6 +6,8 @@
 package com.shutdownhook.dss.server;
 
 import java.io.Closeable;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 import java.util.logging.Logger;
 
@@ -29,6 +31,10 @@ public class Server implements Closeable
 		public SqlStore.Config Sql = new SqlStore.Config();
 
 		public String ListQueriesUrl = "/queries";
+		public String GetQueryUrl = "/query/details";
+		public String SaveQueryUrl = "/query/save";
+		public String RunQueryUrl = "/query/run";
+		public String DeleteQueryUrl = "/query/delete";
 		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -48,7 +54,10 @@ public class Server implements Closeable
 		server = WebServer.create(cfg.WebServer);
 
 		registerListQueries();
+		registerGetQuery();
+		registerSaveQuery();
 		registerRunQuery();
+		registerDeleteQuery();
 		
 		server.registerEmptyHandler("/favicon.ico", 404);
 	}
@@ -61,6 +70,50 @@ public class Server implements Closeable
 	public void runSync() throws Exception { server.runSync(); }
 	public void close() { server.close(); }
 
+	// +------------------+
+	// | registerGetQuery |
+	// +------------------+
+
+	private void registerGetQuery() throws Exception {
+		server.registerHandler(cfg.GetQueryUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				UUID id = UUID.fromString(request.QueryParams.get("id"));
+				response.setJson(gson.toJson(store.getQueryDetails(id, getAuthEmail(request))));
+			}
+		});
+	}
+	
+	// +-------------------+
+	// | registerSaveQuery |
+	// +-------------------+
+
+	private void registerSaveQuery() throws Exception {
+		server.registerHandler(cfg.SaveQueryUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				QueryStore.QueryDetails details = QueryStore.QueryDetails.fromJson(request.Body);
+				UUID id = store.saveQuery(details, getAuthEmail(request));
+				response.setJson(String.format("{ \"id\": \"%s\" }", id.toString()));
+			}
+		});
+	}
+	
+	// +---------------------+
+	// | registerDeleteQuery |
+	// +---------------------+
+
+	private void registerDeleteQuery() throws Exception {
+		server.registerHandler(cfg.DeleteQueryUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				
+				UUID id = UUID.fromString(request.QueryParams.get("id"));
+				boolean success = store.deleteQuery(id, getAuthEmail(request));
+				
+				response.setJson(String.format("{ \"success\": %s }",
+											   success ? "true" : "false"));
+			}
+		});
+	}
+	
 	// +---------------------+
 	// | registerListQueries |
 	// +---------------------+
@@ -77,50 +130,85 @@ public class Server implements Closeable
 	// | registerRunQuery |
 	// +------------------+
 
-	public static class RunQueryBody
+	public static class RunQueryInfo
 	{
 		public String Connection;
-		public String Sql; 
-		public String QueryId;
-		public Object[] Params;
+		public String Statement; 
+		public UUID QueryId;
+		public String[] Params;
 	}
 	
 	private void registerRunQuery() throws Exception {
-		/*
+
 		server.registerHandler(cfg.RunQueryUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 
-				if (!"POST".equals(request.Method)) throw new Exception("invalid method");
-				if (request.Body == null) throw new Exception("body required");
+				RunQueryInfo runInfo = ("POST".equalsIgnoreCase(request.Method)
+										? runInfoFromBody(request)
+										: runInfoFromQueryString(request));
+
+				if (runInfo == null) throw new Exception("Parameters missing");
 				
 				String user = getAuthEmail(request);
-				RunQueryBody body = new Gson().fromJson(request.Body, RunQueryBody.class);
 
-				QueryStore.ExecuteInfo exInfo;
-				String connectionString;
-				String sql;
+				QueryStore.ExecutionInfo exInfo;
 				
-				if (body.Sql != null) {
-					// user must be an editor to run arbitrary sql
-					exInfo = store.lookupConnectionForExecute(body.Connection, user);
-					if (exInfo == null) { response.Status = 401; return; }
-					exInfo.Sql = body.Sql;
+				if (runInfo.Statement != null) {
+					// check for ability to run arbitrary sql in connection
+					exInfo = new QueryStore.ExecutionInfo();
+					exInfo.Statement = runInfo.Statement;
+					exInfo.ConnectionString = store.getConnectionStringForCreate(runInfo.Connection, user);
+					if (exInfo.ConnectionString == null) { response.Status = 401; return; }
 				}
-				else if (body.QueryId != null) {
-					exInfo = store.lookupQueryForExecute(UUID.fromString(body.QueryId), user);
+				else if (runInfo.QueryId != null) {
+					// check for ability to run given query
+					exInfo = store.getQueryExecutionInfo(runInfo.QueryId, user);
 					if (exInfo == null) { response.Status = 401; return; }
 				}
 				else {
-					throw new Exception("body must include Sql or QueryId");
+					throw new Exception("request must include RunQueryInfo in body or params");
 				}
 
-				QueryRunner.Result result =
-					runner.run(exInfo.ConnectionString, exInfo.Sql, body.Params);
+				QueryRunner.QueryResults results =
+					runner.run(exInfo.ConnectionString, exInfo.Statement, runInfo.Params);
 				
-				response.setJson(gson.toJson(result));
+				response.setJson(gson.toJson(results));
 			}
 		});
-		*/
+	}
+
+	private RunQueryInfo runInfoFromBody(Request request) {
+		return(new Gson().fromJson(request.Body, RunQueryInfo.class));
+	}
+
+	private RunQueryInfo runInfoFromQueryString(Request request) {
+		RunQueryInfo runInfo = new RunQueryInfo();
+		runInfo.Connection = request.QueryParams.get("connection");
+		runInfo.Statement = request.QueryParams.get("statement");
+
+		String queryIdStr = request.QueryParams.get("queryId");
+		if (queryIdStr != null) runInfo.QueryId = UUID.fromString(queryIdStr);
+
+		int i = 1;
+		List<String> params = new ArrayList<String>();
+		
+		while (true) {
+			String param = request.QueryParams.get("p" + Integer.toString(i++));
+			if (param == null) break;
+			params.add(param);
+		}
+
+		if (params.size() > 0) {
+			runInfo.Params = params.toArray(new String[0]);
+		}
+
+		if (runInfo.Connection == null ||
+			(runInfo.Statement == null || runInfo.QueryId == null)) {
+
+			return(null);
+		}
+
+		return(runInfo);
 	}
 
 	// +---------+

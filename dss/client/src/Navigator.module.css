@@ -1,0 +1,87 @@
+
+.container {
+	display: grid;
+    grid-template-columns: 100px 1fr 1fr;
+	gap: 10px;
+}
+
+.container div {
+	/* border: 1px dotted black; */
+}
+
+@media only screen and (max-width: 600px) {
+	.dataTable {
+		display: block;
+	}
+}
+
+/* +--------+
+   | Labels |
+   +--------+ */
+
+.navLabel {
+	grid-column: 1;
+	padding-top: 0px;
+	font-weight: 600;
+	text-align: right;
+	padding-right: 8px;
+}
+
+.connectionLabel {
+	grid-row: 1;
+	padding-top: 8px;
+}
+
+.queriesLabel {
+	grid-row: 2;
+}
+
+.editorLabel {
+	grid-row: 2;
+	padding-top: 4px;
+}
+
+/* +---------+
+   | Content |
+   +---------+ */
+
+.connectionSelect {
+	grid-column: 2 / span 2;
+	grid-row: 1;
+}
+
+.queriesList {
+	grid-row: 2;
+	padding-top: 0px;
+	padding-left: 14px;
+	border-left: 1px dotted grey;
+}
+
+.queriesOwned {
+	grid-column: 2;
+}
+
+.queriesShared {
+	grid-column: 3;
+}
+
+.queriesHdr {
+	font-weight: 600;
+}
+
+.queriesList ul {
+	margin-top: 0px;
+	padding-left: 18px;
+}
+
+.editorContent {
+	grid-row: 2;
+	grid-column: 2 / span 2;
+	padding-top: 0px;
+}
+
+.runnerContent {
+	grid-row: 3;
+	grid-column: 1 / span 3;
+	padding-top: 0px;
+}
