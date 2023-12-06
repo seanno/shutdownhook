@@ -414,19 +414,23 @@ public class QueryStore extends SqlStore
 		if (ensuredSchema) return;
 
 		try {
+			boolean creating = !tableExists("connections");
+			
 			ensureTable("connections", CREATE_CONNECTIONS_TABLE);
 			ensureTable("access", CREATE_ACCESS_TABLE);
 			ensureTable("queries", CREATE_QUERIES_TABLE);
 			
 			ensureAdminConnection();
 			ensureFirstAdminUser(user);
+
+			if (creating) insertAdminQueries(user);
 		}
 		finally {
 			// for better or worse!
 			ensuredSchema = true;
 		}
 	}
-	
+
 	// need DSS represented in the connections list
 
 	private void ensureAdminConnection() throws Exception {
@@ -543,6 +547,48 @@ public class QueryStore extends SqlStore
 		});
 	}
 
+	// insert some useful queries against the DSS connection
+
+	public static class AdminQueryInfo
+	{
+		public String description;
+		public String statement;
+		public String parameters;
+		public Integer is_shared;
+	}
+
+	private final static String INSERT_ADMIN_QUERY_SQL =
+		"insert into queries " +
+		"(id, connection_name, description, statement, params_csv, owner, is_shared) " +
+		"values(?,?,?,?,?,?,?) ";
+	
+	private void insertAdminQueries(String user) throws Exception {
+
+		String queriesJson = Easy.stringFromResource("dssDML.json");
+		AdminQueryInfo[] queries = new Gson().fromJson(queriesJson, AdminQueryInfo[].class);
+
+		log.info(String.format("Inserting %d admin queries", queries.length));
+		
+		update(INSERT_ADMIN_QUERY_SQL, new SqlStore.UpdateHandler() {
+				
+			public boolean proceed(int iter) { 
+				return(iter < queries.length);
+			}
+				
+			public void prepare(PreparedStatement stmt, int iter) throws Exception {
+				AdminQueryInfo info = queries[iter];
+				stmt.setString(1, UUID.randomUUID().toString());
+				stmt.setString(2, DSS_CONNECTION_NAME);
+				stmt.setString(3, info.description);
+				stmt.setString(4, info.statement);
+				stmt.setString(5, info.parameters);
+				stmt.setString(6, user);
+				stmt.setInt(7, info.is_shared);
+			}
+		});
+
+	}
+	
 	// +--------+
 	// | Schema |
 	// +--------+

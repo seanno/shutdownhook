@@ -29,7 +29,7 @@
 
 .params {
 	display: grid;
-    grid-template-columns: 100px 1fr;
+    grid-template-columns: minmax(150px,auto) 1fr;
 }
 
 .label {

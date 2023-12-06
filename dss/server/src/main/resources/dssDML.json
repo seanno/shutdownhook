@@ -1,0 +1,38 @@
+[
+  {
+	'description': 'connections: add new',
+	'statement': 'insert into connections (name, description, connection_string) values (?,?,?)',
+	'parameters': 'name,description,connection_string',
+	'is_shared': 1
+  },
+  {
+	'description': 'connections: grant access',
+	'statement': 'insert into access (connection_name, user, can_create) values (?,?,?)',
+	'parameters': 'connection_name,user,can_create:0',
+	'is_shared': 1
+  },
+  {
+	'description': 'connections: remove access',
+	'statement': 'delete from access where connection_name = ? and user = ?',
+	'parameters': 'connection_name,user',
+	'is_shared': 1
+  },
+  {
+	'description': 'connections: all',
+	'statement': 'select * from connections',
+	'parameters': '',
+	'is_shared': 1
+  },
+  {
+	'description': 'access: all',
+	'statement': 'select * from access',
+	'parameters': '',
+	'is_shared': 1
+  },
+  {
+	'description': 'queries: all',
+	'statement': 'select * from queries',
+	'parameters': '',
+	'is_shared': 1
+  }
+]
