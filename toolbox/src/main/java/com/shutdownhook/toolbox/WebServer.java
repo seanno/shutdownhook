@@ -19,6 +19,7 @@ import java.lang.IllegalArgumentException;
 import java.lang.InterruptedException;
 import java.lang.Runtime;
 import java.net.InetSocketAddress;
+import java.nio.file.Files;
 import java.util.List;
 import java.util.Map;
 import java.util.HashMap;
@@ -70,9 +71,35 @@ public class WebServer implements Closeable
 		// This OVERRIDES OAuth2 settings --- TEST/DEV ONLY!
 		public String OAuth2ForceState;
 
-		// optional directory holding static pages. Each .html or .js file in
-		// this directory will be exposed as a static route at /basename.
+		// optional directory holding static pages. Each file with an extension
+		// found in StaticPagesExtensionMap will be exposed as a static route.
+		// Subdirectories are included. We use a whitelist here to provide a bit
+		// of protection from accidentally including unwanted files.
 		public String StaticPagesDirectory;
+
+		// Same as above, but the content is in a zip file that can be on the
+		// file system or in a resource (prefixed by '@'). Content will be extracted
+		// to a temp directory, served from there, and deleted on exit.
+		public String StaticPagesZip;
+
+		public Boolean StaticPagesRouteHtmlWithoutExtension = true;
+		public String StaticPagesIndexFile = "index.html";
+		
+		public Map<String,String> StaticPagesExtensionMap = Map.ofEntries(
+			  Map.entry("txt", "text/plain"),
+			  Map.entry("html", "text/html"),
+			  Map.entry("htm", "text/html"),
+			  Map.entry("js", "text/javascript"),
+			  Map.entry("css", "text/css"),
+			  Map.entry("json", "application/json"),
+			  Map.entry("map", "application/json"),
+			  Map.entry("jpg", "image/jpeg"),
+			  Map.entry("jpeg", "image/jpeg"),
+			  Map.entry("png", "image/x-png"),
+			  Map.entry("ico", "image/x-icon"),
+			  Map.entry("woff", "font/woff"),
+			  Map.entry("woff2", "font/woff2")
+		);
 	}
 
 	// +---------------------------+
@@ -201,6 +228,12 @@ public class WebServer implements Closeable
 		catch (InterruptedException e) {
 			// eat it
 		}
+
+		if (staticPagesTemp != null) {
+			try { Easy.recursiveDelete(staticPagesTemp); }
+			catch (Exception e) { /* eat it */ }
+			staticPagesTemp = null;
+		}
 	}
 
 	public void runSync() {
@@ -237,6 +270,18 @@ public class WebServer implements Closeable
 			public void handle(Request request, Response response) throws Exception {
 				response.ContentType = contentType;
 				response.Body = body;
+			}
+		});
+	}
+
+	public void registerFileHandler(String urlPrefix,
+									final File file,
+									final String contentType) {
+
+		registerHandler(urlPrefix, new Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				response.ContentType = contentType;
+				response.BodyFile = file;
 			}
 		});
 	}
@@ -425,29 +470,55 @@ public class WebServer implements Closeable
 
 	private void registerStaticRoutes() throws Exception {
 		
-		if (cfg.StaticPagesDirectory == null) {
-			return;
+		if (cfg.StaticPagesDirectory != null) {
+
+			log.info(String.format("Registering pages from %s", cfg.StaticPagesDirectory));
+
+			registerStaticRoutesHelper(new File(cfg.StaticPagesDirectory), "/");
 		}
 
-		File routesDir = new File(cfg.StaticPagesDirectory);
-		for (File htmlFile : routesDir.listFiles()) {
+		if (cfg.StaticPagesZip != null) {
 
-			String name = htmlFile.getName();
+			staticPagesTemp = Files.createTempDirectory("shweb").toFile();
+			String zipPath = new File(staticPagesTemp, "pages.zip").getAbsolutePath();
+			Easy.smartyPathToFile(cfg.StaticPagesZip, zipPath);
+			Easy.unzipToPath(zipPath, staticPagesTemp.getAbsolutePath());
+			
+			log.info(String.format("Registering pages from %s (%s)",
+								   staticPagesTemp.getAbsolutePath(),
+								   cfg.StaticPagesZip));
+								   
+			registerStaticRoutesHelper(staticPagesTemp, "/");
+		}
+	}
+	
+	private void registerStaticRoutesHelper(File dir, String prefix) throws Exception {
+		
+		for (File file : dir.listFiles()) {
+
+			String name = file.getName();
+
+			if (file.isDirectory()) {
+				registerStaticRoutesHelper(file, prefix + name + "/");
+				continue;
+			}
+			
 			int ichLastDot = name.lastIndexOf(".");
+			if (ichLastDot == -1) continue;
 
-			if (ichLastDot != -1) {
+			String ext = name.substring(ichLastDot + 1).toLowerCase();
 
-				String ext = name.substring(ichLastDot);
-				String base = name.substring(0, ichLastDot);
+			if (cfg.StaticPagesExtensionMap.containsKey(ext)) {
 
-				boolean isHtml = ext.equalsIgnoreCase(".html");
-				boolean isJs = ext.equalsIgnoreCase(".js");
-				
-				if (isHtml || isJs) {
+				String route =
+					(cfg.StaticPagesRouteHtmlWithoutExtension && ext.equals("html")
+					 ? name.substring(0, ichLastDot) : name);
 
-					registerStaticHandler("/" + base + (isHtml ? "" : ".js"),
-										  Easy.stringFromFile(htmlFile.getAbsolutePath()),
-										  "text/" + (isHtml ? "html" : "javascript"));
+				String contentType = cfg.StaticPagesExtensionMap.get(ext);
+				registerFileHandler(prefix + route, file, contentType);
+
+				if (name.equals(cfg.StaticPagesIndexFile)) {
+					registerFileHandler(prefix, file, contentType);
 				}
 			}
 		}
@@ -590,6 +661,8 @@ public class WebServer implements Closeable
 	private ExecutorService pool;
 	private OAuth2Login oauth2;
 	private Encrypt cookieEncrypt;
+
+	private File staticPagesTemp; 
 	
 	private final static Logger log = Logger.getLogger(WebServer.class.getName());
 }

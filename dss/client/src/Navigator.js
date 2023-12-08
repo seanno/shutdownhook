@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Link, MenuItem, Select } from '@mui/material';
+import { Button, List, ListItem, ListItemButton, ListItemText, ListSubheader, MenuItem, Select } from '@mui/material';
 import { serverFetchQueries, serverFetchQuery } from './lib/server.js';
 
 import Editor from './Editor.js';
@@ -12,6 +12,7 @@ export default function Navigator() {
   const [queryTree, setQueryTree] = useState(undefined);
   const [connection, setConnection] = useState(undefined);
   const [query, setQuery] = useState(undefined);
+  const [selectedQuery, setSelectedQuery] = useState(undefined);
   const [runningQuery, setRunningQuery] = useState(undefined);
 
   // +---------+
@@ -21,10 +22,11 @@ export default function Navigator() {
   useEffect(() => {
 
 	if (queryTree !== undefined) return;
-	
+
 	serverFetchQueries().then((tree) => {
 	  
 	  setQueryTree(tree);
+	  setSelectedQuery(undefined);
 
 	  // if connection previously set, try to find it
 	  if (connection !== undefined) {
@@ -68,7 +70,7 @@ export default function Navigator() {
 	setRunningQuery(undefined);
 	serverFetchQuery(queryId).then((q) => setQuery(q));
   }
-
+  
   function runQuery(queryId) {
 	serverFetchQuery(queryId).then((q) => setRunningQuery(q));
   }
@@ -123,67 +125,73 @@ export default function Navigator() {
 	  return(undefined);
 	}
 
-	const owned = renderQueriesSubset(true);
-	const shared = renderQueriesSubset(false);
-
 	return(
-	  <>
+	  <>	
 		<div className={styles.navLabel + ' ' + styles.queriesLabel}>Queries:</div>
-		{ owned }
-		{ shared }
+		<div className={styles.queriesList}>
+		  <List
+			dense={true}
+			disablePadding={true}
+			style={{ maxHeight: '100%', overflow: 'auto' }} >
+
+			{renderQueriesSubset(true)}
+			{renderQueriesSubset(false)}
+		  </List>
+		</div>
+		<div className={styles.queriesButtons}>
+		  
+		  { connection.CanCreate &&
+			<Button variant="outlined" onClick={newQuery}>New</Button> }
+		  
+		  { selectedQuery &&
+			<Button variant="outlined" onClick={() => runQuery(selectedQuery.Id)}>Run</Button> }
+		  
+		  { selectedQuery && (selectedQuery.Owner === queryTree.User) &&
+			<Button variant="outlined" onClick={() => editQuery(selectedQuery.Id)}>Edit</Button> }
+
+		</div>
 	  </>
 	);
   }
 
   function renderQueriesSubset(owned) {
 	
-	const label = (owned ? 'Owned' : 'Shared');
-	
-	const className = styles.queriesList + ' ' +
-		  (owned ? styles.queriesOwned : styles.queriesShared);
+	const label = (owned ? '--- Owned' : '--- Shared');
 	
 	const queries = connection.Queries.filter((qi) => {
 	  return((owned && queryTree.User === qi.Owner) ||
 			 (!owned && queryTree.User !== qi.Owner));
 	});
 
-	if (!owned && queries.length === 0) return(undefined);
+	if (queries.length === 0) return(undefined);
 
-	const queryLinks = queries.map((qi) => {
+	const elts = queries.map((qi) => {
 	  
-	  const star = (owned && qi.IsShared ? " *" : "");
-	  const hover = 'owned by ' + qi.Owner + (qi.IsShared ? '; shared' : '');
-	  const func = (owned ? editQuery : runQuery);
-	  
+	  const primaryText = qi.Description + (owned && qi.IsShared ? ' *' : '');
+	  const hoverText = `owned by ${qi.Owner}` + (qi.IsShared ?  ' (shared)' : '');
+
 	  return(
-		<li key={qi.Id}>
-		  <Link className={styles.queryLink}
-				component='button'
-				title={hover}
-				onClick={() => func(qi.Id) }>
-			{qi.Description}
-		  </Link>
-		  { star }
-		</li>
+		<ListItem key={`qry${qi.Id}`}>
+		  <ListItemButton
+			selected={qi === selectedQuery}
+			onClick={ () => setSelectedQuery(qi) }
+			style={{padding: '0px', lineHeight: 'normal' }} >
+
+			<ListItemText
+			  primary={primaryText}
+			  title={hoverText}
+			  style={{paddingLeft: '12px', lineHeight: 'normal' }}
+			  />
+		  </ListItemButton>
+		</ListItem>
 	  )
 	});
 
 	return(
-	  <div className={className}>
-
-		<div className={styles.queriesHdr}>{label}</div>
-		<ul>
-		  { owned && connection.CanCreate &&
-			<li>
-			  <Link className={styles.queryLink}
-					component='button'
-					onClick={() => newQuery() }>
-				Create New
-			  </Link>
-			</li> }
-		  { queryLinks }
-		</ul>
-	  </div>
+	  <>
+		<ListSubheader style={{ lineHeight: 'normal' }}>{label}</ListSubheader>
+		{elts}
+	  </>
 	);
 
   }

@@ -34,6 +34,7 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeFormatterBuilder;
 import java.time.temporal.ChronoField;
 import java.util.Base64;
+import java.util.Enumeration;
 import java.util.Iterator;
 import java.util.Locale;
 import java.util.HashMap;
@@ -47,6 +48,8 @@ import java.util.logging.Logger;
 import java.util.logging.LogManager;
 import java.util.zip.GZIPInputStream;
 import java.util.zip.GZIPOutputStream;
+import java.util.zip.ZipEntry;
+import java.util.zip.ZipFile;
 import javax.crypto.Mac;
 import javax.crypto.spec.SecretKeySpec;
 
@@ -170,6 +173,20 @@ public class Easy
 		}
 	}
 
+	public static void smartyPathToFile(String smartyPath,
+										String destinationPath) throws IOException {
+
+		InputStream stm = null;
+
+		try {
+			stm = streamFromSmartyPath(smartyPath);
+			inputStreamToFile(stm, destinationPath);
+		}
+		finally {
+			if (stm != null) stm.close();
+		}
+	}
+	
 	// +-----------------+
 	// | Dates and Times |
 	// +-----------------+
@@ -647,6 +664,57 @@ public class Easy
 		}
 	}
 	
+	// +-------+
+	// | Files |
+	// +-------+
+
+	public static void recursiveDelete(File file) throws Exception {
+		
+		if (!file.exists()) return;
+
+		if (file.isDirectory()) {
+			for (File child : file.listFiles()) {
+				recursiveDelete(child);
+			}
+		}
+
+		file.delete();
+	}
+
+	public static void unzipToPath(String zipPath, String destPath) throws Exception {
+
+		ZipFile zipFile = null;
+		InputStream stm = null;
+
+		try {
+			zipFile = new ZipFile(zipPath);
+
+			File destination = new File(destPath);
+			destination.mkdirs();
+
+			Enumeration<? extends ZipEntry> zipEntries = zipFile.entries();
+
+			while (zipEntries.hasMoreElements()) {
+				
+				ZipEntry zipEntry = zipEntries.nextElement();
+				File thisFile = new File(destination, zipEntry.getName());
+
+				thisFile.getParentFile().mkdirs();
+
+				if (!zipEntry.isDirectory()) {
+					stm = zipFile.getInputStream(zipEntry);
+					inputStreamToFile(stm, thisFile.getAbsolutePath());
+					stm.close(); stm = null;
+				}
+			}
+			
+		}
+		finally {
+			if (stm != null) stm.close();
+			if (zipFile != null) zipFile.close();
+		}
+	}
+
 	// +---------+
 	// | Strings |
 	// +---------+

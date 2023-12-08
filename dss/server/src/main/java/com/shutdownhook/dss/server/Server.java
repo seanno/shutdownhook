@@ -6,6 +6,7 @@
 package com.shutdownhook.dss.server;
 
 import java.io.Closeable;
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -30,11 +31,13 @@ public class Server implements Closeable
 		public WebServer.Config WebServer = new WebServer.Config();
 		public SqlStore.Config Sql = new SqlStore.Config();
 
-		public String ListQueriesUrl = "/queries";
-		public String GetQueryUrl = "/query/details";
-		public String SaveQueryUrl = "/query/save";
-		public String RunQueryUrl = "/query/run";
-		public String DeleteQueryUrl = "/query/delete";
+		public String ListQueriesUrl = "/data/queries";
+		public String GetQueryUrl = "/data/query/details";
+		public String SaveQueryUrl = "/data/query/save";
+		public String RunQueryUrl = "/data/query/run";
+		public String DeleteQueryUrl = "/data/query/delete";
+
+		public String ClientSiteZip = "@clientSite.zip";
 		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -42,10 +45,14 @@ public class Server implements Closeable
 	}
 	
 	public Server(Config cfg) throws Exception {
+		
 		this.cfg = cfg;
+		this.cfg.WebServer.StaticPagesZip = cfg.ClientSiteZip;
+
 		this.gson = new Gson();
 		this.store = new QueryStore(cfg.Sql);
 		this.runner = new QueryRunner();
+		
 		setupWebServer();
 	}
 	
@@ -220,7 +227,7 @@ public class Server implements Closeable
 		if (Easy.nullOrEmpty(user)) throw new Exception("missing auth email");
 		return(user);
 	}
-	
+
 	// +---------+
 	// | Members |
 	// +---------+

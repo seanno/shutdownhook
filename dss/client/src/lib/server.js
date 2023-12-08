@@ -1,28 +1,26 @@
 
-import config from './config.js';
-
 // +----------+
 // | Wrappers |
 // +----------+
 
 export async function serverFetchQueries() {
-  return(await serverFetch('/queries'));
+  return(await serverFetch('data/queries'));
 }
 
 export async function serverFetchQuery(id) {
-  return(await serverFetch('/query/details?id=' + encodeURIComponent(id)));
+  return(await serverFetch('data/query/details?id=' + encodeURIComponent(id)));
 }
 
 export async function serverSaveQuery(query) {
-  return(await serverFetch('/query/save', JSON.stringify(query)));
+  return(await serverFetch('data/query/save', JSON.stringify(query)));
 }
 
 export async function serverRunQuery(runQueryInfo) {
-  return(await serverFetch('/query/run', JSON.stringify(runQueryInfo)));
+  return(await serverFetch('data/query/run', JSON.stringify(runQueryInfo)));
 }
 
 export async function serverDeleteQuery(id) {
-  return(await serverFetch('/query/delete?id=' + encodeURIComponent(id)));
+  return(await serverFetch('data/query/delete?id=' + encodeURIComponent(id)));
 }
 
 // +--------+
@@ -58,7 +56,7 @@ export function paramDefaults(paramsCsv) {
 
 export async function serverFetch(relativeUrl, body) {
 
-  const url = config('serverBase') + relativeUrl;
+  const url = window.serverBase + relativeUrl;
   
   const options = {
 	method: (body ? 'POST' : 'GET'),

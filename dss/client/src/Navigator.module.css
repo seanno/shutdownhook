@@ -15,10 +15,6 @@
 	}
 }
 
-/* +--------+
-   | Labels |
-   +--------+ */
-
 .navLabel {
 	grid-column: 1;
 	padding-top: 0px;
@@ -27,51 +23,60 @@
 	padding-right: 8px;
 }
 
+/* +-------------+
+   | Connections |
+   +-------------+ */
+
 .connectionLabel {
 	grid-row: 1;
 	padding-top: 8px;
 }
-
-.queriesLabel {
-	grid-row: 2;
-}
-
-.editorLabel {
-	grid-row: 2;
-	padding-top: 4px;
-}
-
-/* +---------+
-   | Content |
-   +---------+ */
 
 .connectionSelect {
 	grid-column: 2 / span 2;
 	grid-row: 1;
 }
 
-.queriesList {
+/* +------------+
+   | Query List |
+   +------------+ */
+
+.queriesLabel {
 	grid-row: 2;
-	padding-top: 0px;
-	padding-left: 14px;
-	border-left: 1px dotted grey;
 }
 
-.queriesOwned {
+.queriesList {
+	border: 1px solid grey;
 	grid-column: 2;
+	grid-row: 2;
+	padding: 4px;
+	max-height: 150px;
+	overflow: auto;
 }
 
-.queriesShared {
+.queriesList li {
+	padding-left: 4px;
+	padding-top: 0px;
+	padding-bottom: 0px;
+}
+
+.queriesButtons {
 	grid-column: 3;
+	grid-row: 2;
 }
 
-.queriesHdr {
-	font-weight: 600;
+.queriesButtons button {
+	display: block;
+	margin-bottom: 6px;
 }
 
-.queriesList ul {
-	margin-top: 0px;
-	padding-left: 18px;
+/* +--------+
+   | Editor |
+   +--------+ */
+
+.editorLabel {
+	grid-row: 2;
+	padding-top: 4px;
 }
 
 .editorContent {
@@ -79,6 +84,10 @@
 	grid-column: 2 / span 2;
 	padding-top: 0px;
 }
+
+/* +--------+
+   | Runner |
+   +--------+ */
 
 .runnerContent {
 	grid-row: 3;
