@@ -72,6 +72,27 @@ export default function Runner({ query }) {
 	fetchResults();
   });
 
+  // +---------+
+  // | Buttons |
+  // +---------+
+
+  function refreshClick() {
+	setRefreshNow(true);
+  }
+
+  function renderButtons() {
+
+	const divStyle = (paramValues ? styles.param : styles.params);
+
+	return(
+	  <div className={divStyle}>
+		<Button variant="outlined"
+				disabled={missingParams()}
+				onClick={refreshClick}>Refresh</Button>
+	  </div>
+	);
+  }
+  
   // +------------+
   // | Parameters |
   // +------------+
@@ -88,7 +109,9 @@ export default function Runner({ query }) {
 
   function renderParamInputs() {
 
-	if (!paramValues) return;
+	if (!paramValues) {
+	  return(renderButtons());
+	}
 
 	const elts = parseParams(runQuery.ParamsCsv).map((p, index) => {
 	  return(
@@ -109,26 +132,14 @@ export default function Runner({ query }) {
 	  );
 	});
 
-	return(<div className={styles.params}>{elts}</div>);
-  }
-  
-  // +---------------+
-  // | renderButtons |
-  // +---------------+
-
-  function refreshClick() {
-	setRefreshNow(true);
-  }
-  
-  function renderButtons() {
-	
 	return(
-	  <div className={styles.buttons}>
-		<Button variant="outlined" disabled={missingParams()} onClick={refreshClick}>Refresh</Button>
+	  <div className={styles.params}>
+		{elts}
+		{renderButtons()}
 	  </div>
 	);
   }
-
+  
   // +--------------+
   // | renderResult |
   // +--------------+
@@ -194,7 +205,6 @@ export default function Runner({ query }) {
   return (
 	<div className={styles.container}>
 	  
-	  { renderButtons() }
 	  <h1>{runQuery.Description}</h1>
 	  
 	  { renderParamInputs() }
