@@ -28,6 +28,7 @@ public class OAuth2Login implements Closeable
 	public static final String PROVIDER_GOOGLE = "google";
 	public static final String PROVIDER_FACEBOOK = "facebook";
 	public static final String PROVIDER_GITHUB = "github";
+	public static final String PROVIDER_GITHUB_REAUTH = "github_reauth";
 	public static final String PROVIDER_AMAZON = "amazon";
 	public static final String PROVIDER_OTHER = "other";
 
@@ -51,6 +52,11 @@ public class OAuth2Login implements Closeable
 		
 		PROVIDER_MAP.put(PROVIDER_GITHUB, new ProviderInfo(
 			"https://github.com/login/oauth/authorize",
+			"https://github.com/login/oauth/access_token",
+			"user:email"));
+
+		PROVIDER_MAP.put(PROVIDER_GITHUB_REAUTH, new ProviderInfo(
+			"https://github.com/login/oauth/authorize?prompt=consent",
 			"https://github.com/login/oauth/access_token",
 			"user:email"));
 
@@ -99,6 +105,7 @@ public class OAuth2Login implements Closeable
 		public String Scope;
 
 		public String RedirectPath = "/__oauth2_redirect";
+		public String LogoutPath = "/__oauth2_logout";
 
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
@@ -265,7 +272,8 @@ public class OAuth2Login implements Closeable
 		if (!hasNonNull(jsonResponse, "access_token")) return(false);
 		state.token = jsonResponse.get("access_token").getAsString();
 
-		if (cfg.Provider.equals(PROVIDER_GITHUB)) {
+		if (cfg.Provider.equals(PROVIDER_GITHUB) ||
+			cfg.Provider.equals(PROVIDER_GITHUB_REAUTH)) {
 			fetchGithubInfo(state);
 		}
 		else if (cfg.Provider.equals(PROVIDER_AMAZON)) {

@@ -2,11 +2,17 @@
 
 cd client
 npm run build
+cd ..
 
-cd ../../toolbox
-mvn clean package install
+if [ "$1" != "skip_toolbox" ] ; then
+	
+	cd ../toolbox
+	mvn clean package install
+	cd ../dss
+	
+fi
 
-cd ../dss/server
+cd server
 mvn clean package
 
 cd ..

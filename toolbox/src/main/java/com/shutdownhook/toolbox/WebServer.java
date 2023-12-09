@@ -125,6 +125,7 @@ public class WebServer implements Closeable
 		public String RemoteAddress;
 		public String Referrer;
 		public boolean Secure;
+		public String QueryString;
 		public Map<String,String> QueryParams;
 		public Map<String,String> Cookies;
 		public Map<String,List<String>> Headers;
@@ -167,6 +168,15 @@ public class WebServer implements Closeable
 				
 			String cookie = name + "=" + Easy.urlEncode(valX) + "; HttpOnly";
 			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
+
+			addHeader("Set-Cookie", cookie);
+		}
+		
+		public void deleteSessionCookie(String name, Request request) {
+
+			String cookie = name + "=; HttpOnly";
+			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
+			cookie = cookie + "; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 
 			addHeader("Set-Cookie", cookie);
 		}
@@ -409,7 +419,8 @@ public class WebServer implements Closeable
 		request.Headers = exchange.getRequestHeaders();
 
 		// query string
-		request.QueryParams = Easy.parseQueryString(exchange.getRequestURI().getRawQuery());
+		request.QueryString = exchange.getRequestURI().getRawQuery();
+		request.QueryParams = Easy.parseQueryString(request.QueryString);
 
 		// cookies
 		request.Cookies = new HashMap<String,String>();
@@ -555,6 +566,17 @@ public class WebServer implements Closeable
 				response.setSessionCookie(cfg.OAuth2CookieName, state.dehydrate(), request);
 
 				response.redirect(targetURL);
+			}
+		});
+
+		registerHandler(cfg.OAuth2.LogoutPath, new Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				String redir = request.QueryParams.get("r");
+				if (Easy.nullOrEmpty(redir) || redir.indexOf("://") != -1) redir = "/";
+				
+				response.deleteSessionCookie(cfg.OAuth2CookieName, request);
+				response.redirect(redir);
 			}
 		});
 		
