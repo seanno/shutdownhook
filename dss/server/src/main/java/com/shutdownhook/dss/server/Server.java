@@ -150,9 +150,8 @@ public class Server implements Closeable
 		server.registerHandler(cfg.RunQueryUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 
-				RunQueryInfo runInfo = ("POST".equalsIgnoreCase(request.Method)
-										? runInfoFromBody(request)
-										: runInfoFromQueryString(request));
+				RunQueryInfo runInfo =
+					new Gson().fromJson(request.Body, RunQueryInfo.class);
 
 				if (runInfo == null) throw new Exception("Parameters missing");
 				
@@ -182,40 +181,6 @@ public class Server implements Closeable
 				response.setJson(gson.toJson(results));
 			}
 		});
-	}
-
-	private RunQueryInfo runInfoFromBody(Request request) {
-		return(new Gson().fromJson(request.Body, RunQueryInfo.class));
-	}
-
-	private RunQueryInfo runInfoFromQueryString(Request request) {
-		RunQueryInfo runInfo = new RunQueryInfo();
-		runInfo.Connection = request.QueryParams.get("connection");
-		runInfo.Statement = request.QueryParams.get("statement");
-
-		String queryIdStr = request.QueryParams.get("queryId");
-		if (queryIdStr != null) runInfo.QueryId = UUID.fromString(queryIdStr);
-
-		int i = 1;
-		List<String> params = new ArrayList<String>();
-		
-		while (true) {
-			String param = request.QueryParams.get("p" + Integer.toString(i++));
-			if (param == null) break;
-			params.add(param);
-		}
-
-		if (params.size() > 0) {
-			runInfo.Params = params.toArray(new String[0]);
-		}
-
-		if (runInfo.Connection == null ||
-			(runInfo.Statement == null || runInfo.QueryId == null)) {
-
-			return(null);
-		}
-
-		return(runInfo);
 	}
 
 	// +---------+

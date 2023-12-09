@@ -93,4 +93,5 @@
 	grid-row: 3;
 	grid-column: 1 / span 3;
 	padding-top: 0px;
+	border-top: 4px solid lightgrey;
 }

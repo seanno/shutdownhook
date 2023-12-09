@@ -8,10 +8,8 @@
 	margin-top: 6px;
 }
 
-.buttons {
-	float: right;
-	padding-top: 6px;
-	padding-bottom: 8px;
+.buttons button {
+	margin-right: 8px;
 }
 
 .results {
@@ -29,6 +27,7 @@
 .params {
 	display: grid;
     grid-template-columns: minmax(150px,auto) 1fr;
+	padding-bottom: 8px;
 }
 
 .label {

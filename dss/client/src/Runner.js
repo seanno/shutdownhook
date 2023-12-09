@@ -1,6 +1,7 @@
 
 import React, { useEffect, useState } from 'react';
 import { Button,TextField } from '@mui/material';
+import { b64uEncode, toCSV, toCSVLine, saveToFile } from './lib/util.js';
 import { parseParams, paramDefaults, serverRunQuery } from './lib/server.js';
 
 import styles from './Runner.module.css';
@@ -80,15 +81,63 @@ export default function Runner({ query }) {
 	setRefreshNow(true);
   }
 
+  function csvClick() {
+
+	let csv = '';
+
+	results.Results.forEach((r) => {
+	  if (!r.Rows || r.Rows.length === 0) return;
+	  csv += toCSVLine(r.Headers) + '\n' + toCSV(r.Rows) + '\n';
+	});
+
+	const fileName = runQuery.Description.replace(/[^a-zA-Z0-9]/g, '_') + '.csv';
+	
+	saveToFile(fileName, csv, 'text/csv');
+  }
+
+  function urlClick() {
+
+	let url = window.location.protocol + '//' + window.location.hostname;
+	if (window.location.port) url += ':' + window.location.port;
+
+	const urlQuery = {
+	  ConnectionName: runQuery.ConnectionName,
+	  Id: runQuery.Id,
+	  Description: runQuery.Description,
+	  Statement: runQuery.Statement
+	}
+
+	if (paramValues) {
+
+	  const params = parseParams(runQuery.ParamsCsv);
+	  let newParams = ''
+	  
+	  for (const i in paramValues) {
+		if (i > 0) newParams += ',';
+		newParams += params[i].Name + ':' + paramValues[i];
+	  }
+
+	  urlQuery.ParamsCsv = newParams;
+	}
+
+	url += '/?query=' + b64uEncode(JSON.stringify(urlQuery));
+	
+	window.open(url);
+  }
+
   function renderButtons() {
 
-	const divStyle = (paramValues ? styles.param : styles.params);
-
 	return(
-	  <div className={divStyle}>
+	  <div className={styles.buttons}>
 		<Button variant="outlined"
 				disabled={missingParams()}
 				onClick={refreshClick}>Refresh</Button>
+
+		{ results && <Button variant="outlined"
+							 onClick={csvClick}>Save as CSV</Button> }
+
+		{ results && <Button variant="outlined"
+							 onClick={urlClick}>Open as URL</Button> }
 	  </div>
 	);
   }
@@ -109,9 +158,7 @@ export default function Runner({ query }) {
 
   function renderParamInputs() {
 
-	if (!paramValues) {
-	  return(renderButtons());
-	}
+	if (!paramValues) return;
 
 	const elts = parseParams(runQuery.ParamsCsv).map((p, index) => {
 	  return(
@@ -135,7 +182,6 @@ export default function Runner({ query }) {
 	return(
 	  <div className={styles.params}>
 		{elts}
-		{renderButtons()}
 	  </div>
 	);
   }
@@ -208,6 +254,7 @@ export default function Runner({ query }) {
 	  <h1>{runQuery.Description}</h1>
 	  
 	  { renderParamInputs() }
+	  { renderButtons() }
 
 	  { results && renderResults() }
 	  { error && renderError() }
