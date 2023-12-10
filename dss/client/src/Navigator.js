@@ -5,6 +5,7 @@ import { serverFetchQueries, serverFetchQuery } from './lib/server.js';
 
 import Editor from './Editor.js';
 import Runner from './Runner.js';
+import SchemaViewer from './SchemaViewer.js';
 import styles from './Navigator.module.css';
 
 export default function Navigator() {
@@ -14,6 +15,7 @@ export default function Navigator() {
   const [query, setQuery] = useState(undefined);
   const [selectedQuery, setSelectedQuery] = useState(undefined);
   const [runningQuery, setRunningQuery] = useState(undefined);
+  const [viewSchema, setViewSchema] = useState(false);
 
   // +---------+
   // | Effects |
@@ -70,7 +72,7 @@ export default function Navigator() {
   // +--------+
 
   function newQuery() {
-	setRunningQuery(undefined);
+	setQueryRunnerView(undefined, viewSchema);
 	setQuery({
 	  'ConnectionName': connection.Name,
 	  'Description': 'New Query',
@@ -81,35 +83,43 @@ export default function Navigator() {
   }
 
   function editQuery(queryId) {
-	setRunningQuery(undefined);
+	setQueryRunnerView(undefined, viewSchema);
 	serverFetchQuery(queryId).then((q) => setQuery(q));
   }
   
   function runQuery(queryId) {
-	serverFetchQuery(queryId).then((q) => setRunningQuery(q));
+	serverFetchQuery(queryId).then((q) => setQueryRunnerView(q, false));
   }
 
   function closeEditor(refreshTree) {
 	if (refreshTree) setQueryTree(undefined);
-	setRunningQuery(undefined);
+	setQueryRunnerView(undefined, false);
 	setQuery(undefined);
   }
 
   function runFromEditor(q) {
-	setRunningQuery(q);
+	setQueryRunnerView(q, false);
+  }
+
+  function viewSchemaClick() {
+	setQueryRunnerView(undefined, true);
   }
 
   // +-------------------+
   // | renderQueryRunner |
   // +-------------------+
 
+  function setQueryRunnerView(q, schema) {
+	setRunningQuery(q);
+	setViewSchema(schema);
+  }
+  
   function renderQueryRunner() {
 	return(
-	  <>
-		<div className={styles.runnerContent}>
-		  <Runner query={runningQuery} />
-		</div>
-	  </>
+	  <div className={styles.runnerContent}>
+		{ runningQuery && <Runner query={runningQuery} /> }
+		{ viewSchema && connection && <SchemaViewer connectionName={connection.Name} /> }
+	  </div>
 	);
   }
 
@@ -162,6 +172,9 @@ export default function Navigator() {
 		  
 		  { selectedQuery && (selectedQuery.Owner === queryTree.User) &&
 			<Button variant="outlined" onClick={() => editQuery(selectedQuery.Id)}>Edit</Button> }
+
+		  { connection.CanCreate &&
+			<Button variant="outlined" onClick={viewSchemaClick}>Schema</Button> }
 
 		</div>
 	  </>
@@ -250,12 +263,13 @@ export default function Navigator() {
   // | Main Render |
   // +-------------+
 
-  return (
+    return (
 	<div className={styles.container}>
 	  { renderConnectionChooser() }
 	  { !query && renderQueryList() }
 	  { query && renderQueryEditor() }
-	  { runningQuery && renderQueryRunner() }
+
+	  { (runningQuery || viewSchema) && renderQueryRunner() }
 	</div>
   );
   

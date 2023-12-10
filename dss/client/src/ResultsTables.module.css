@@ -1,0 +1,23 @@
+
+.container {
+}
+
+.container caption {
+	font-size: larger;
+	text-align: left;
+	font-weight: bold;
+	padding-bottom: 4px;
+}
+
+.container table {
+	width: 100%;
+	border-collapse: collapse;
+	margin-top: 18px;
+}
+
+.container td, .container th {
+	border: 1px solid black;
+	padding: 6px;
+	font-size: smaller;
+}
+

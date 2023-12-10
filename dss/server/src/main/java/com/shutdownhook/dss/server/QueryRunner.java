@@ -34,6 +34,7 @@ public class QueryRunner
 
 	public static class Result
 	{
+		public String Label;
 		public List<String> Headers = new ArrayList<String>();
 		public List<List<String>> Rows = new ArrayList<List<String>>();
 		public Integer UpdateCount;
@@ -122,6 +123,49 @@ public class QueryRunner
 				}
 			}
 		});
+
+		return(results);
+	}
+
+	// +----------+
+	// | Metadata |
+	// +----------+
+
+	public QueryResults getTableInfo(String connectionString) throws Exception {
+
+		SqlStore store = getStore(connectionString);
+		QueryResults results = new QueryResults();
+
+		try {
+			List<SqlStore.TableInfo> tables = store.getTableInfo();
+			
+			for (SqlStore.TableInfo tableInfo : tables) {
+				
+				Result result = new Result();
+				results.Results.add(result);
+
+				result.Label = tableInfo.Name;
+				
+				result.Headers.add("Column");
+				result.Headers.add("Type");
+				result.Headers.add("Nullable");
+
+				for (SqlStore.ColumnInfo columnInfo : tableInfo.Columns) {
+
+					List<String> row = new ArrayList<String>();
+					result.Rows.add(row);
+
+					row.add(columnInfo.Name);
+					row.add(columnInfo.Type);
+					row.add(Boolean.toString(columnInfo.Nullable));
+				}
+			}
+		}
+		catch (SQLException e) {
+			results = new QueryResults();
+			results.Error = e.getMessage();
+			if (results.Error == null) results.Error = e.toString();
+		}
 
 		return(results);
 	}

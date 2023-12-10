@@ -5,7 +5,10 @@
 
 package com.shutdownhook.toolbox;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.sql.Connection;
+import java.sql.DatabaseMetaData;
 import java.sql.DriverManager;
 import java.sql.Statement;
 import java.sql.PreparedStatement;
@@ -230,6 +233,78 @@ public class SqlStore
 		}
 
 		return(exists);
+	}
+
+	// +--------+
+	// | schema |
+	// +--------+
+
+	public static class TableInfo
+	{
+		public String Name;
+		public List<ColumnInfo> Columns = new ArrayList<ColumnInfo>();
+	}
+	
+	public static class ColumnInfo
+	{
+		public String Name;
+		public String Type;
+		public Boolean Nullable;
+	}
+	
+	public List<TableInfo> getTableInfo() throws Exception {
+
+		Connection cxn = null;
+		ResultSet rsTables = null;
+		ResultSet rsColumns = null;
+
+		List<TableInfo> tables = new ArrayList<TableInfo>();
+
+		try {
+			cxn = getConnection();
+			DatabaseMetaData metaData = cxn.getMetaData();
+			rsTables = metaData.getTables(null, null, null, new String[] { "TABLE" });
+
+			while (rsTables.next()) {
+				
+				TableInfo tableInfo = new TableInfo();
+				tables.add(tableInfo);
+
+				String catalog = rsTables.getString("TABLE_CAT");
+				String schema = rsTables.getString("TABLE_SCHEM");
+				String name = rsTables.getString("TABLE_NAME");
+
+				String fullName = String.format("%s%s%s",
+												(catalog == null ? "" : catalog + "."),
+												(schema == null ? "" : schema + "."),
+												name);
+
+				tableInfo.Name = fullName;
+
+				rsColumns = metaData.getColumns(catalog, schema, name, null);
+
+				while (rsColumns.next()) {
+
+					ColumnInfo columnInfo = new ColumnInfo();
+					tableInfo.Columns.add(columnInfo);
+
+					columnInfo.Name = rsColumns.getString("COLUMN_NAME");
+					columnInfo.Type = rsColumns.getString("TYPE_NAME");
+
+					short nullable = rsColumns.getShort("NULLABLE");
+					columnInfo.Nullable = (nullable == DatabaseMetaData.attributeNullable);
+				}
+
+				rsColumns.close();
+			}
+		}
+		finally {
+			if (rsColumns != null) rsColumns.close();
+			if (rsTables != null) rsTables.close();
+			if (cxn != null) cxn.close();
+		}
+
+		return(tables);
 	}
 
 	// +---------------------+

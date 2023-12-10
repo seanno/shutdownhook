@@ -4,6 +4,8 @@ import { Button,TextField } from '@mui/material';
 import { b64uEncode, toCSV, toCSVLine, saveToFile } from './lib/util.js';
 import { parseParams, paramDefaults, serverRunQuery } from './lib/server.js';
 
+import ResultsTables from './ResultsTables.js';
+
 import styles from './Runner.module.css';
 
 export default function Runner({ query }) {
@@ -186,54 +188,6 @@ export default function Runner({ query }) {
 	);
   }
   
-  // +--------------+
-  // | renderResult |
-  // +--------------+
-
-  function renderResult(result, index) {
-
-	if (!result.Rows || result.Rows.length === 0) {
-	  
-	  const msg = result.UpdateCount
-			? `${result.UpdateCount} row${result.UpdateCount > 1 ? 's' : ''} affected`
-			: 'no results';
-	
-	  return(<div key={`res${index}`} className={styles.updateResult}>{msg}</div>);
-	}
-	
-	const headerCells = result.Headers.map((hdr, ihdr) => {
-	  return(
-		<th key={`hdr-${ihdr}`}>{hdr}</th>
-	  );
-	});
-											
-	const bodyRows = result.Rows.map((r, irow) => {
-	  return(
-		<tr key={`row-${irow}`}>
-		  { r.map((cell, icell) => <td key={`cell-${icell}`}>{cell}</td>) }
-		</tr>
-	  );
-	});
-
-	return(
-	  <table key={`res${index}`} className={styles.results}>
-		<thead><tr>{ headerCells }</tr></thead>
-		<tbody>{ bodyRows }</tbody>
-	  </table>
-	);
-  }
-
-  function renderResults() {
-	
-	if (!results.Results || results.Results.length === 0) {
-	  return(<div className={styles.updateResult}>no results</div>);
-	}
-
-	//console.log(JSON.stringify(results, null, 2));
-	const elts = results.Results.map(renderResult);
-	return(<>{elts}</>);
-  }
-
   // +-------------+
   // | renderError |
   // +-------------+
@@ -256,7 +210,7 @@ export default function Runner({ query }) {
 	  { renderParamInputs() }
 	  { renderButtons() }
 
-	  { results && renderResults() }
+	  { results && <ResultsTables results={results} /> }
 	  { error && renderError() }
 	  
 	</div>

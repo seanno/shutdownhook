@@ -23,6 +23,11 @@ export async function serverDeleteQuery(id) {
   return(await serverFetch('data/query/delete?id=' + encodeURIComponent(id)));
 }
 
+export async function serverGetSchema(connectionName) {
+  return(await serverFetch('data/connection/schema?connection=' +
+						   encodeURIComponent(connectionName)));
+}
+
 // +--------+
 // | Params |
 // +--------+

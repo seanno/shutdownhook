@@ -36,6 +36,7 @@ public class Server implements Closeable
 		public String SaveQueryUrl = "/data/query/save";
 		public String RunQueryUrl = "/data/query/run";
 		public String DeleteQueryUrl = "/data/query/delete";
+		public String GetSchemaUrl = "/data/connection/schema";
 
 		public String ClientSiteZip = "@clientSite.zip";
 		
@@ -47,7 +48,10 @@ public class Server implements Closeable
 	public Server(Config cfg) throws Exception {
 		
 		this.cfg = cfg;
-		this.cfg.WebServer.StaticPagesZip = cfg.ClientSiteZip;
+
+		if (cfg.WebServer.StaticPagesDirectory == null) {
+			this.cfg.WebServer.StaticPagesZip = cfg.ClientSiteZip;
+		}
 
 		this.gson = new Gson();
 		this.store = new QueryStore(cfg.Sql);
@@ -65,6 +69,7 @@ public class Server implements Closeable
 		registerSaveQuery();
 		registerRunQuery();
 		registerDeleteQuery();
+		registerSchemaQuery();
 		
 		server.registerEmptyHandler("/favicon.ico", 404);
 	}
@@ -129,6 +134,27 @@ public class Server implements Closeable
 		server.registerHandler(cfg.ListQueriesUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 				response.setJson(gson.toJson(store.listQueries(getAuthEmail(request))));
+			}
+		});
+	}
+	
+	// +---------------------+
+	// | registerSchemaQuery |
+	// +---------------------+
+
+	private void registerSchemaQuery() throws Exception {
+		server.registerHandler(cfg.GetSchemaUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				
+				String connectionName = (request.QueryParams.get("connection"));
+				
+				String connectionString= store.getConnectionStringForCreate(connectionName,
+																			getAuthEmail(request));
+				
+				if (connectionString == null) { response.Status = 401; return; }
+				
+				QueryRunner.QueryResults results = runner.getTableInfo(connectionString);
+				response.setJson(gson.toJson(results));
 			}
 		});
 	}
