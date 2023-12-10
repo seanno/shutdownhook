@@ -19,6 +19,21 @@ export default function Navigator() {
   // | Effects |
   // +---------+
 
+  function findConnection(tree, name) {
+
+	if (tree === undefined || tree.Connections === undefined) {
+	  return(undefined);
+	}
+
+	for (const i in tree.Connections) {
+	  if (tree.Connections[i].Name === name) {
+		return(tree.Connections[i]);
+	  }
+	}
+
+	return(undefined);
+  }
+  
   useEffect(() => {
 
 	if (queryTree !== undefined) return;
@@ -30,11 +45,10 @@ export default function Navigator() {
 
 	  // if connection previously set, try to find it
 	  if (connection !== undefined) {
-		for (const i in tree.Connections) {
-		  if (tree.Connections[i].Name === connection.Name) {
-			setConnection(tree.Connections[i]);
-			return;
-		  }
+		const newConnection = findConnection(tree, connection.Name);
+		if (newConnection !== undefined) {
+		  setConnection(newConnection);
+		  return;
 		}
 	  }
 
@@ -200,6 +214,12 @@ export default function Navigator() {
   // | renderConnectionChooser |
   // +-------------------------+
 
+  function connectionChange(evt) {
+
+	const newConnection = findConnection(queryTree, evt.target.value);
+	setConnection(newConnection);
+  }
+  
   function renderConnectionChooser() {
 
 	if (queryTree === undefined || queryTree.Connections.length === 0) {
@@ -214,7 +234,13 @@ export default function Navigator() {
 	  <>
 		<div className={styles.navLabel + ' ' + styles.connectionLabel}>Connection:</div>
 		<div className={styles.connectionSelect}>
-		  <Select size="small" value={connection.Name}>{ elts }</Select>
+		  <Select
+			size="small"
+			onChange={(evt) => { connectionChange(evt); } }
+			value={connection.Name}>
+			
+			{ elts }
+		  </Select>
 		</div>
 	  </>
 	);
