@@ -46,8 +46,11 @@ export default function Navigator() {
 	  setSelectedQuery(undefined);
 
 	  // if connection previously set, try to find it
-	  if (connection !== undefined) {
-		const newConnection = findConnection(tree, connection.Name);
+	  const currentConnectionName =
+			(connection ? connection.Name : localStorage.getItem("connection"));
+	  
+	  if (currentConnectionName) {
+		const newConnection = findConnection(tree, currentConnectionName);
 		if (newConnection !== undefined) {
 		  setConnection(newConnection);
 		  return;
@@ -149,6 +152,10 @@ export default function Navigator() {
 	  return(undefined);
 	}
 
+	const ownedQueries = connection.Queries.filter((qi) => (queryTree.User === qi.Owner));
+	const sharedQueries = connection.Queries.filter((qi) => (queryTree.User !== qi.Owner));
+	const showLabels = (ownedQueries.length > 0 && sharedQueries.length > 0);
+	
 	return(
 	  <>	
 		<div className={styles.navLabel + ' ' + styles.queriesLabel}>Queries:</div>
@@ -158,8 +165,8 @@ export default function Navigator() {
 			disablePadding={true}
 			style={{ maxHeight: '100%', overflow: 'auto' }} >
 
-			{renderQueriesSubset(true)}
-			{renderQueriesSubset(false)}
+			{renderQueriesSubset(ownedQueries, showLabels, true)}
+			{renderQueriesSubset(sharedQueries, showLabels, false)}
 		  </List>
 		</div>
 		<div className={styles.queriesButtons}>
@@ -181,17 +188,12 @@ export default function Navigator() {
 	);
   }
 
-  function renderQueriesSubset(owned) {
+  function renderQueriesSubset(queries, showLabel, owned) {
 	
-	const label = (owned ? '--- Owned' : '--- Shared');
-	
-	const queries = connection.Queries.filter((qi) => {
-	  return((owned && queryTree.User === qi.Owner) ||
-			 (!owned && queryTree.User !== qi.Owner));
-	});
-
 	if (queries.length === 0) return(undefined);
 
+	const label = (showLabel ? (owned ? "--- Owned" : "--- Shared") : undefined);
+	
 	const elts = queries.map((qi) => {
 	  
 	  const primaryText = qi.Description + (owned && qi.IsShared ? ' *' : '');
@@ -216,8 +218,8 @@ export default function Navigator() {
 
 	return(
 	  <>
-		<ListSubheader style={{ lineHeight: 'normal' }}>{label}</ListSubheader>
-		{elts}
+		{ label && <ListSubheader style={{ lineHeight: 'normal' }}>{label}</ListSubheader> }
+		{ elts }
 	  </>
 	);
 
@@ -231,6 +233,7 @@ export default function Navigator() {
 
 	const newConnection = findConnection(queryTree, evt.target.value);
 	setConnection(newConnection);
+	localStorage.setItem("connection", newConnection.Name);
   }
   
   function renderConnectionChooser() {
