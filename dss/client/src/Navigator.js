@@ -237,6 +237,10 @@ export default function Navigator() {
 	const newConnection = findConnection(queryTree, evt.target.value);
 	setConnection(newConnection);
 	localStorage.setItem("connection", newConnection.Name);
+
+	setQuery(undefined);
+	setSelectedQuery(undefined);
+	setQueryRunnerView(undefined, false);
   }
   
   function renderConnectionChooser() {
