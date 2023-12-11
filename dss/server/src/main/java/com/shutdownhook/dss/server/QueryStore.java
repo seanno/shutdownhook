@@ -62,7 +62,7 @@ public class QueryStore extends SqlStore
 	}
 
 	private final static String LIST_QUERIES_SQL =
-		"select " +
+		"select distinct " +
 		"  c.name connection_name, " +
 		"  c.description connection_description, " +
 		"  a.can_create can_create, " +
@@ -73,7 +73,7 @@ public class QueryStore extends SqlStore
 		"from " +
 		"  connections c " +
 		"inner join " +
-		"  access a on c.name = a.connection_name and a.user = ? " +
+		"  access a on c.name = a.connection_name and ? like a.user " +
 		"left outer join " +
 		"  queries q on c.name = q.connection_name and (q.is_shared or q.owner = ?) " +
 		"order by " +
@@ -130,12 +130,12 @@ public class QueryStore extends SqlStore
 	// sql in the given connection
 	
 	final static String GET_CONNECTION_STRING_FOR_CREATE_SQL =
-		"select " +
+		"select distinct " +
 		"  c.connection_string connection_string " +
 		"from " +
 		"  connections c " +
 		"inner join " +
-		"  access a on c.name = a.connection_name and a.user = ? and a.can_create = 1 " +
+		"  access a on c.name = a.connection_name and ? like a.user and a.can_create = 1 " +
 		"where " +
 		"  c.name = ? ";
 
@@ -172,7 +172,7 @@ public class QueryStore extends SqlStore
 	// returns information needed to execute an existing query to which user has access
 	
 	final static String GET_QUERY_EXECUTION_INFO_SQL =
-		"select " +
+		"select distinct " +
 		"  c.connection_string connection_string, " +
 		"  q.statement statement " +
 		"from " +
@@ -180,7 +180,7 @@ public class QueryStore extends SqlStore
 		"inner join " +
 		"  connections c on q.connection_name = c.name " +
 		"inner join " +
-		"  access a on q.connection_name = a.connection_name and a.user = ? " +
+		"  access a on q.connection_name = a.connection_name and ? like a.user " +
 		"where " +
 		"  q.id = ? and " +
 		"  (q.owner = ? or q.is_shared = 1) ";
@@ -244,7 +244,7 @@ public class QueryStore extends SqlStore
 	}
 
 	private final static String QUERY_DETAILS_SQL =
-		"select " +
+		"select distinct " +
 		"  q.id id, " +
 		"  q.connection_name connection_name, " +
 		"  q.description description, " +
@@ -255,7 +255,7 @@ public class QueryStore extends SqlStore
 		"from " +
 		"  queries q " +
 		"inner join " +
-		"  access a on q.connection_name = a.connection_name and a.user = ? " +
+		"  access a on q.connection_name = a.connection_name and ? like a.user " +
 		"where " +
 		"  (q.id = ?) and (q.is_shared or q.owner = ?)";
 
