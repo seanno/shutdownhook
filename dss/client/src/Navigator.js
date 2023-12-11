@@ -204,11 +204,12 @@ export default function Navigator() {
 		  <ListItemButton
 			selected={qi === selectedQuery}
 			onClick={ () => setSelectedQuery(qi) } 
-			style={{padding: '0px', lineHeight: 'normal' }} >
+			style={{padding: '0px' }} >
 
 			<ListItemText
 			  primary={primaryText}
 			  title={hoverText}
+			  style={{padding: '0px' }}
 			  />
 		  </ListItemButton>
 		</ListItem>
@@ -218,7 +219,7 @@ export default function Navigator() {
 	return(
 	  <>
 		{ label && <ListSubheader
-					 style={{ height: '18px', fontWeight: 'bold', lineHeight: 'normal' }} >
+					 style={{ fontWeight: 'bold', lineHeight: '150%' }} >
 					 {label}
 				   </ListSubheader> }
 		{ elts }

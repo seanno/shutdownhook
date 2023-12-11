@@ -58,7 +58,10 @@
 	padding-left: 6px;
 	padding-top: 0px;
 	padding-bottom: 0px;
-	height: 24px;
+}
+
+.queriesList li span {
+	line-height: normal;
 }
 
 .queriesButtons {
