@@ -192,7 +192,7 @@ export default function Navigator() {
 	
 	if (queries.length === 0) return(undefined);
 
-	const label = (showLabel ? (owned ? "--- Owned" : "--- Shared") : undefined);
+	const label = (showLabel ? (owned ? "- OWNED" : "- SHARED") : undefined);
 	
 	const elts = queries.map((qi) => {
 	  
@@ -203,13 +203,12 @@ export default function Navigator() {
 		<ListItem key={`qry${qi.Id}`}>
 		  <ListItemButton
 			selected={qi === selectedQuery}
-			onClick={ () => setSelectedQuery(qi) }
+			onClick={ () => setSelectedQuery(qi) } 
 			style={{padding: '0px', lineHeight: 'normal' }} >
 
 			<ListItemText
 			  primary={primaryText}
 			  title={hoverText}
-			  style={{paddingLeft: '12px', lineHeight: 'normal' }}
 			  />
 		  </ListItemButton>
 		</ListItem>
@@ -218,7 +217,10 @@ export default function Navigator() {
 
 	return(
 	  <>
-		{ label && <ListSubheader style={{ lineHeight: 'normal' }}>{label}</ListSubheader> }
+		{ label && <ListSubheader
+					 style={{ height: '18px', fontWeight: 'bold', lineHeight: 'normal' }} >
+					 {label}
+				   </ListSubheader> }
 		{ elts }
 	  </>
 	);
