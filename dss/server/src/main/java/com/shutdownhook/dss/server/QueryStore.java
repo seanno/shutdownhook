@@ -32,6 +32,21 @@ public class QueryStore extends SqlStore
 		this.ensuredSchema = false;
 	}
 
+	// +---------------+
+	// | my_access CTE |
+	// +---------------+
+
+	// consolidates possible multiple access matches into a single
+	// row with the maximal values for can_create (i.e., true if any true)
+	
+	public final static String MY_ACCESS_CTE =
+		"with my_access as ( " +
+		"  select connection_name, max(can_create) can_create " +
+		"  from access " +
+		"  where ? like user " +
+		"  group by connection_name " +
+		") ";
+
 	// +-------------+
 	// | listQueries |
 	// +-------------+
@@ -62,7 +77,8 @@ public class QueryStore extends SqlStore
 	}
 
 	private final static String LIST_QUERIES_SQL =
-		"select distinct " +
+		MY_ACCESS_CTE +
+		"select " +
 		"  c.name connection_name, " +
 		"  c.description connection_description, " +
 		"  a.can_create can_create, " +
@@ -73,7 +89,7 @@ public class QueryStore extends SqlStore
 		"from " +
 		"  connections c " +
 		"inner join " +
-		"  access a on c.name = a.connection_name and ? like a.user " +
+		"  my_access a on c.name = a.connection_name " +
 		"left outer join " +
 		"  queries q on c.name = q.connection_name and (q.is_shared or q.owner = ?) " +
 		"order by " +
@@ -130,13 +146,14 @@ public class QueryStore extends SqlStore
 	// sql in the given connection
 	
 	final static String GET_CONNECTION_EXECUTION_INFO_SQL =
-		"select distinct " +
+		MY_ACCESS_CTE +
+		"select " +
 		"  c.connection_string connection_string, " +
 		"  c.log_queries log_queries " +
 		"from " +
 		"  connections c " +
 		"inner join " +
-		"  access a on c.name = a.connection_name and ? like a.user and a.can_create = 1 " +
+		"  my_access a on c.name = a.connection_name and a.can_create = 1 " +
 		"where " +
 		"  c.name = ? ";
 
@@ -176,7 +193,8 @@ public class QueryStore extends SqlStore
 	// returns information needed to execute an existing query to which user has access
 	
 	final static String GET_QUERY_EXECUTION_INFO_SQL =
-		"select distinct " +
+		MY_ACCESS_CTE +
+		"select " +
 		"  c.connection_string connection_string, " +
 		"  c.log_queries log_queries, " + 
 		"  q.statement statement " +
@@ -185,7 +203,7 @@ public class QueryStore extends SqlStore
 		"inner join " +
 		"  connections c on q.connection_name = c.name " +
 		"inner join " +
-		"  access a on q.connection_name = a.connection_name and ? like a.user " +
+		"  my_access a on q.connection_name = a.connection_name " +
 		"where " +
 		"  q.id = ? and " +
 		"  (q.owner = ? or q.is_shared = 1) ";
@@ -251,7 +269,8 @@ public class QueryStore extends SqlStore
 	}
 
 	private final static String QUERY_DETAILS_SQL =
-		"select distinct " +
+		MY_ACCESS_CTE +
+		"select " +
 		"  q.id id, " +
 		"  q.connection_name connection_name, " +
 		"  q.description description, " +
@@ -262,7 +281,7 @@ public class QueryStore extends SqlStore
 		"from " +
 		"  queries q " +
 		"inner join " +
-		"  access a on q.connection_name = a.connection_name and ? like a.user " +
+		"  my_access a on q.connection_name = a.connection_name " +
 		"where " +
 		"  (q.id = ?) and (q.is_shared or q.owner = ?)";
 
