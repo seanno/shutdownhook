@@ -1,5 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
+import { CircularProgress } from '@mui/material';
 import { serverGetSchema } from './lib/server.js';
 
 import ResultsTables from './ResultsTables.js';
@@ -41,6 +42,11 @@ export default function SchemaViewer({ connectionName }) {
   // | Main Render |
   // +-------------+
 
-  return(results && <ResultsTables results={results} />);
+  return(
+	<>
+	  { !results && <CircularProgress sx={{ margin: '12px' }} /> }
+	  { results && <ResultsTables results={results} /> }
+	</>
+  );
 }
 

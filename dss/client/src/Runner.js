@@ -1,6 +1,6 @@
 
 import React, { useEffect, useState } from 'react';
-import { Button,TextField } from '@mui/material';
+import { Button, CircularProgress, TextField } from '@mui/material';
 import { b64uEncode, toCSV, toCSVLine, saveToFile } from './lib/util.js';
 import { parseParams, paramDefaults, serverRunQuery } from './lib/server.js';
 
@@ -14,6 +14,7 @@ export default function Runner({ query }) {
   const [paramValues, setParamValues] = useState(undefined);
   
   const [refreshNow, setRefreshNow] = useState(false);
+  const [running, setRunning] = useState(false);
 
   const [results, setResults] = useState(undefined);
   const [error, setError] = useState(undefined);
@@ -43,6 +44,7 @@ export default function Runner({ query }) {
 
 	if (!refreshNow) return;
 	setRefreshNow(false);
+	setRunning(true);
 	
 	const fetchResults = async () => {
 
@@ -69,6 +71,9 @@ export default function Runner({ query }) {
 	  catch (err) {
 		setResults(undefined);
 		setError(`unexpected: ${err}`);
+	  }
+	  finally {
+		setRunning(false);
 	  }
 	}
 
@@ -210,6 +215,7 @@ export default function Runner({ query }) {
 	  { renderParamInputs() }
 	  { renderButtons() }
 
+	  { running && <CircularProgress sx={{ margin: '12px' }} /> }
 	  { results && <ResultsTables results={results} /> }
 	  { error && renderError() }
 	  
