@@ -1,0 +1,29 @@
+{
+  "WebServer": {
+	"Port": 443,
+
+	"SSLCertificateFile": "@localhost.crt",
+	"SSLCertificateKeyFile": "@localhost.key",
+
+	"CookieEncrypt": {
+	  "ActiveKey": {
+		"Tag": "1",
+		"Key": "Wrjo9P9MPceQpDPpafWE5w"
+	  }
+	},
+
+	"StaticPagesZip": "@clientSite.zip",
+	"StaticPagesRouteHtmlWithoutExtension": false,
+
+	"OAuth2": {
+	  "Provider": "github_reauth",
+	  "ClientId": "CLIENT_ID",
+	  "ClientSecret": "CLIENT_SECRET"
+	}
+	
+  },
+
+  "Sql": {
+        "ConnectionString": "jdbc:sqlite:/tmp/dss.sql"
+  }
+}
