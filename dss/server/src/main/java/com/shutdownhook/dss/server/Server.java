@@ -103,7 +103,20 @@ public class Server implements Closeable
 		server.registerHandler(cfg.SaveQueryUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 				QueryStore.QueryDetails details = QueryStore.QueryDetails.fromJson(request.Body);
-				UUID id = store.saveQuery(details, getAuthEmail(request));
+				String user = getAuthEmail(request);
+
+				QueryStore.ExecutionInfo exInfo =
+					store.getConnectionExecutionInfo(details.ConnectionName, user);
+				
+				if (exInfo == null) { response.Status = 401; return; }
+		
+				UUID id = store.saveQuery(details, user);
+
+				if (exInfo.LogQueries) {
+					log.info(String.format("[AUDIT] saveQuery %s (%s): %s", id.toString(),
+										   user, request.Body.replace("\n", " ")));
+				}
+				
 				response.setJson(String.format("{ \"id\": \"%s\" }", id.toString()));
 			}
 		});
@@ -147,13 +160,13 @@ public class Server implements Closeable
 			public void handle(Request request, Response response) throws Exception {
 				
 				String connectionName = (request.QueryParams.get("connection"));
+
+				QueryStore.ExecutionInfo exInfo =
+					store.getConnectionExecutionInfo(connectionName, getAuthEmail(request));
 				
-				String connectionString= store.getConnectionStringForCreate(connectionName,
-																			getAuthEmail(request));
+				if (exInfo == null) { response.Status = 401; return; }
 				
-				if (connectionString == null) { response.Status = 401; return; }
-				
-				QueryRunner.QueryResults results = runner.getTableInfo(connectionString);
+				QueryRunner.QueryResults results = runner.getTableInfo(exInfo.ConnectionString);
 				response.setJson(gson.toJson(results));
 			}
 		});
@@ -187,10 +200,9 @@ public class Server implements Closeable
 				
 				if (runInfo.Statement != null) {
 					// check for ability to run arbitrary sql in connection
-					exInfo = new QueryStore.ExecutionInfo();
+					exInfo = store.getConnectionExecutionInfo(runInfo.Connection, user);
+					if (exInfo == null) { response.Status = 401; return; }
 					exInfo.Statement = runInfo.Statement;
-					exInfo.ConnectionString = store.getConnectionStringForCreate(runInfo.Connection, user);
-					if (exInfo.ConnectionString == null) { response.Status = 401; return; }
 				}
 				else if (runInfo.QueryId != null) {
 					// check for ability to run given query
@@ -199,6 +211,11 @@ public class Server implements Closeable
 				}
 				else {
 					throw new Exception("request must include RunQueryInfo in body or params");
+				}
+
+				if (exInfo.LogQueries) {
+					log.info(String.format("[AUDIT] runQuery (%s): %s",
+										   user, request.Body.replace("\n", " ")));
 				}
 
 				QueryRunner.QueryResults results =

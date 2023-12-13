@@ -122,16 +122,17 @@ public class QueryStore extends SqlStore
 	}
 
 	// +------------------------------+
-	// | getConnectionStringForCreate |
+	// | getConnectionExecutionInfo   |
 	// | canCreateInConnection        |
 	// +------------------------------+
 
 	// returns connection string if user is allowed to create or run ad hoc
 	// sql in the given connection
 	
-	final static String GET_CONNECTION_STRING_FOR_CREATE_SQL =
+	final static String GET_CONNECTION_EXECUTION_INFO_SQL =
 		"select distinct " +
-		"  c.connection_string connection_string " +
+		"  c.connection_string connection_string, " +
+		"  c.log_queries log_queries " +
 		"from " +
 		"  connections c " +
 		"inner join " +
@@ -139,13 +140,14 @@ public class QueryStore extends SqlStore
 		"where " +
 		"  c.name = ? ";
 
-	public String getConnectionStringForCreate(String connectionName, String user) throws Exception {
+	public ExecutionInfo getConnectionExecutionInfo(String connectionName, String user)
+		throws Exception {
 
 		ensureSchema(user);
 
-		SqlStore.Return<String> connectionString = new SqlStore.Return<String>();
+		SqlStore.Return<ExecutionInfo> info = new SqlStore.Return<ExecutionInfo>();
 
-		query(GET_CONNECTION_STRING_FOR_CREATE_SQL, new SqlStore.QueryHandler() {
+		query(GET_CONNECTION_EXECUTION_INFO_SQL, new SqlStore.QueryHandler() {
 				
 			public void prepare(PreparedStatement stmt) throws Exception {
 				stmt.setString(1, user);
@@ -153,16 +155,18 @@ public class QueryStore extends SqlStore
 			}
 				
 			public void row(ResultSet rs, int irow) throws Exception {
-				connectionString.Value = rs.getString("connection_string");
+				info.Value = new ExecutionInfo();
+				info.Value.ConnectionString = rs.getString("connection_string");
+				info.Value.LogQueries = (rs.getInt("log_queries") != 0);
 			}
 		});
 
-		return(connectionString.Value);
+		return(info.Value);
 	}
 
 	public boolean canCreateInConnection(String connectionName, String user) throws Exception {
-		String connectionString = getConnectionStringForCreate(connectionName, user);
-		return(connectionString != null);
+		ExecutionInfo info = getConnectionExecutionInfo(connectionName, user);
+		return(info != null);
 	}
 
 	// +-----------------------+
@@ -174,6 +178,7 @@ public class QueryStore extends SqlStore
 	final static String GET_QUERY_EXECUTION_INFO_SQL =
 		"select distinct " +
 		"  c.connection_string connection_string, " +
+		"  c.log_queries log_queries, " + 
 		"  q.statement statement " +
 		"from " +
 		"  queries q " +
@@ -189,6 +194,7 @@ public class QueryStore extends SqlStore
 	{
 		public String ConnectionString;
 		public String Statement;
+		public Boolean LogQueries;
 	}
 
 	public ExecutionInfo getQueryExecutionInfo(UUID queryId, String user) throws Exception {
@@ -209,6 +215,7 @@ public class QueryStore extends SqlStore
 				info.Value = new ExecutionInfo();
 				info.Value.ConnectionString = rs.getString("connection_string");
 				info.Value.Statement = rs.getString("statement");
+				info.Value.LogQueries = (rs.getInt("log_queries") != 0);
 			}
 		});
 
@@ -470,7 +477,7 @@ public class QueryStore extends SqlStore
 		
 		String sql =
 			"insert into connections " +
-			"(name, description, connection_string) values(?,?,?)";
+			"(name, description, connection_string,log_queries) values(?,?,?,0)";
 
 		update(sql, new SqlStore.UpdateHandler() {
 				
@@ -599,6 +606,7 @@ public class QueryStore extends SqlStore
 		"    name varchar(64) not null, " +
 		"    description varchar(256) not null, " +
 		"    connection_string varchar(256) not null, " +
+		"    log_queries boolean null, " +
 		"    note varchar(256) null, " +
 		" " +
 		"    primary key (name) " +

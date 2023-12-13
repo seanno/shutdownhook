@@ -1,8 +1,8 @@
 [
   {
 	'description': 'connections: add new',
-	'statement': 'insert into connections (name, description, connection_string) values (?,?,?)',
-	'parameters': 'name,description,connection_string',
+	'statement': 'insert into connections (name, description, connection_string, log_queries) values (?,?,?,?)',
+	'parameters': 'name,description,connection_string,log_queries:0)',
 	'is_shared': 1
   },
   {
