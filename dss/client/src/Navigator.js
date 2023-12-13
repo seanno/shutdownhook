@@ -154,7 +154,6 @@ export default function Navigator() {
 
 	const ownedQueries = connection.Queries.filter((qi) => (queryTree.User === qi.Owner));
 	const sharedQueries = connection.Queries.filter((qi) => (queryTree.User !== qi.Owner));
-	const showLabels = (ownedQueries.length > 0 && sharedQueries.length > 0);
 	
 	return(
 	  <>	
@@ -165,8 +164,8 @@ export default function Navigator() {
 			disablePadding={true}
 			style={{ maxHeight: '100%', overflow: 'auto' }} >
 
-			{renderQueriesSubset(ownedQueries, showLabels, true)}
-			{renderQueriesSubset(sharedQueries, showLabels, false)}
+			{renderQueriesSubset(ownedQueries, true, true)}
+			{renderQueriesSubset(sharedQueries, true, false)}
 		  </List>
 		</div>
 		<div className={styles.queriesButtons}>
