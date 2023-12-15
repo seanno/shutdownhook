@@ -1,6 +1,6 @@
 {
   "WebServer": {
-	"Port": 443,
+	"Port": 3001,
 
 	"SSLCertificateFile": "@localhost.crt",
 	"SSLCertificateKeyFile": "@localhost.key",
@@ -17,8 +17,8 @@
 
 	"OAuth2": {
 	  "Provider": "github_reauth",
-	  "ClientId": "CLIENT_ID",
-	  "ClientSecret": "CLIENT_SECRET"
+	  "ClientId": "1b29ec2dccef35e582af",
+	  "ClientSecret": "3210895d61ac95820d9c861d81ce8a29aaefbe3d"
 	}
 	
   },
