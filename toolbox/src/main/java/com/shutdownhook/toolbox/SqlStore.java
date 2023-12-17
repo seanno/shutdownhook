@@ -33,10 +33,22 @@ public class SqlStore
 		}
 		
 		public String ConnectionString;
+		public String[] PreloadDrivers;
 	}
 
 	public SqlStore(Config cfg) {
 		this.cfg = cfg;
+		preloadDrivers();
+	}
+
+	private void preloadDrivers() {
+		
+		if (cfg.PreloadDrivers == null) return;
+		
+		for (String driver : cfg.PreloadDrivers) {
+			try { Class.forName(driver); }
+			catch (Exception e) { log.severe(Easy.exMsg(e, driver, false));	}
+		}
 	}
 	
 	// +---------------+
