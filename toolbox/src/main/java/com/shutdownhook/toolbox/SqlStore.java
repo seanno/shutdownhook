@@ -94,8 +94,9 @@ public class SqlStore
 				handler.prepare(stmt);
 			}
 				
-			public void row(ResultSet rs, int irow, int iresult) throws Exception {
+			public boolean row(ResultSet rs, int irow, int iresult) throws Exception {
 				if (iresult == 0) handler.row(rs, irow);
+				return(true);
 			}
 		});
 	}
@@ -106,7 +107,7 @@ public class SqlStore
 	
 	public interface ExecuteHandler {
 		default public void prepare(PreparedStatement stmt) throws Exception { } 
-		default public void row(ResultSet rs, int irow, int iresult) throws Exception { }
+		default public boolean row(ResultSet rs, int irow, int iresult) throws Exception { return(false); }
 		default public void update(int count, int iresult) throws Exception { }
 	}
 
@@ -124,14 +125,15 @@ public class SqlStore
 			boolean isResultSet = stmt.execute();
 			int irow = 0;
 			int iresult = 0;
-			
+
 			while (true) {
 				
 				if (isResultSet) {
 					// iterate result set
 					rs = stmt.getResultSet();
-					while (rs != null && rs.next()) {
-						handler.row(rs, irow++, iresult);
+					boolean keepGoing = true;
+					while (keepGoing && rs != null && rs.next()) {
+						keepGoing = handler.row(rs, irow++, iresult);
 					}
 				}
 				else {

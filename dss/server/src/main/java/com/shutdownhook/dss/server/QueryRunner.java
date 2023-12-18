@@ -37,6 +37,7 @@ public class QueryRunner
 		public String Label;
 		public List<String> Headers = new ArrayList<String>();
 		public List<List<String>> Rows = new ArrayList<List<String>>();
+		public Boolean Truncated = false;
 		public Integer UpdateCount;
 	}
 	
@@ -52,12 +53,13 @@ public class QueryRunner
 
 	public QueryResults run(String connectionString,
 							String sql,
-							String[] params) throws Exception {
+							String[] params,
+							int maxQueryRows) throws Exception {
 
 		QueryResults results;
 
 		try {
-			results = runHelper(connectionString, sql, params);
+			results = runHelper(connectionString, sql, params, maxQueryRows);
 		}
 		catch (SQLException e) {
 			results = new QueryResults();
@@ -70,7 +72,8 @@ public class QueryRunner
 
 	private QueryResults runHelper(String connectionString,
 								   String sql,
-								   String[] params) throws Exception {
+								   String[] params,
+								   int maxQueryRows) throws Exception {
 
 		SqlStore store = getStore(connectionString);
 		QueryResults results = new QueryResults();
@@ -96,15 +99,22 @@ public class QueryRunner
 				currentResult.UpdateCount = count;
 			}
 				
-			public void row(ResultSet rs, int irow, int iresult) throws Exception {
+			public boolean row(ResultSet rs, int irow, int iresult) throws Exception {
 				if (iresult != lastResultIndex) {
 					lastResultIndex = iresult;
 					currentResult = new Result();
 					results.Results.add(currentResult);
 					addHeaders(rs);
 				}
+
+				if ((irow + 1) > maxQueryRows) {
+					log.info(String.format("Truncating query results after %d rows", irow));
+					currentResult.Truncated = true;
+					return(false);
+				}
 				
 				addRow(rs);
+				return(true);
 			}
 
 			private void addHeaders(ResultSet rs) throws SQLException {

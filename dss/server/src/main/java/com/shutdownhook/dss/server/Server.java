@@ -31,6 +31,8 @@ public class Server implements Closeable
 		public WebServer.Config WebServer = new WebServer.Config();
 		public SqlStore.Config Sql = new SqlStore.Config();
 
+		public int MaxQueryRows = 2500;
+		
 		public String ListQueriesUrl = "/data/queries";
 		public String GetQueryUrl = "/data/query/details";
 		public String SaveQueryUrl = "/data/query/save";
@@ -219,7 +221,8 @@ public class Server implements Closeable
 				}
 
 				QueryRunner.QueryResults results =
-					runner.run(exInfo.ConnectionString, exInfo.Statement, runInfo.Params);
+					runner.run(exInfo.ConnectionString, exInfo.Statement,
+							   runInfo.Params, cfg.MaxQueryRows);
 				
 				response.setJson(gson.toJson(results));
 			}

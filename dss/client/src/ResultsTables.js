@@ -32,11 +32,15 @@ export default function ResultsTables({ results }) {
 	  );
 	});
 
+	const truncatedRow = (result.Truncated
+			  ? <td colspan={result.Headers.length}><i>results truncated after {result.Rows.length} rows</i></td>
+			  : undefined);
+
 	return(
 	  <table key={`res${index}`} className={styles.results}>
 		{ result.Label && <caption>{result.Label}</caption> }
 		<thead><tr>{ headerCells }</tr></thead>
-		<tbody>{ bodyRows }</tbody>
+		<tbody>{ bodyRows }{ truncatedRow }</tbody>
 	  </table>
 	);
   }
