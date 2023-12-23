@@ -21,9 +21,11 @@ import com.shutdownhook.toolbox.Encrypt;
 public class Setup
 {
 	private final static String DEFAULT_CONFIG = "config.json";
-	private final static int DEFAULT_PORT = 7071;
+	private final static int DEFAULT_PORT = 3001;
 	private final static String DEFAULT_STORE_LOC = "/tmp/dss.sql";
 
+	private final static String DEFAULT_DEV_OAUTH2 = "test|test@example.com|test_token";
+		
 	private final static String KEY_ALG = "AES";
 	
 	// +-------+
@@ -162,6 +164,22 @@ public class Setup
 		
 		return(count);
 	}
+
+	// +----------+
+	// | Dev Mode |
+	// +----------+
+
+	public void disableDevMode() {
+		cfg.WebServer.AllowedOrigin = null;
+		cfg.WebServer.OAuth2ForceState = null;
+		dirty = true;
+	}
+
+	public void enableDevMode(String forceState) {
+		cfg.WebServer.AllowedOrigin = "*";
+		cfg.WebServer.OAuth2ForceState = forceState;
+		dirty = true;
+	}
 	
 	// +---------+
 	// | Members |
@@ -212,6 +230,7 @@ public class Setup
 					case "ssl":            ssl();                break;
 					case "port":           port();               break;
 					case "store":          store();              break;
+					case "dev_mode":       dev_mode();           break;
 				}
 			}
 		}
@@ -226,6 +245,7 @@ public class Setup
 				  "  ssl              Configure HTTP(s) \n" +
 				  "  port             Configure listening port \n" +
 				  "  store            Set metadata store connection string \n" +            
+				  "  dev_mode         Enable / disable developer mode \n" +            
 				  "");
 		}
 
@@ -334,7 +354,25 @@ public class Setup
 				print("disabled.");
 			}
 		}
-			
+
+		// Dev Mode
+
+		private void dev_mode() {
+
+			print("Dev mode allows you to run the client with 'npm start' and hit \n" +
+				  "the server back end on a separate port. It also short-circuits \n" +
+				  "OAuth2 authentication with a hard-coded token.");
+
+			if (confirm("Enable dev mode", false)) {
+				String token = prompt("Hard-coded OAuth2 token", DEFAULT_DEV_OAUTH2);
+				setup.enableDevMode(token);
+				print("enabled.");
+			}
+			else {
+				setup.disableDevMode();
+				print("disabled.");
+			}
+		}
 
 		// Helpers
 		
