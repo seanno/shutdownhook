@@ -17,10 +17,10 @@ public class App
 			return;
 		}
 
-		Easy.setSimpleLogFormat("INFO");
-
 		String json = Easy.stringFromSmartyPath(args[0]);
 		Server.Config cfg = Server.Config.fromJson(json);
+
+		Easy.configureLoggingProperties(cfg.LoggingConfigPath);
 
 		Server server = new Server(cfg);
 

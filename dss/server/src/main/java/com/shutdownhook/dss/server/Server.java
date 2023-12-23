@@ -32,6 +32,8 @@ public class Server implements Closeable
 		public SqlStore.Config Sql = new SqlStore.Config();
 
 		public int MaxQueryRows = 2500;
+
+		public String LoggingConfigPath = "@logging.properties";
 		
 		public String ListQueriesUrl = "/data/queries";
 		public String GetQueryUrl = "/data/query/details";
