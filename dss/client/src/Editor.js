@@ -7,7 +7,7 @@ import { sql } from '@codemirror/lang-sql';
 
 import styles from './Editor.module.css';
 
-export default function Editor({ query, closeFn, runFn }) {
+export default function Editor({ query, closeFn, runFn, schemaFn }) {
 
   const [statement, setStatement] = useState(query.Statement);
   const [shared, setShared] = useState(query.IsShared);
@@ -145,6 +145,7 @@ export default function Editor({ query, closeFn, runFn }) {
 		<Button variant="outlined" onClick={runClick}>Run</Button>
 		<Button variant="outlined" disabled={!dirty} onClick={saveClick}>Save</Button>
 		<Button variant="outlined" disabled={newQuery} onClick={deleteClick}>Delete</Button>
+		<Button variant="outlined" onClick={schemaFn}>Schema</Button>
 		<Button variant="outlined" onClick={backClick}>Back to List</Button>
 
 		<Snackbar open={showToastSaved} onClose={() => setShowToastSaved(false)} autoHideDuration={3000}>

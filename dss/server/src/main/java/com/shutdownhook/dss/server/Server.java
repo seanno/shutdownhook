@@ -41,6 +41,7 @@ public class Server implements Closeable
 		public String GetSchemaUrl = "/data/connection/schema";
 
 		public String ClientSiteZip = "@clientSite.zip";
+		public Boolean StaticPagesRouteHtmlWithoutExtension = false;
 		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));

@@ -136,7 +136,10 @@ export default function Navigator() {
 		<div className={styles.navLabel + ' ' + styles.editorLabel}>Query:</div>
 		
 		<div className={styles.editorContent}>
-		  <Editor query={query} closeFn={closeEditor} runFn={runFromEditor} />
+		  <Editor query={query}
+				  closeFn={closeEditor}
+				  runFn={runFromEditor}
+				  schemaFn={viewSchemaClick} />
 		</div>
 	  </>
 	);
