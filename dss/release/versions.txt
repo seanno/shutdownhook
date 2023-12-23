@@ -1,0 +1,2 @@
+1.1	 202312     better setup and logging
+1.0  20231218   first release (https://shutdownhook.com/2023/12/18/sql-hammer-everything-is-a-nail/)
