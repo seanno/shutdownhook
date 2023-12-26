@@ -87,6 +87,9 @@ public class OAuth2Login implements Closeable
 	// +-----------------------+
 	// | Configuration & Setup |
 	// +-----------------------+
+
+	public static String DEFAULT_REDIRECT_PATH = "/__oauth2_redirect";
+	public static String DEFAULT_LOGOUT_PATH = "/__oauth2_logout";
 	
 	public static class Config
 	{
@@ -104,8 +107,8 @@ public class OAuth2Login implements Closeable
 		public String TokenURL;
 		public String Scope;
 
-		public String RedirectPath = "/__oauth2_redirect";
-		public String LogoutPath = "/__oauth2_logout";
+		public String RedirectPath = DEFAULT_REDIRECT_PATH;
+		public String LogoutPath = DEFAULT_LOGOUT_PATH;
 
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
