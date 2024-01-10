@@ -13,7 +13,7 @@ export default function App() {
 	const redirectUrl = encodeURIComponent(window.location.pathname +
 										   window.location.search);
 
-	window.location = '/__oauth2_logout?r=' + redirectUrl;
+	window.location = '/__logout?r=' + redirectUrl;
   }
   
   function checkForUrlQuery() {

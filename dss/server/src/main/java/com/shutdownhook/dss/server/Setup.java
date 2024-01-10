@@ -9,7 +9,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.io.File;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.List;
 import java.util.NoSuchElementException;
 import java.util.Scanner;
 
@@ -20,6 +22,8 @@ import com.google.gson.JsonElement;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Encrypt;
 import com.shutdownhook.toolbox.OAuth2Login;
+import com.shutdownhook.toolbox.SimplePasswordStore;
+import com.shutdownhook.toolbox.WebServer;
 
 public class Setup
 {
@@ -27,14 +31,16 @@ public class Setup
 	private final static int DEFAULT_PORT = 3001;
 	private final static String DEFAULT_STORE_LOC = "/tmp/dss.sql";
 
-	private final static String DEFAULT_DEV_OAUTH2 = "test|test@example.com|test_token";
+	private final static String DEFAULT_DEV_USER = "test|test@example.com|test_token";
 
-	private final static String DEFAULT_PROVIDER = "github_reauth";
-	private final static String DEFAULT_CLIENT_ID = "CLIENT_ID";
-	private final static String DEFAULT_CLIENT_SECRET = "CLIENT_SECRET";
+	private final static String DEFAULT_AUTH_TYPE = WebServer.Config.AUTHTYPE_SIMPLE;
+	
+	private final static String DEFAULT_OAUTH2_PROVIDER = "github_reauth";
+	private final static String DEFAULT_OAUTH2_CLIENT_ID = "CLIENT_ID";
+	private final static String DEFAULT_OAUTH2_CLIENT_SECRET = "CLIENT_SECRET";
 		
 	private final static String KEY_ALG = "AES";
-	
+
 	// +-------+
 	// | Setup |
 	// +-------+
@@ -196,6 +202,48 @@ public class Setup
 		return(count);
 	}
 
+	// +---------------------+
+	// | Authentication Type |
+	// +---------------------+
+
+	public String getAuthType() {
+		return(cfg.WebServer.AuthenticationType == null
+			   ? DEFAULT_AUTH_TYPE : cfg.WebServer.AuthenticationType);
+	}
+
+	public void setAuthType(String authType) {
+		cfg.WebServer.AuthenticationType = authType;
+		dirty = true;
+	}
+	
+	// +-------------+
+	// | Simple auth |
+	// +-------------+
+
+	public SimplePasswordStore getSimplePasswordStore() {
+		
+		return(cfg.WebServer.SimplePasswordStore == null
+			   ? new SimplePasswordStore()
+			   : new SimplePasswordStore(cfg.WebServer.SimplePasswordStore));
+	}
+	
+	public void setSimplePasswordStore(SimplePasswordStore store) {
+		cfg.WebServer.SimplePasswordStore = store.getConfig();
+		dirty = true;
+	}
+
+	public List<String> getSimpleUsers() {
+
+		List<String> users = new ArrayList<String>();
+		
+		SimplePasswordStore store = getSimplePasswordStore();
+		for (SimplePasswordStore.Credential cred : store.getConfig().Credentials) {
+			users.add(cred.User);
+		}
+
+		return(users);
+	}
+	
 	// +--------+
 	// | OAuth2 |
 	// +--------+
@@ -230,9 +278,9 @@ public class Setup
 		OAuth2Details details = new OAuth2Details();
 		
 		if (cfg.WebServer.OAuth2 == null) {
-			details.Provider = Setup.DEFAULT_PROVIDER;
-			details.ClientId = Setup.DEFAULT_CLIENT_ID;
-			details.ClientSecret = Setup.DEFAULT_CLIENT_SECRET;
+			details.Provider = Setup.DEFAULT_OAUTH2_PROVIDER;
+			details.ClientId = Setup.DEFAULT_OAUTH2_CLIENT_ID;
+			details.ClientSecret = Setup.DEFAULT_OAUTH2_CLIENT_SECRET;
 		}
 		else {
 			details.Provider = cfg.WebServer.OAuth2.Provider;
@@ -262,19 +310,20 @@ public class Setup
 		dirty = true;
 	}
 
-	// +----------+
-	// | Dev Mode |
-	// +----------+
+	// +-------------+
+	// | Forced Auth |
+	// +-------------+
 
-	public void disableDevMode() {
-		cfg.WebServer.AllowedOrigin = null;
-		cfg.WebServer.OAuth2ForceState = null;
-		dirty = true;
-	}
+	public void setForcedAuth(String forceState) {
 
-	public void enableDevMode(String forceState) {
+		WebServer.LoggedInUser user = new WebServer.LoggedInUser();
+		String[] fields = forceState.split("\\|");
+		if (fields.length >= 1) user.Id = fields[0];
+		if (fields.length >= 2) user.Email = fields[1];
+		if (fields.length >= 3) user.Token = fields[2];
+		
 		cfg.WebServer.AllowedOrigin = "*";
-		cfg.WebServer.OAuth2ForceState = forceState;
+		cfg.WebServer.ForceLoggedInUser = user;
 		dirty = true;
 	}
 	
@@ -328,7 +377,11 @@ public class Setup
 					case "port":           port();               break;
 					case "store":          store();              break;
 					case "oauth2":         oauth2();             break;
-					case "dev_mode":       dev_mode();           break;
+					case "simple_upsert":  simple_upsert();      break;
+					case "simple_delete":  simple_delete();      break;
+					case "simple_list":    simple_list();        break;
+					case "dev_mode_on":    dev_mode_on();        break;
+					case "dev_mode_off":   dev_mode_off();       break;
 					default:               tryShow(cmd);         break;
 				}
 			}
@@ -344,8 +397,12 @@ public class Setup
 				  "  ssl              Configure HTTP(s) \n" +
 				  "  port             Configure listening port \n" +
 				  "  store            Set metadata store connection string \n" + 
-				  "  oauth2           Set authentication service \n" + 
-				  "  dev_mode         Enable / disable developer mode \n" +            
+				  "  oauth2           Configure OAUTH2 authentication service \n" + 
+				  "  simple_upsert    Add/update Simple auth user \n" + 
+				  "  simple_delete    Delete Simple auth user \n" + 
+				  "  simple_list      List Simple auth users \n" + 
+				  "  dev_mode_on      Enable developer mode auth \n" +
+				  "  dev_mode_off     Disable developer mode auth \n" +
 				  "  show/? NODE      Show working config JSON subtree \n" +            
 				  "");
 		}
@@ -395,7 +452,43 @@ public class Setup
 			store();
 			port();
 			ssl();
-			oauth2();
+
+			print("SQL Hammer requires one of following authentication types. You can change this \n " +
+				  "later with the setup.sh script, so don't panic. \n " +
+				  "\n " +
+				  "1. SIMPLE - a list of users with hashed passwords stored directly in your \n " +
+				  "            configuration file. Add users with the 'simple_upsert' command. \n " +
+				  "2. OAUTH2 - use an external authentication provider including Google, \n " +
+				  "            Facebook, Github, Amazon or an Enterprise SSO provider like \n " +
+				  "            Microsoft Entra or Okta. \n " +
+				  "3. FORCE  - hardcode a single account used for all access to SQL Hammer. This \n " +
+				  "            is also called 'dev mode' and is probably a terrible idea for your \n " +
+				  "            installation. But we're all adults here. \n");
+
+			String choice = "";
+			while (choice.equals("")) {
+				
+				choice = prompt("Which model would you like to use", "1");
+				switch (choice) {
+					case "1":
+						print("Add your first user to get started.");
+						simple_upsert();
+						break;
+
+					case "2":
+						oauth2();
+						break;
+
+					case "3":
+						dev_mode_on();
+						break;
+
+					default:
+						choice = "";
+						break;
+				}
+			}
+				  
 			save();
 		}
 
@@ -403,7 +496,8 @@ public class Setup
 
 		private void store() throws Exception {
 
-			String currentLoc = setup.getStoreConnectionString().replace("jdbc:sqlite:","");
+			String currentLoc = setup.getStoreConnectionString();
+			if (currentLoc != null) currentLoc = setup.getStoreConnectionString().replace("jdbc:sqlite:","");
 			if (currentLoc == null) currentLoc = Setup.DEFAULT_STORE_LOC;
 			
 			String newLoc = prompt("location for metadata file", currentLoc);
@@ -412,10 +506,49 @@ public class Setup
 			print("updated.");
 		}
 
+		// Simple Auth
+
+		private void simple_upsert() {
+
+			String user = prompt("username to add or update","");
+			if (user.isEmpty()) { print("cancelled."); return; }
+
+			String pass = prompt("password","");
+			if (pass.isEmpty()) { print("cancelled."); return; }
+
+			SimplePasswordStore store = setup.getSimplePasswordStore();
+			store.upsert(user, pass);
+
+			setup.setSimplePasswordStore(store);
+			setup.setAuthType(WebServer.Config.AUTHTYPE_SIMPLE);
+			print("updated.");
+		}
+
+		private void simple_delete() {
+			
+			String user = prompt("username to remove","");
+			if (user.isEmpty()) { print("cancelled."); return; }
+
+			SimplePasswordStore store = setup.getSimplePasswordStore();
+			store.delete(user);
+
+			setup.setSimplePasswordStore(store);
+			setup.setAuthType(WebServer.Config.AUTHTYPE_SIMPLE);
+			print("updated.");
+		}
+
+		private void simple_list() {
+			List<String> users = setup.getSimpleUsers();
+			print(String.format("%d user%s configured", users.size(), users.size() == 1 ? "" : "s"));
+			for (String user: users) print("* " + user);
+		}
+			
 		// OAuth2
 
 		private void oauth2() throws Exception {
 
+			OAuth2Details details = setup.getOAuth2Details();
+			
 			print("You can set up any login provider that supports OAuth2 " +
 				  "with OpenID Connect. Google, Facebook, GitHub and Amazon " +
 				  "are supported by default; your enterprise login system (e.g., " +
@@ -423,65 +556,32 @@ public class Setup
 				  " \n" +
 				  "Your current redirect URL is " + setup.getOAuth2RedirectURL() + ". \n" +
 				  " \n" +
-				  "Which provider do you want to use? \n" +
-				  "1. Google \n" +
-				  "2. Facebook \n" +
-				  "3. GitHub \n" +
-				  "4. Amazon \n" +
-				  "5. Other \n" +
-				  "6. Use dev mode instead \n" +
-				  " \n");
+				  "Which provider do you want to use? \n");
 
-			String providerNum = prompt("your choice", "3");
-			OAuth2Details details = new OAuth2Details();
-			String docURL = "";
-
-			switch (providerNum) {
-				case "1":
-					details.Provider = "google";
-					docURL = "https://developers.google.com/identity/openid-connect/openid-connect";
-					break;
-					
-				case "2":
-					details.Provider = "facebook";
-					docURL = "https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow";
-					break;
-					
-				case "3":
-					details.Provider = "github_reauth";
-					docURL = "https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app";
-					break;
-					
-				case "4":
-					details.Provider = "amazon";
-					docURL = "https://developer.amazon.com/docs/login-with-amazon/web-docs.html";
-					break;
-					
-				case "5":
-					details.Provider = "other";
-					docURL = "";
-					break;
-
-				case "6":
-					print("Dev mode is great for development, or trying out the app quickly, " +
-						  "or if you really really really don't need any security or auditing " +
-						  "at all. This last seems unlikely --- but we're all grownups here, right?");
-
-					if (confirm("Are you sure", false)) dev_mode();
-					else print("probably a good choice; aborting.");
-					return;
-
-				default:
-					print("invalid choice; aborting.");
-					return;
+			for (int i = 0; i < OAUTH2_PROVIDER_LIST.length; ++i) {
+				print(String.format("%d. %s", i+1, OAUTH2_PROVIDER_LIST[i]));
 			}
 
-			print("Use this URL to learn about setting up an OAuth2 web app for your provider:");
-			print(docURL);
+			print(String.format("%d. Cancel", OAUTH2_PROVIDER_LIST.length + 1));
 
+			String defaultProvider = Integer.toString(indexFromProvider(details.Provider) + 1);
+			String providerStr = prompt("your choice", defaultProvider);
+
+			Integer newProviderIndex = indexFromProviderPick(providerStr);
+			if (newProviderIndex == null) {
+				print("cancelled.");
+				return;
+			}
 			
-			details.ClientId = prompt("Application Client ID", "");
-			details.ClientSecret = prompt("Application Client Secret", "");
+			String docURL = OAUTH2_DOC_URLS[newProviderIndex];
+			if (docURL != null) {
+				print("Use this URL to learn about setting up an OAuth2 web app for your provider:");
+				print(docURL);
+			}
+
+			details.Provider = OAUTH2_PROVIDER_LIST[newProviderIndex];
+			details.ClientId = prompt("Application Client ID", details.ClientId);
+			details.ClientSecret = prompt("Application Client Secret", details.ClientSecret);
 
 			if (details.Provider.equals("other")) {
 				details.AuthURL = prompt("Authentication URL:", "");
@@ -490,9 +590,51 @@ public class Setup
 			}
 
 			setup.setOAuth2Details(details);
+			setup.setAuthType(WebServer.Config.AUTHTYPE_OAUTH2);
 			print("updated.");
 		}
+
+		private static int indexFromProvider(String provider) {
+
+			int i = 0;
+			while (i < OAUTH2_PROVIDER_LIST.length) {
+				if (OAUTH2_PROVIDER_LIST[i].equalsIgnoreCase(provider)) break;
+				++i;
+			}
+
+			return(i);
+		}
+
+		private static Integer indexFromProviderPick(String num) {
+
+			try {
+				int i = Integer.parseInt(num);
+				if (i <= 0 || i > OAUTH2_PROVIDER_LIST.length) return(null);
+				return(i - 1);
+			}
+			catch (Exception e) {
+				return(null);
+			}
+		}
 		
+		private final static String[] OAUTH2_PROVIDER_LIST = {
+			OAuth2Login.PROVIDER_GOOGLE,
+			OAuth2Login.PROVIDER_FACEBOOK,
+			OAuth2Login.PROVIDER_GITHUB,
+			OAuth2Login.PROVIDER_GITHUB_REAUTH,
+			OAuth2Login.PROVIDER_AMAZON,
+			OAuth2Login.PROVIDER_OTHER
+		};
+	
+		private final static String OAUTH2_DOC_URLS[] = {
+			"https://developers.google.com/identity/openid-connect/openid-connect",
+			"https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow",
+			"https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app",
+			"https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app",
+			"https://developer.amazon.com/docs/login-with-amazon/web-docs.html",
+			null
+		};
+
 		// Keys
 
 		private void newKey() throws Exception {
@@ -562,20 +704,32 @@ public class Setup
 
 		// Dev Mode
 
-		private void dev_mode() {
+		private void dev_mode_on() {
 
 			print("Dev mode allows you to run the client with 'npm start' and hit " +
 				  "the server back end on a separate port. It also short-circuits " +
-				  "OAuth2 authentication with a hard-coded token.");
+				  "authentication with a hard-coded token.");
 
 			if (confirm("Enable dev mode", false)) {
-				String token = prompt("Hard-coded OAuth2 token", DEFAULT_DEV_OAUTH2);
-				setup.enableDevMode(token);
+				String token = prompt("Hard-coded user token", DEFAULT_DEV_USER);
+				setup.setForcedAuth(token);
+				setup.setAuthType(WebServer.Config.AUTHTYPE_FORCE);
 				print("enabled.");
 			}
 			else {
-				setup.disableDevMode();
-				print("disabled.");
+				print("cancelled.");
+			}
+		}
+		
+		private void dev_mode_off() {
+			List<String> simpleUsers = setup.getSimpleUsers();
+			if (simpleUsers.size() > 0) {
+				print("resetting to simple auth");
+				setup.setAuthType(WebServer.Config.AUTHTYPE_SIMPLE);
+			}
+			else {
+				print("resetting to OAuth2");
+				setup.setAuthType(WebServer.Config.AUTHTYPE_OAUTH2);
 			}
 		}
 

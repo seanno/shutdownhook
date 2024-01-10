@@ -36,18 +36,10 @@ public class WebServer implements Closeable
 	
 	public static class Config
 	{
+		// +-----------
+		// | Connection
+		
 		public int Port = 7071;
-		public int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
-		public int ShutdownWaitSeconds = 30;
-		public boolean ReturnExceptionDetails = false;
-
-		// these aren't documented and are a bit problematic because they
-		// get set as statics ... if you set them you'll change all instances
-		// in the process. But without them clients can end up hanging sockets
-		// for a long time / forever. Use 0 to leave system defaults untouched;
-		// -1 for infinite; else seconds. 
-		public int MaxReadSeconds = (60 * 3);
-		public int MaxWriteSeconds = (60 * 3);
 
 		// if these are set, will create a SecureServer instead of
 		// a regular one. Parameters are named to match Apache config values
@@ -55,22 +47,55 @@ public class WebServer implements Closeable
 		public String SSLCertificateFile;
 		public String SSLCertificateKeyFile;
 
+		// +-----
+		// | CORS
+
 		// If AllowedOrigin is non-empty, these are used to support CORS
 		public String AllowedOrigin;
 		public String AllowedMethods = "GET,PUT,POST,OPTIONS";
 		public String AllowedHeaders = "Content-Type,Authorization";
 		
-		// If non-empty, will be used to encrypt / decrypt session cookies automatically
-		public Encrypt.Config CookieEncrypt;
+		// +---------------
+		// | Authentication
+		
+		// Used to pick an authentication type. null / not present = None.
+		// Authentication is applied to all routes equivalently.
+		// Look below for per-type configuration details
+		public String AuthenticationType;
+		public String LogoutPath = "/__logout";
 
+		public final static String AUTHTYPE_NONE = "none";
+		public final static String AUTHTYPE_FORCE = "force"; 
+		public final static String AUTHTYPE_BASIC = "basic"; 
+		public final static String AUTHTYPE_SIMPLE = "simple"; 
+		public final static String AUTHTYPE_OAUTH2 = "oauth2"; 
+
+		// * AUTHTYPE_FORCE
+		// Value will be used as fixed auth state. TEST/DEV ONLY!
+		public LoggedInUser ForceLoggedInUser;
+
+		// * AUTHTYPE_BASIC
+		// Basic authentication using a provided PasswordStore implementation.
+		// "BasicAuthConfiguration" is provided to the PasswordStore via init()
+		public String BasicAuthClassName;
+		public String BasicAuthConfiguration;
+		public String BasicAuthCookieName = "SHOOK_BASIC";
+		public String BasicAuthRealm = "Site Access";
+
+		// * AUTHTYPE_SIMPLE
+		// Basic authentication using user/pass combos stored here in config.
+		// Credential information can be added/removed from config using the methods
+		// in SimplePasswordStore.java
+		public SimplePasswordStore.Config SimplePasswordStore;
+
+		// * AUTHTYPE_OAUTH2
 		// if non-empty, the provided config will be used to protect all routes
 		public OAuth2Login.Config OAuth2;
 		public String OAuth2CookieName = "SHOOK_OAUTH2";
 
-		// if non-empty, will be used as fixed OAuth2 state (id|email|token)
-		// This OVERRIDES OAuth2 settings --- TEST/DEV ONLY!
-		public String OAuth2ForceState;
-
+		// +-------------
+		// | Static Pages
+		
 		// optional directory holding static pages. Each file with an extension
 		// found in StaticPagesExtensionMap will be exposed as a static route.
 		// Subdirectories are included. We use a whitelist here to provide a bit
@@ -100,6 +125,25 @@ public class WebServer implements Closeable
 			  Map.entry("woff", "font/woff"),
 			  Map.entry("woff2", "font/woff2")
 		);
+		
+		// +--------------
+		// | Miscellaneous
+		
+		public int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
+		public int ShutdownWaitSeconds = 30;
+		public boolean ReturnExceptionDetails = false;
+
+		// these aren't documented and are a bit problematic because they
+		// get set as statics ... if you set them you'll change all instances
+		// in the process. But without them clients can end up hanging sockets
+		// for a long time / forever. Use 0 to leave system defaults untouched;
+		// -1 for infinite; else seconds. 
+		public int MaxReadSeconds = (60 * 3);
+		public int MaxWriteSeconds = (60 * 3);
+
+		// If non-empty, will be used to encrypt / decrypt session cookies automatically
+		public Encrypt.Config CookieEncrypt;
+
 	}
 
 	// +---------------------------+
@@ -130,11 +174,18 @@ public class WebServer implements Closeable
 		public Map<String,String> Cookies;
 		public Map<String,List<String>> Headers;
 		public String Body;
-		public OAuth2Login.State OAuth2; // only if logged in
+		public LoggedInUser User; // only if logged in
 
 		public Map<String,String> parseBodyAsQueryString() {
 			return(Easy.parseQueryString(Body));
 		}
+	}
+
+	public static class LoggedInUser
+	{
+		public String Id;
+		public String Email;
+		public String Token;
 	}
 
 	// +----------+
@@ -151,6 +202,7 @@ public class WebServer implements Closeable
 		public File BodyFile;
 		public String ContentType;
 		public Map<String,String> Headers;
+		public Map<String,String> Cookies;
 
 		public void setJson(String s) { Status = 200; Body = s; ContentType = "application/json"; }
 		public void setText(String s) { Status = 200; Body = s; ContentType = "text/plain"; }
@@ -169,7 +221,8 @@ public class WebServer implements Closeable
 			String cookie = name + "=" + Easy.urlEncode(valX) + "; HttpOnly";
 			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
 
-			addHeader("Set-Cookie", cookie);
+			if (Cookies == null) Cookies = new HashMap<String,String>();
+			Cookies.put(name, cookie);
 		}
 		
 		public void deleteSessionCookie(String name, Request request) {
@@ -178,7 +231,8 @@ public class WebServer implements Closeable
 			if (request.Secure) cookie = cookie + "; Secure; SameSite=None";
 			cookie = cookie + "; expires=Thu, 01 Jan 1970 00:00:00 GMT";
 
-			addHeader("Set-Cookie", cookie);
+			if (Cookies == null) Cookies = new HashMap<String,String>();
+			Cookies.put(name, cookie);
 		}
 
 		public void addHeader(String name, String val) {
@@ -187,11 +241,21 @@ public class WebServer implements Closeable
 		}
 	}
 
+	// +---------------+
+	// | PasswordStore |
+	// +---------------+
+
+	public interface PasswordStore {
+		default public boolean init(String param) { return(true); }
+		public boolean check(String user, String password);
+	}
+
 	// +------------------+
 	// | WebServer Public |
 	// +------------------+
 
-	public static WebServer create(Config cfg) throws Exception {
+	public static WebServer create(Config cfg)
+		throws Exception {
 
 		WebServer server = (cfg.SSLCertificateFile == null ?
 							new WebServer(cfg) : new SecureServer(cfg));
@@ -210,7 +274,7 @@ public class WebServer implements Closeable
 		server.registerStaticRoutes();
 
 		if (cfg.CookieEncrypt != null) server.cookieEncrypt = new Encrypt(cfg.CookieEncrypt);
-		
+
 		server.registerAuth();
 
 		return(server);
@@ -326,7 +390,7 @@ public class WebServer implements Closeable
 					Request request = setupRequest(exchange);
 					
 					if (!handlePreflight(request, response) &&
-						!redirectForAuth(request, response)) {
+						!shortCircuitForAuth(request, response)) {
 						
 						handler.handle(request, response);
 					}
@@ -362,7 +426,6 @@ public class WebServer implements Closeable
 
 	public WebServer(Config cfg) throws Exception {
 		this.cfg = cfg;
-		if (cfg.OAuth2 != null) oauth2 = new OAuth2Login(cfg.OAuth2);
 	}
 
 	protected void createHttpServer(InetSocketAddress address) throws Exception {
@@ -385,6 +448,12 @@ public class WebServer implements Closeable
 		if (response.Headers != null) {
 			for (String name : response.Headers.keySet()) {
 				exchange.getResponseHeaders().add(name, response.Headers.get(name));
+			}
+		}
+
+		if (response.Cookies != null) {
+			for (String name : response.Cookies.keySet()) {
+				exchange.getResponseHeaders().add("Set-Cookie", response.Cookies.get(name));
 			}
 		}
 
@@ -535,18 +604,62 @@ public class WebServer implements Closeable
 		}
 	}
 
-	// +--------+
-	// | OAuth2 |
-	// +--------+
+	// +--------------+
+	// | registerAuth |
+	// +--------------+
 
-	private void registerAuth() {
+	private void registerAuth() throws Exception {
 
-		if (cfg.OAuth2ForceState != null) {
-			log.warning("USING FORCED OAUTH2 STATE --- this should never show in prod!");
-			return;
-		}
+		if (cfg.AuthenticationType == null) return;
 		
-		if (oauth2 == null) return;
+		switch (cfg.AuthenticationType.toLowerCase()) {
+			
+			case Config.AUTHTYPE_BASIC:
+				registerPasswordStore();
+				break;
+
+			case Config.AUTHTYPE_SIMPLE:
+				registerSimplePasswordStore();
+				break;
+
+			case Config.AUTHTYPE_OAUTH2:
+				registerOAuth2();
+				break;
+
+			case Config.AUTHTYPE_NONE:
+				return;
+				
+			case Config.AUTHTYPE_FORCE:
+				log.warning("USING FORCED LOGGEDINUSER --- this should never show in prod!");
+				return;
+
+			default:
+				throw new Exception("Unknown AuthenticationType: " + cfg.AuthenticationType);
+		}
+
+		registerLogoutHandler();
+	}
+
+	private void registerPasswordStore() throws Exception {
+
+		passwordStore = (PasswordStore) Class.forName(cfg.BasicAuthClassName).newInstance();
+		
+		if (!passwordStore.init(cfg.BasicAuthConfiguration)) {
+			throw new Exception("Password Store init failed for " + cfg.BasicAuthClassName);
+		}
+			
+		log.info("Configuring Basic authenication with " + cfg.BasicAuthClassName);
+	}
+
+	private void registerSimplePasswordStore() throws Exception {
+
+		passwordStore = new SimplePasswordStore(cfg.SimplePasswordStore);
+		log.info("Configuring Simple Basic authenication");
+	}
+
+	private void registerOAuth2() throws Exception {
+
+		oauth2 = new OAuth2Login(cfg.OAuth2);
 
 		log.info("Configuring OAuth2 authentication (" + cfg.OAuth2.RedirectPath + ")");
 		
@@ -568,39 +681,117 @@ public class WebServer implements Closeable
 				response.redirect(targetURL);
 			}
 		});
+	}
 
-		registerHandler(cfg.OAuth2.LogoutPath, new Handler() {
+	private void registerLogoutHandler() {
+
+		registerHandler(cfg.LogoutPath, new Handler() {
+				
 			public void handle(Request request, Response response) throws Exception {
+
+				response.deleteSessionCookie(cfg.BasicAuthCookieName, request);
+				response.deleteSessionCookie(cfg.OAuth2CookieName, request);
 
 				String redir = request.QueryParams.get("r");
 				if (Easy.nullOrEmpty(redir) || redir.indexOf("://") != -1) redir = "/";
 				
-				response.deleteSessionCookie(cfg.OAuth2CookieName, request);
 				response.redirect(redir);
 			}
 		});
-		
 	}
-	
-	private boolean redirectForAuth(Request request, Response response) {
 
-		// force for dev/test
+	// +---------------------+
+	// | shortCircuitForAuth |
+	// +---------------------+
+	
+	private boolean shortCircuitForAuth(Request request, Response response) {
+
+		if (cfg.AuthenticationType == null) return(false);
+		if (request.Path.startsWith(cfg.LogoutPath)) return(false);
 		
-		if (cfg.OAuth2ForceState != null) {
-			request.OAuth2 = OAuth2Login.State.rehydrate(cfg.OAuth2ForceState);
+		switch (cfg.AuthenticationType.toLowerCase()) {
+			
+			case Config.AUTHTYPE_BASIC:
+			case Config.AUTHTYPE_SIMPLE:
+				return(shortCircuitForPasswordStore(request, response));
+
+			case Config.AUTHTYPE_OAUTH2:
+				return(shortCircuitForOAuth2(request, response));
+
+			case Config.AUTHTYPE_NONE:
+				return(false);
+				
+			case Config.AUTHTYPE_FORCE:
+				request.User = cfg.ForceLoggedInUser;
+				return(false);
+		}
+
+		return(false);
+	}
+
+	private boolean shortCircuitForPasswordStore(Request request, Response response) {
+
+		// already logged in?
+
+		String user = request.Cookies.get(cfg.BasicAuthCookieName);
+
+		if (!Easy.nullOrEmpty(user)) {
+			request.User = new LoggedInUser();
+			request.User.Id = user;
 			return(false);
 		}
+
+		// nope, check for header
+
+		String authInfo = null;
+		List<String> authHeaders = request.Headers.get("Authorization");
+		if (authHeaders != null && authHeaders.size() >= 1) {
+			String authHeader = authHeaders.get(0);
+			if (authHeader.startsWith("Basic ")) {
+				String authBase64 = authHeader.substring(6).trim(); // skip the basic part
+				authInfo = Easy.base64Decode(authBase64);
+			}
+		}
+
+		if (authInfo != null) {
+			
+			int ichUser = authInfo.indexOf(":");
+			String authUser = authInfo.substring(0, ichUser);
+			String authPass = authInfo.substring(ichUser + 1);
+
+			if (passwordStore.check(authUser, authPass)) {
+				response.setSessionCookie(cfg.BasicAuthCookieName, authUser, request);
+				return(false);
+			}
+		}
+
+		// either no header or it's bogus; authenticate!
+
+		response.Status = 401;
 		
-		// quick exits
+		String hdr = String.format("Basic realm=\"%s\"", cfg.BasicAuthRealm);
+		response.addHeader("WWW-Authenticate", hdr);
 
-		if (oauth2 == null) return(false);
+		return(true);
+	}
+
+	private boolean shortCircuitForOAuth2(Request request, Response response) {
+
+		// quick exit
+
 		if (request.Path.startsWith(cfg.OAuth2.RedirectPath)) return(false);
-
+		
 		// already logged in?
 		
 		OAuth2Login.State state = getOAuth2State(request);
+		
 		if (state.isAuthenticated()) {
-			request.OAuth2 = state;
+			
+			request.User = new LoggedInUser();
+			request.User.Id = state.getId();
+			request.User.Email = state.getEmail();
+			request.User.Token = state.getToken();
+			
 			return(false);
 		}
 
@@ -683,6 +874,7 @@ public class WebServer implements Closeable
 	private ExecutorService pool;
 	private OAuth2Login oauth2;
 	private Encrypt cookieEncrypt;
+	private PasswordStore passwordStore;
 
 	private File staticPagesTemp; 
 	

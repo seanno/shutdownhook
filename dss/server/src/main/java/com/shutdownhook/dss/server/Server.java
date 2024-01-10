@@ -95,7 +95,7 @@ public class Server implements Closeable
 		server.registerHandler(cfg.GetQueryUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 				UUID id = UUID.fromString(request.QueryParams.get("id"));
-				response.setJson(gson.toJson(store.getQueryDetails(id, getAuthEmail(request))));
+				response.setJson(gson.toJson(store.getQueryDetails(id, getAuthUser(request))));
 			}
 		});
 	}
@@ -108,7 +108,7 @@ public class Server implements Closeable
 		server.registerHandler(cfg.SaveQueryUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 				QueryStore.QueryDetails details = QueryStore.QueryDetails.fromJson(request.Body);
-				String user = getAuthEmail(request);
+				String user = getAuthUser(request);
 
 				QueryStore.ExecutionInfo exInfo =
 					store.getConnectionExecutionInfo(details.ConnectionName, user);
@@ -136,7 +136,7 @@ public class Server implements Closeable
 			public void handle(Request request, Response response) throws Exception {
 				
 				UUID id = UUID.fromString(request.QueryParams.get("id"));
-				boolean success = store.deleteQuery(id, getAuthEmail(request));
+				boolean success = store.deleteQuery(id, getAuthUser(request));
 				
 				response.setJson(String.format("{ \"success\": %s }",
 											   success ? "true" : "false"));
@@ -151,7 +151,7 @@ public class Server implements Closeable
 	private void registerListQueries() throws Exception {
 		server.registerHandler(cfg.ListQueriesUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
-				response.setJson(gson.toJson(store.listQueries(getAuthEmail(request))));
+				response.setJson(gson.toJson(store.listQueries(getAuthUser(request))));
 			}
 		});
 	}
@@ -167,7 +167,7 @@ public class Server implements Closeable
 				String connectionName = (request.QueryParams.get("connection"));
 
 				QueryStore.ExecutionInfo exInfo =
-					store.getConnectionExecutionInfo(connectionName, getAuthEmail(request));
+					store.getConnectionExecutionInfo(connectionName, getAuthUser(request));
 				
 				if (exInfo == null) { response.Status = 401; return; }
 				
@@ -199,7 +199,7 @@ public class Server implements Closeable
 
 				if (runInfo == null) throw new Exception("Parameters missing");
 				
-				String user = getAuthEmail(request);
+				String user = getAuthUser(request);
 
 				QueryStore.ExecutionInfo exInfo;
 				
@@ -236,9 +236,10 @@ public class Server implements Closeable
 	// | Helpers |
 	// +---------+
 
-	private static String getAuthEmail(Request request) throws Exception {
-		String user = request.OAuth2.getEmail();
-		if (Easy.nullOrEmpty(user)) throw new Exception("missing auth email");
+	private static String getAuthUser(Request request) throws Exception {
+		String user = request.User.Email;
+		if (Easy.nullOrEmpty(user)) user = request.User.Id;
+		if (Easy.nullOrEmpty(user)) throw new Exception("missing auth email or id");
 		return(user);
 	}
 

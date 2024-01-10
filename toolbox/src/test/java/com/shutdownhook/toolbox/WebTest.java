@@ -7,6 +7,7 @@ package com.shutdownhook.toolbox;
 
 import java.io.File;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.UUID;
@@ -22,7 +23,7 @@ public class WebTest
 	
 	private static WebServer[] servers = new WebServer[SERVER_COUNT];
 	private static String[] baseUrls = new String[SERVER_COUNT];
-	
+
 	private static WebRequests requests;
 	private static WebRequests requestsDefaultSSL;
 	
@@ -280,4 +281,132 @@ public class WebTest
 			if (i == 1) Assert.assertTrue(response.Headers.get("Set-cookie").get(0).indexOf("; Secure") != -1);
 		}
 	}
+
+    @Test
+    public void simplePasswords() throws Exception
+	{
+		SimplePasswordStore store = new SimplePasswordStore();
+		store.upsert("user", "pass");
+		
+		WebServer.Config cfg = new WebServer.Config();
+		cfg.AuthenticationType = WebServer.Config.AUTHTYPE_SIMPLE;
+		cfg.SimplePasswordStore = store.getConfig();
+
+		testBasicAuth(cfg);
+	}
+	
+    @Test
+    public void passwordInterfaceOK() throws Exception
+	{
+		WebServer.Config cfg = new WebServer.Config();
+		cfg.AuthenticationType = WebServer.Config.AUTHTYPE_BASIC;
+		cfg.BasicAuthClassName = TestPasswordStore.class.getName();
+		cfg.BasicAuthConfiguration = "OK";
+
+		testBasicAuth(cfg);
+	}
+
+    @Test
+    public void passwordInterfaceBadInit() throws Exception
+	{
+		WebServer.Config cfg = new WebServer.Config();
+		cfg.AuthenticationType = WebServer.Config.AUTHTYPE_BASIC;
+		cfg.BasicAuthClassName = TestPasswordStore.class.getName();
+		cfg.BasicAuthConfiguration = "NOT OK";
+
+		try {
+			testBasicAuth(cfg);
+			Assert.fail("expected init failure");
+		}
+		catch (Exception e) {
+			// yay
+		}
+	}
+
+	static public class TestPasswordStore implements WebServer.PasswordStore
+	{
+		public boolean init(String param) {
+			return("OK".equals(param));
+		}
+		
+		public boolean check(String user, String password) {
+			return("user".equals(user) && "pass".equals(password));
+		}
+	}
+
+	private void testBasicAuth(WebServer.Config cfg) throws Exception {
+		
+		cfg.Port = new Random().nextInt(2000) + 7000; // rand to minimize conflict
+
+		String route = "/x";
+		String url = String.format("http://localhost:%d%s", cfg.Port, route);
+			
+		WebServer server = WebServer.create(cfg);
+		server.registerStaticHandler(route, "static", "text/plain");
+		server.start();
+
+		// no pw sent
+		WebRequests.Response response = requests.fetch(url);
+		Assert.assertEquals(401, response.Status);
+		Assert.assertEquals("Basic realm=\"" + cfg.BasicAuthRealm + "\"",
+							response.Headers.get("Www-authenticate").get(0));
+
+		// bad user
+		WebRequests.Params params = new WebRequests.Params();
+		params.setBasicAuth("notauser", "notapass");
+		response = requests.fetch(url, params);
+		Assert.assertEquals(401, response.Status);
+
+		// bad pass
+		params = new WebRequests.Params();
+		params.setBasicAuth("user", "notapass");
+		response = requests.fetch(url, params);
+		Assert.assertEquals(401, response.Status);
+		
+		// good pass
+		params = new WebRequests.Params();
+		params.setBasicAuth("user", "pass");
+		response = requests.fetch(url, params);
+		Assert.assertEquals(200, response.Status);
+		String setCookie = assertSetCookieNamed(response, cfg.BasicAuthCookieName);
+
+		// good cookie
+		params = new WebRequests.Params();
+		params.addHeader("Cookie", setCookie);
+		response = requests.fetch(url, params);
+		Assert.assertEquals(200, response.Status);
+
+		// logout
+		WebRequests.Config noRedirConfig = new WebRequests.Config();
+		noRedirConfig.FollowRedirects = false;
+		WebRequests noRedirRequests = new WebRequests(noRedirConfig);
+
+		String logoutUrl = String.format("http://localhost:%d%s",
+										 cfg.Port, cfg.LogoutPath);
+		
+		response = noRedirRequests.fetch(logoutUrl);
+		response = requests.fetch(logoutUrl);
+		Assert.assertEquals(302, response.Status);
+
+		setCookie = assertSetCookieNamed(response, cfg.BasicAuthCookieName);
+		int ichExpires = setCookie.indexOf("expires=Thu, 01 Jan 1970 00:00:00 GMT");
+		Assert.assertTrue(ichExpires != -1);
+		
+		noRedirRequests.close();
+		server.close();
+	}
+
+	private String assertSetCookieNamed(WebRequests.Response response, String name) {
+
+		List<String> setCookies = response.Headers.get("Set-cookie");
+		Assert.assertTrue(setCookies != null);
+		
+		for (String setCookie : setCookies) {
+			if (setCookie.startsWith(name + "=")) return(setCookie);
+		}
+
+		Assert.fail("cookie " + name + " not found");
+		return(null);
+	}
+
 }
