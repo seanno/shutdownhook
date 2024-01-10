@@ -31,14 +31,17 @@ public class Setup
 	private final static int DEFAULT_PORT = 3001;
 	private final static String DEFAULT_STORE_LOC = "/tmp/dss.sql";
 
+	private final static String DEFAULT_CERT = "@localhost.crt";
+	private final static String DEFAULT_KEY = "@localhost.key";
+	
 	private final static String DEFAULT_DEV_USER = "test|test@example.com|test_token";
 
 	private final static String DEFAULT_AUTH_TYPE = WebServer.Config.AUTHTYPE_SIMPLE;
 	
-	private final static String DEFAULT_OAUTH2_PROVIDER = "github_reauth";
+	private final static String DEFAULT_OAUTH2_PROVIDER = "github";
 	private final static String DEFAULT_OAUTH2_CLIENT_ID = "CLIENT_ID";
 	private final static String DEFAULT_OAUTH2_CLIENT_SECRET = "CLIENT_SECRET";
-		
+
 	private final static String KEY_ALG = "AES";
 
 	// +-------+
@@ -490,6 +493,8 @@ public class Setup
 			}
 				  
 			save();
+
+			print("Configuration initialized and saved; ready to run.");
 		}
 
 		// Store
@@ -510,7 +515,7 @@ public class Setup
 
 		private void simple_upsert() {
 
-			String user = prompt("username to add or update","");
+			String user = prompt("username/email to add or update","");
 			if (user.isEmpty()) { print("cancelled."); return; }
 
 			String pass = prompt("password","");
@@ -526,7 +531,7 @@ public class Setup
 
 		private void simple_delete() {
 			
-			String user = prompt("username to remove","");
+			String user = prompt("username/email to remove","");
 			if (user.isEmpty()) { print("cancelled."); return; }
 
 			SimplePasswordStore store = setup.getSimplePasswordStore();
@@ -621,7 +626,6 @@ public class Setup
 			OAuth2Login.PROVIDER_GOOGLE,
 			OAuth2Login.PROVIDER_FACEBOOK,
 			OAuth2Login.PROVIDER_GITHUB,
-			OAuth2Login.PROVIDER_GITHUB_REAUTH,
 			OAuth2Login.PROVIDER_AMAZON,
 			OAuth2Login.PROVIDER_OTHER
 		};
@@ -629,7 +633,6 @@ public class Setup
 		private final static String OAUTH2_DOC_URLS[] = {
 			"https://developers.google.com/identity/openid-connect/openid-connect",
 			"https://developers.facebook.com/docs/facebook-login/guides/advanced/manual-flow",
-			"https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app",
 			"https://docs.github.com/en/apps/oauth-apps/building-oauth-apps/creating-an-oauth-app",
 			"https://developer.amazon.com/docs/login-with-amazon/web-docs.html",
 			null
@@ -686,12 +689,16 @@ public class Setup
 				print("Use the same file formats as Apache mod_ssl.");
 
 				String currentCert = setup.currentCertificateFile();
+				if (Easy.nullOrEmpty(currentCert)) currentCert = DEFAULT_CERT;
 				String cert = prompt("(1 of 2) Local path to Certificate file", currentCert);
-				if (!new File(cert).exists()) { print("file doesn't exist; aborted."); return; }
+				if (!cert.startsWith("@") &&
+					!new File(cert).exists()) { print("file doesn't exist; aborted."); return; }
 				
 				String currentKey = setup.currentCertificateKeyFile();
+				if (Easy.nullOrEmpty(currentKey)) currentKey = DEFAULT_KEY;
 				String key = prompt("(2 of 2) Local path to Certificate Key file", currentKey);
-				if (!new File(key).exists()) { print("file doesn't exist; aborted."); return; }
+				if (!key.startsWith("@") &&
+					!new File(key).exists()) { print("file doesn't exist; aborted."); return; }
 
 				setup.enableSSL(cert, key);
 				print("updated.");

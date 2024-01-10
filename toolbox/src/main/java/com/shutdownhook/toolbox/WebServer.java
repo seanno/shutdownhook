@@ -81,6 +81,7 @@ public class WebServer implements Closeable
 		public String BasicAuthConfiguration;
 		public String BasicAuthCookieName = "SHOOK_BASIC";
 		public String BasicAuthRealm = "Site Access";
+		public String Basic401Path = "/__401";
 
 		// * AUTHTYPE_SIMPLE
 		// Basic authentication using user/pass combos stored here in config.
@@ -683,21 +684,46 @@ public class WebServer implements Closeable
 		});
 	}
 
-	private void registerLogoutHandler() {
+	private void registerLogoutHandler() throws Exception {
 
+		String authType = cfg.AuthenticationType.toLowerCase();
+		
+		final boolean activeLogout =
+			(Config.AUTHTYPE_BASIC.equals(authType) || Config.AUTHTYPE_SIMPLE.equals(authType))
+			? true : false;
+
+		String templateText = Easy.stringFromResource("logout.html.tmpl");
+		final Template template = new Template(templateText);
+		
 		registerHandler(cfg.LogoutPath, new Handler() {
 				
 			public void handle(Request request, Response response) throws Exception {
 
 				response.deleteSessionCookie(cfg.BasicAuthCookieName, request);
 				response.deleteSessionCookie(cfg.OAuth2CookieName, request);
-
+				
 				String redir = request.QueryParams.get("r");
 				if (Easy.nullOrEmpty(redir) || redir.indexOf("://") != -1) redir = "/";
+
+				HashMap tokens = new HashMap<String,String>();
+				tokens.put("401_URL", cfg.Basic401Path);
+				tokens.put("REDIRECT_URL", redir);
+				tokens.put("ACTIVE_LOGOUT", activeLogout ? "TRUE" : "FALSE");
 				
-				response.redirect(redir);
+				response.setHtml(template.render(tokens));
 			}
+
 		});
+		
+		if (activeLogout) {
+
+			registerHandler(cfg.Basic401Path, new Handler() {
+				public void handle(Request request, Response response) throws Exception {
+					response.Status = 401;
+				}
+			});
+		}
+		
 	}
 
 	// +---------------------+

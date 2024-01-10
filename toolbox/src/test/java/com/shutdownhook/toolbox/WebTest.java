@@ -377,22 +377,16 @@ public class WebTest
 		Assert.assertEquals(200, response.Status);
 
 		// logout
-		WebRequests.Config noRedirConfig = new WebRequests.Config();
-		noRedirConfig.FollowRedirects = false;
-		WebRequests noRedirRequests = new WebRequests(noRedirConfig);
-
 		String logoutUrl = String.format("http://localhost:%d%s",
 										 cfg.Port, cfg.LogoutPath);
 		
-		response = noRedirRequests.fetch(logoutUrl);
 		response = requests.fetch(logoutUrl);
-		Assert.assertEquals(302, response.Status);
+		Assert.assertEquals(200, response.Status);
 
 		setCookie = assertSetCookieNamed(response, cfg.BasicAuthCookieName);
 		int ichExpires = setCookie.indexOf("expires=Thu, 01 Jan 1970 00:00:00 GMT");
 		Assert.assertTrue(ichExpires != -1);
 		
-		noRedirRequests.close();
 		server.close();
 	}
 

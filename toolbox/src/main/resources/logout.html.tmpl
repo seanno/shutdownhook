@@ -1,0 +1,64 @@
+<html>
+
+  <head>
+
+	{{:if ACTIVE_LOGOUT }}
+	<!-- START ACTIVE LOGOUT ------------------------------------ -->
+
+	<script src="https://code.jquery.com/jquery-3.7.0.min.js"
+			integrity="sha256-2Pmvv0kuTBOenSvLm6bvfBSSHrUJ+3A7x6P5Ebd07/g="
+			crossorigin="anonymous"></script>
+
+	<style>
+
+	  #return {
+		  display: none;
+	  }
+	  
+	</style>
+
+	<script type="text/javascript">
+
+	  $(document).ready(() => {
+
+		
+		$.ajax({
+		  type: 'GET',
+		  url: '{{:raw 401_URL}}',
+		  async: false,
+		  username: 'xxxx_xxxx',
+		  password: 'xxxx_xxxx',
+		  headers: { Authorization: 'Basic eHh4eF94eHh4Onh4eHhfeHh4eA==' }
+		})
+		
+		.done(() => {
+		  $('#msg').html('Error logging out.');
+		  $('#return').show();
+		})
+		
+		.fail(() => {
+		  $('#msg').html('Logged out.');
+		  $('#return').show();
+		});
+
+		
+	  });
+
+	</script>
+
+	<!-- END ACTIVE LOGOUT ------------------------------------ -->
+	{{:end}}
+	
+  </head>
+
+  <body>
+
+	<div id="msg">
+	  {{:if ACTIVE_LOGOUT}}Logging out...{{:end}}
+	  {{:ifnot ACTIVE_LOGOUT}}Logged out.{{:end}}
+	</div>
+	<div id="return">
+	  <a href="{{:raw REDIRECT_URL}}">return</a>
+  </body>
+  
+</html>
