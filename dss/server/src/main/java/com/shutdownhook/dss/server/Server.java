@@ -75,8 +75,6 @@ public class Server implements Closeable
 		registerRunQuery();
 		registerDeleteQuery();
 		registerSchemaQuery();
-		
-		server.registerEmptyHandler("/favicon.ico", 404);
 	}
 
 	// +----------------+

@@ -29,7 +29,8 @@ public class Setup
 {
 	private final static String DEFAULT_CONFIG = "config.json";
 	private final static int DEFAULT_PORT = 3001;
-	private final static String DEFAULT_STORE_LOC = "/tmp/dss.sql";
+
+	private final static String DEFAULT_STORE_NAME = "dss.sql";
 
 	private final static String DEFAULT_CERT = "@localhost.crt";
 	private final static String DEFAULT_KEY = "@localhost.key";
@@ -503,7 +504,7 @@ public class Setup
 
 			String currentLoc = setup.getStoreConnectionString();
 			if (currentLoc != null) currentLoc = setup.getStoreConnectionString().replace("jdbc:sqlite:","");
-			if (currentLoc == null) currentLoc = Setup.DEFAULT_STORE_LOC;
+			if (currentLoc == null) currentLoc = new File(DEFAULT_STORE_NAME).getAbsolutePath();
 			
 			String newLoc = prompt("location for metadata file", currentLoc);
 
