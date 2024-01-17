@@ -29,6 +29,9 @@ export default function App() {
   return (
     <div className={styles.container}>
 	  <div className={styles.logout}>
+		<a target="_blank" rel="noreferrer" 
+		   href="https://github.com/seanno/shutdownhook/tree/main/dss#readme">about</a>
+		<br/>
 		<Link component="button" onClick={logoutClick}>logout</Link>
 	  </div>
 	  { urlQuery && <Runner query={urlQuery} /> }
