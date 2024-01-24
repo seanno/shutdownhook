@@ -133,4 +133,4 @@ See [SQL Hammer (everything is a nail) @ Shutdown Hook](https://shutdownhook.com
 
 I created SQL Hammer becaues I've needed something similar at pretty much every job I've ever had, and finally decided to do something more permanent about it. Whether you use the packaged version or build and extend it from source, I hope you find it useful. 
 
-There is no formal support for SQL Hammer, but I'm always happy to help if I can. [Contact me via my site Shutdown Hook](https://shutdownhook.com/contact/), or [submit an issue on GitHub]([Issues · seanno/shutdownhook · GitHub](https://github.com/seanno/shutdownhook/issues). Thanks!
+There is no formal support for SQL Hammer, but I'm always happy to help if I can. [Contact me via my site Shutdown Hook](https://shutdownhook.com/contact/), or [submit an issue on GitHub](https://github.com/seanno/shutdownhook/issues). Thanks!
