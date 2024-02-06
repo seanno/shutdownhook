@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+	<!-- +--------+
+		 | Styles |
+		 +--------+ -->
+
+	<style>
+
+	  :root {
+		  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
+		  line-height: 1.5;
+		  font-weight: 400;
+		  font-size: 14px;
+
+		  background-color: gainsboro;
+		  color: black;
+
+		  font-synthesis: none;
+		  text-rendering: optimizeLegibility;
+		  -webkit-font-smoothing: antialiased;
+		  -moz-osx-font-smoothing: grayscale;
+	  }
+
+	  .container {
+		  width: 620px;
+		  margin: auto;
+	  }
+	  
+	  .hdrMain {
+		  font-size: 18px;
+		  font-weight: 600;
+		  padding-bottom: 6px;
+	  }
+
+	  .calendar {
+		  display: grid;
+		  grid-template-columns: repeat(7, 1fr);
+		  padding: 0px 8px 8px 8px;
+		  gap: 6px;
+		  background-color: white;
+		  width: 100%;
+		  border: 1px solid black;
+	  }
+
+	  .hdrDay {
+		  grid-row: 1;
+		  padding: 2px;
+		  text-align: center;
+	  }
+
+	  .day {
+		  padding: 0px;
+		  overflow: hidden;
+		  width: 80px;
+		  height: 80px;
+		  border: 1px solid lightgrey;
+	  }
+
+	  .day img {
+		  width: 100%;
+	  }
+	  
+	</style>
+
+  </head>
+  <body>
+
+	<!-- +------+
+		 | Body |
+		 +------+ -->
+
+	<div class='container'>
+	  
+	  <div class='hdrMain'>
+		{{USERNAME}} - {{MONTHYEAR}}
+	  </div>
+	  
+	  <div class='calendar'>
+		
+		<div class='hdrDay' style='grid-column: 1;'>Sunday</div>
+		<div class='hdrDay' style='grid-column: 2;'>Monday</div>
+		<div class='hdrDay' style='grid-column: 3;'>Tuesday</div>
+		<div class='hdrDay' style='grid-column: 4;'>Wednesday</div>
+		<div class='hdrDay' style='grid-column: 5;'>Thursday</div>
+		<div class='hdrDay' style='grid-column: 6;'>Friday</div>
+		<div class='hdrDay' style='grid-column: 7;'>Saturday</div>
+
+		{{:rpt DAYS}}
+
+		<div class='day' style='grid-column: {{DAYCOL}}; grid-row: {{DAYROW}};'>
+		  {{:raw DAYIMAGE}}
+		</div>
+
+		{{:end}}
+
+	  </div>
+
+	</div>
+
+  </body>
+</html>
