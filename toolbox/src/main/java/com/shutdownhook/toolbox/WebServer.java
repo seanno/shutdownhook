@@ -123,6 +123,8 @@ public class WebServer implements Closeable
 			  Map.entry("jpeg", "image/jpeg"),
 			  Map.entry("png", "image/x-png"),
 			  Map.entry("ico", "image/x-icon"),
+			  Map.entry("heic", "image/heic"),
+			  Map.entry("webp", "image/webp"),
 			  Map.entry("woff", "font/woff"),
 			  Map.entry("woff2", "font/woff2")
 		);

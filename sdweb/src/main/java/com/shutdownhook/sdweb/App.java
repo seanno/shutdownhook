@@ -46,10 +46,10 @@ public class App
 				String echo = request.QueryParams.get("msg");
 				if (Easy.nullOrEmpty(echo)) echo = "No msg query param found";
 
-				if (request.OAuth2 != null) {
+				if (request.User != null) {
 					echo = String.format("%s, %s (%s)", echo,
-										 request.OAuth2.getId(),
-										 request.OAuth2.getEmail());
+										 request.User.Id,
+										 request.User.Email);
 				}
 				
 				response.setText(echo);
