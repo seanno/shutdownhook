@@ -104,7 +104,9 @@ public class Instagram implements Closeable
 
 			// SHAMELESS. I decided to start doing this on January 2, so both Jan 1 and 2
 			// pics were posted that day. CHEATING it to make the display work.
+			// And again on March 9-10!
 			if (rawPost.permalink.endsWith("C1mzm3XxrGP/")) dayOfMonth = 1; 
+			if (rawPost.permalink.endsWith("C4U69bMOo-H/")) dayOfMonth = 9; 
 
 			if (!posts.containsKey(dayOfMonth)) {
 				posts.put(dayOfMonth, new ArrayList<ProcessedPost>());
