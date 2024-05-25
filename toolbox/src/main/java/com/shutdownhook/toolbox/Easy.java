@@ -8,6 +8,7 @@ package com.shutdownhook.toolbox;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.BufferedReader;
+import java.io.Closeable;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
@@ -740,6 +741,11 @@ public class Easy
 	// | Misc |
 	// +------+
 
+	public static void safeClose(Closeable c) {
+		try { c.close(); }
+		catch (Exception e) { /* eat it */ }
+	}
+	
 	public static String randomAlphaNumeric(int cch) {
 		StringBuilder sb = new StringBuilder();
 		Random random = new Random();

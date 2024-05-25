@@ -27,6 +27,8 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.util.zip.ZipInputStream;
+import java.util.zip.GZIPInputStream;
 
 public class WebServer implements Closeable
 {
@@ -135,6 +137,7 @@ public class WebServer implements Closeable
 		public int ThreadCount = 0; // 0 = use an on-demand pool, else specific fixed count
 		public int ShutdownWaitSeconds = 30;
 		public boolean ReturnExceptionDetails = false;
+		public boolean ReadBodyAsString = true;
 
 		// these aren't documented and are a bit problematic because they
 		// get set as statics ... if you set them you'll change all instances
@@ -177,11 +180,14 @@ public class WebServer implements Closeable
 		public Map<String,String> Cookies;
 		public Map<String,List<String>> Headers;
 		public String Body;
+		public InputStream BodyStream;
 		public LoggedInUser User; // only if logged in
 
 		public Map<String,String> parseBodyAsQueryString() {
 			return(Easy.parseQueryString(Body));
 		}
+
+		private InputStream InnerBodyStream;
 	}
 
 	public static class LoggedInUser
@@ -388,9 +394,11 @@ public class WebServer implements Closeable
 
 				Response response = new Response(cookieEncrypt);
 				response.Status = 200; // optimistic!
+
+				Request request = null;
 				
 				try {
-					Request request = setupRequest(exchange);
+					request = setupRequest(exchange);
 					
 					if (!handlePreflight(request, response) &&
 						!shortCircuitForAuth(request, response)) {
@@ -414,6 +422,11 @@ public class WebServer implements Closeable
 				}
 				finally {
 
+					if (request != null) {
+						if (request.BodyStream != null) Easy.safeClose(request.BodyStream);
+						if (request.InnerBodyStream != null) Easy.safeClose(request.InnerBodyStream);
+					}
+					
 					try { sendResponse(exchange, response); }
 					catch (IOException inner) { /* oh well */ }
 					
@@ -517,15 +530,36 @@ public class WebServer implements Closeable
 		// body
 		if (request.Method.equalsIgnoreCase("POST") ||
 			request.Method.equalsIgnoreCase("PUT")) {
-			
-			InputStream stream = null;
 
-			try {
-				stream = exchange.getRequestBody();
-				request.Body = Easy.stringFromInputStream(stream);
+			if (cfg.ReadBodyAsString) {
+				
+				InputStream stream = null;
+
+				try {
+					stream = exchange.getRequestBody();
+					request.Body = Easy.stringFromInputStream(stream);
+				}
+				finally {
+					if (stream != null) stream.close();
+				}
 			}
-			finally {
-				if (stream != null) stream.close();
+			else {
+				// will be closed by registerHandler finally clause
+				request.BodyStream = exchange.getRequestBody();
+				
+				List<String> contentTypeHeaders = request.Headers.get("Content-Type");
+				String ct = ((contentTypeHeaders != null && contentTypeHeaders.size() >= 1)
+							 ? contentTypeHeaders.get(0).toLowerCase() : "");
+
+				if (ct.equals("application/zip")) {
+					request.InnerBodyStream = request.BodyStream;
+					request.BodyStream = new ZipInputStream(request.InnerBodyStream);
+					((ZipInputStream)request.BodyStream).getNextEntry();
+				}
+				else if (ct.equals("application/gzip") || ct.equals("application/x-gzip")) {
+					request.InnerBodyStream = request.BodyStream;
+					request.BodyStream = new GZIPInputStream(request.InnerBodyStream);
+				}
 			}
 		}
 
