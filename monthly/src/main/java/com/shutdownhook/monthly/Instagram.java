@@ -107,6 +107,7 @@ public class Instagram implements Closeable
 			// And again on March 9-10!
 			if (rawPost.permalink.endsWith("C1mzm3XxrGP/")) dayOfMonth = 1; 
 			if (rawPost.permalink.endsWith("C4U69bMOo-H/")) dayOfMonth = 9; 
+			if (rawPost.permalink.endsWith("C7ZK4tpRxeu/")) dayOfMonth = 24; 
 
 			if (!posts.containsKey(dayOfMonth)) {
 				posts.put(dayOfMonth, new ArrayList<ProcessedPost>());

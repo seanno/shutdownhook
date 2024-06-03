@@ -30,6 +30,8 @@ import java.util.logging.Logger;
 import java.util.zip.ZipInputStream;
 import java.util.zip.GZIPInputStream;
 
+import com.google.gson.Gson;
+
 public class WebServer implements Closeable
 {
 	// +---------------+
@@ -86,10 +88,12 @@ public class WebServer implements Closeable
 		public String Basic401Path = "/__401";
 
 		// * AUTHTYPE_SIMPLE
-		// Basic authentication using user/pass combos stored here in config.
+		// Basic authentication using user/pass combos stored in config.
 		// Credential information can be added/removed from config using the methods
-		// in SimplePasswordStore.java
+		// in SimplePasswordStore.java. Only one of the two values below
+		// shoudl be used; in-line config takes precedence.
 		public SimplePasswordStore.Config SimplePasswordStore;
+		public String SimplePasswordStorePath;
 
 		// * AUTHTYPE_OAUTH2
 		// if non-empty, the provided config will be used to protect all routes
@@ -690,7 +694,26 @@ public class WebServer implements Closeable
 
 	private void registerSimplePasswordStore() throws Exception {
 
-		passwordStore = new SimplePasswordStore(cfg.SimplePasswordStore);
+		if (cfg.SimplePasswordStore != null) {
+			
+			if (cfg.SimplePasswordStorePath != null) {
+
+				log.warning("Can't have both SimplePasswordStore and ...Path " +
+							"set in config; preferring inline.");
+			}
+			
+			passwordStore = new SimplePasswordStore(cfg.SimplePasswordStore);
+		}
+		else if (cfg.SimplePasswordStorePath != null) {
+
+			String jsonSPS = Easy.stringFromFile(cfg.SimplePasswordStorePath);
+			SimplePasswordStore.Config cfgSPS = new Gson().fromJson(jsonSPS, SimplePasswordStore.Config.class);
+			passwordStore = new SimplePasswordStore(cfgSPS);
+		}
+		else {
+			throw new Exception("Simple authtype selected but no config!");
+		}
+		
 		log.info("Configuring Simple Basic authenication");
 	}
 
