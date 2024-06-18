@@ -10,6 +10,7 @@ import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Logger;
 
@@ -118,18 +119,27 @@ public class SimplePasswordStoreEditor implements Closeable
 				case "list": listUsers(); break;
 				case "upsert": if (upsertUser()) dirty = true; break;
 				case "remove": if (removeUser()) dirty = true; break;
+					
+				case "listprops": listProperties(); break;
+				case "addprop": if (addProperty()) dirty = true; break;
+				case "delprop": if (removeProperty()) dirty = true; break;
 			}
 		}
 	}
 
 	private void usage() {
 		
-		print("?       this help\n" +
-			  "^C      quit without saving\n" +
-			  "exit    quit and save\n" +
-			  "list    list users\n" +
-			  "upsert  add or modify user\n" +
-			  "remove  remove user");
+		print("?         this help\n" +
+			  "^C        quit without saving\n" +
+			  "exit      quit and save\n" +
+			  "\n" +
+			  "list      list users\n" +
+			  "upsert    add or modify user\n" +
+			  "remove    remove user\n" +
+			  "\n" +
+			  "listprops list properties for an existing user\n" +
+			  "addprop   add a property to an existing user\n" +
+			  "delprop   remove a property from an existing user\n");
 	}
 
 	// +---------+
@@ -170,6 +180,54 @@ public class SimplePasswordStoreEditor implements Closeable
 
 		store.delete(user);
 		print("Deleted user " + user);
+		return(true);
+	}
+
+	private void listProperties() {
+		
+		String user = prompt("user", "");
+		if (user.isEmpty()) return;
+
+		Map<String,String> props = store.getProperties(user);
+
+		if (props == null || props.isEmpty()) {
+			print("no properties found");
+			return;
+		}
+
+		for (String prop : props.keySet()) {
+			print(String.format("%s\t%s", prop, props.get(prop)));
+		}
+	}
+	
+	private boolean addProperty() {
+		
+		String user = prompt("user", "");
+		if (user.isEmpty()) return(false);
+		
+		String prop = prompt("property", "");
+		if (prop.isEmpty()) return(false);
+
+		String val = prompt("value", "");
+		if (val.isEmpty()) return(false);
+
+		if (!store.addProperty(user, prop, val)) return(false);
+		
+		print(String.format("Added property %s for user %s", prop, user));
+		return(true);
+	}
+
+	private boolean removeProperty() {
+
+		String user = prompt("user", "");
+		if (user.isEmpty()) return(false);
+		
+		String prop = prompt("property", "");
+		if (prop.isEmpty()) return(false);
+
+		if (!store.removeProperty(user, prop)) return(false);
+		
+		print(String.format("Removed property %s for user %s", prop, user));
 		return(true);
 	}
 

@@ -199,6 +199,7 @@ public class WebServer implements Closeable
 		public String Id;
 		public String Email;
 		public String Token;
+		public Map<String,String> Properties;
 	}
 
 	// +----------+
@@ -259,8 +260,10 @@ public class WebServer implements Closeable
 	// +---------------+
 
 	public interface PasswordStore {
+		
 		default public boolean init(String param) { return(true); }
 		public boolean check(String user, String password);
+		default public Map<String,String> getProperties(String user) { return(null); }
 	}
 
 	// +------------------+
@@ -823,6 +826,7 @@ public class WebServer implements Closeable
 		if (!Easy.nullOrEmpty(user)) {
 			request.User = new LoggedInUser();
 			request.User.Id = user;
+			request.User.Properties = passwordStore.getProperties(user);
 			return(false);
 		}
 
@@ -846,6 +850,9 @@ public class WebServer implements Closeable
 
 			if (passwordStore.check(authUser, authPass)) {
 				response.setSessionCookie(cfg.BasicAuthCookieName, authUser, request);
+				request.User = new LoggedInUser();
+				request.User.Id = authUser;
+				request.User.Properties = passwordStore.getProperties(authUser);
 				return(false);
 			}
 		}

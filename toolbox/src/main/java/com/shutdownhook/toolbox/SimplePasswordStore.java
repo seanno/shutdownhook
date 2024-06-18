@@ -7,6 +7,8 @@ package com.shutdownhook.toolbox;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.logging.Logger;
 
 public class SimplePasswordStore implements WebServer.PasswordStore
@@ -29,6 +31,7 @@ public class SimplePasswordStore implements WebServer.PasswordStore
 		public String Hash;
 		public String Salt;
 		public String Algorithm;
+		public Map<String,String> Properties;
 	}
 
 	public SimplePasswordStore(Config cfg) {
@@ -56,6 +59,13 @@ public class SimplePasswordStore implements WebServer.PasswordStore
 		if (actual == null) return(false);
 
 		return(actual.equals(cred.Hash));
+	}
+
+	public synchronized Map<String,String> getProperties(String user) {
+
+		Credential cred = find(user);
+
+		return((cred == null || cred.Properties == null) ? null : cred.Properties);
 	}
 
 	// +-------+
@@ -86,6 +96,36 @@ public class SimplePasswordStore implements WebServer.PasswordStore
 
 		int i = findIndex(user);
 		if (i != -1) cfg.Credentials.remove(i);
+	}
+
+	public synchronized boolean addProperty(String user, String name, String val) {
+
+		Credential cred = find(user);
+		
+		if (cred == null) {
+			log.severe("user not found for addProperty: " + user);
+			return(false);
+		}
+
+		if (cred.Properties == null) cred.Properties = new HashMap<String,String>();
+		cred.Properties.put(name, val);
+		return(true);
+	}
+
+	public synchronized boolean removeProperty(String user, String name) {
+
+		Credential cred = find(user);
+		
+		if (cred == null) {
+			log.severe("user not found for removeProperty: " + user);
+			return(false);
+		}
+
+		if (cred.Properties == null) return(false);
+		
+		cred.Properties.remove(name);
+		if (cred.Properties.isEmpty()) cred.Properties = null;
+		return(true);
 	}
 
 	// +---------+
