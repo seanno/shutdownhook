@@ -31,6 +31,8 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.GZIPInputStream;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 public class WebServer implements Closeable
 {
@@ -73,6 +75,7 @@ public class WebServer implements Closeable
 		public final static String AUTHTYPE_BASIC = "basic"; 
 		public final static String AUTHTYPE_SIMPLE = "simple"; 
 		public final static String AUTHTYPE_OAUTH2 = "oauth2"; 
+		public final static String AUTHTYPE_XMS = "xms"; // Azure "Easy Auth"
 
 		// * AUTHTYPE_FORCE
 		// Value will be used as fixed auth state. TEST/DEV ONLY!
@@ -189,6 +192,12 @@ public class WebServer implements Closeable
 
 		public Map<String,String> parseBodyAsQueryString() {
 			return(Easy.parseQueryString(Body));
+		}
+
+		public String getHeader(String name) {
+			List<String> hdrs = Headers.get(name);
+			if (hdrs == null || hdrs.size() == 0) return(null);
+			return(hdrs.get(0));
 		}
 
 		private InputStream InnerBodyStream;
@@ -449,6 +458,7 @@ public class WebServer implements Closeable
 
 	public WebServer(Config cfg) throws Exception {
 		this.cfg = cfg;
+		this.jsonParser = new JsonParser();
 	}
 
 	protected void createHttpServer(InetSocketAddress address) throws Exception {
@@ -671,6 +681,7 @@ public class WebServer implements Closeable
 				break;
 
 			case Config.AUTHTYPE_NONE:
+			case Config.AUTHTYPE_XMS:
 				return;
 				
 			case Config.AUTHTYPE_FORCE:
@@ -806,6 +817,9 @@ public class WebServer implements Closeable
 			case Config.AUTHTYPE_OAUTH2:
 				return(shortCircuitForOAuth2(request, response));
 
+			case Config.AUTHTYPE_XMS:
+				return(shortCircuitForXMS(request, response));
+
 			case Config.AUTHTYPE_NONE:
 				return(false);
 				
@@ -816,6 +830,8 @@ public class WebServer implements Closeable
 
 		return(false);
 	}
+	
+	// PasswordStore
 
 	private boolean shortCircuitForPasswordStore(Request request, Response response) {
 
@@ -867,6 +883,8 @@ public class WebServer implements Closeable
 		return(true);
 	}
 
+	// OAuth2
+
 	private boolean shortCircuitForOAuth2(Request request, Response response) {
 
 		// quick exit
@@ -899,7 +917,41 @@ public class WebServer implements Closeable
 		String dehydrated = request.Cookies.get(cfg.OAuth2CookieName);
 		return(OAuth2Login.State.rehydrate(dehydrated));
 	}
-	
+
+	// XMS (Azure Easy Auth)
+
+	private boolean shortCircuitForXMS(Request request, Response response) {
+
+		String idToken = request.getHeader("X-MS-TOKEN-AAD-ID-TOKEN");
+
+		if (idToken == null) {
+			log.warning("If XMS auth is configured, shouldn't be here without X-MS-AAD-ID-TOKEN!");
+			response.Status = 401;
+			return(true);
+		}
+		
+		String payloadEnc = idToken.split("\\.")[1];
+		String payloadTxt = Easy.base64urlDecode(payloadEnc);
+		JsonObject jsonIdToken = jsonParser.parse(payloadTxt).getAsJsonObject();
+
+		request.User = new LoggedInUser();
+		request.User.Id = jsonIdToken.get("sub").getAsString();
+		if (jsonHasNonNull(jsonIdToken, "email")) request.User.Email = jsonIdToken.get("email").getAsString();
+
+		request.User.Token = request.getHeader("X-MS-TOKEN-AAD-ACCESS-TOKEN");
+
+		request.User.Properties = new HashMap<String,String>(); // nyi
+		
+		return(false);
+	}
+
+	private boolean jsonHasNonNull(JsonObject json, String field) {
+		if (!json.has(field)) return(false);
+		if (json.get(field) == null) return(false);
+		if (json.get(field).isJsonNull()) return(false);
+		return(true);
+	}
+
 	// +------+
 	// | CORS |
 	// +------+
@@ -969,6 +1021,8 @@ public class WebServer implements Closeable
 	private PasswordStore passwordStore;
 
 	private File staticPagesTemp; 
+
+	private JsonParser jsonParser;
 	
 	private final static Logger log = Logger.getLogger(WebServer.class.getName());
 }
