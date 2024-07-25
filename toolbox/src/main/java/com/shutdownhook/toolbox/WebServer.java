@@ -31,6 +31,7 @@ import java.util.zip.ZipInputStream;
 import java.util.zip.GZIPInputStream;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -933,16 +934,32 @@ public class WebServer implements Closeable
 		String payloadEnc = idToken.split("\\.")[1];
 		String payloadTxt = Easy.base64urlDecode(payloadEnc);
 		JsonObject jsonIdToken = jsonParser.parse(payloadTxt).getAsJsonObject();
+		log.fine("ID_TOKEN: " + payloadTxt);
 
 		request.User = new LoggedInUser();
 		request.User.Id = jsonIdToken.get("sub").getAsString();
 		if (jsonHasNonNull(jsonIdToken, "email")) request.User.Email = jsonIdToken.get("email").getAsString();
 
+		// this may need tweaking as we get more usage
+		request.User.Properties = new HashMap<String,String>();
+		addUserProperty(request.User.Properties, jsonIdToken, "aud");
+		addUserProperty(request.User.Properties, jsonIdToken, "name");
+		addUserProperty(request.User.Properties, jsonIdToken, "preferred_username");
+		if (jsonHasNonNull(jsonIdToken, "roles")) {
+			JsonArray roles = jsonIdToken.get("roles").getAsJsonArray();
+			for (int i = 0; i < roles.size(); ++i) {
+				request.User.Properties.put(roles.get(i).getAsString(), "true");
+			}
+		}
+		
 		request.User.Token = request.getHeader("X-MS-TOKEN-AAD-ACCESS-TOKEN");
-
-		request.User.Properties = new HashMap<String,String>(); // nyi
 		
 		return(false);
+	}
+
+	private void addUserProperty(Map<String,String> props, JsonObject jsonIdToken, String name) {
+		if (!jsonHasNonNull(jsonIdToken, name)) return;
+		props.put(name, jsonIdToken.get(name).getAsString());
 	}
 
 	private boolean jsonHasNonNull(JsonObject json, String field) {
