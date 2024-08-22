@@ -742,7 +742,7 @@ public class Easy
 	// +------+
 
 	public static void safeClose(Closeable c) {
-		try { c.close(); }
+		try { if (c != null) c.close(); }
 		catch (Exception e) { /* eat it */ }
 	}
 	

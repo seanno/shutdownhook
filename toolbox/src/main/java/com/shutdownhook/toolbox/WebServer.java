@@ -943,6 +943,7 @@ public class WebServer implements Closeable
 		// this may need tweaking as we get more usage
 		request.User.Properties = new HashMap<String,String>();
 		addUserProperty(request.User.Properties, jsonIdToken, "aud");
+		addUserProperty(request.User.Properties, jsonIdToken, "tid");
 		addUserProperty(request.User.Properties, jsonIdToken, "name");
 		addUserProperty(request.User.Properties, jsonIdToken, "preferred_username");
 		if (jsonHasNonNull(jsonIdToken, "roles")) {
