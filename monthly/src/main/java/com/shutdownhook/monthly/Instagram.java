@@ -109,6 +109,7 @@ public class Instagram implements Closeable
 			if (rawPost.permalink.endsWith("C4U69bMOo-H/")) dayOfMonth = 9; 
 			if (rawPost.permalink.endsWith("C7ZK4tpRxeu/")) dayOfMonth = 24; 
 			if (rawPost.permalink.endsWith("C9IKfZOAPYV/")) dayOfMonth = 6;
+			if (rawPost.permalink.endsWith("C-sNClSJueD/")) dayOfMonth = 14;
 			
 			if (!posts.containsKey(dayOfMonth)) {
 				posts.put(dayOfMonth, new ArrayList<ProcessedPost>());
