@@ -224,6 +224,7 @@ public class WebServer implements Closeable
 		public int Status;
 		public String Body;
 		public File BodyFile;
+		public Boolean DeleteBodyFile;
 		public String ContentType;
 		public Map<String,String> Headers;
 		public Map<String,String> Cookies;
@@ -498,6 +499,10 @@ public class WebServer implements Closeable
 		if (response.BodyFile != null) {
 			exchange.sendResponseHeaders(response.Status, response.BodyFile.length());
 			sendFileTo(response.BodyFile, exchange.getResponseBody());
+			if (response.DeleteBodyFile != null && response.DeleteBodyFile == true) {
+				try { response.BodyFile.delete(); }
+				catch (Exception de) { /* eat it */ }
+			}
 		}
 		else if (response.Body == null || response.Body.isEmpty()) {
 			exchange.sendResponseHeaders(response.Status, -1);
