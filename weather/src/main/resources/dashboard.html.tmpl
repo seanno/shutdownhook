@@ -123,7 +123,7 @@
 
 	  <div id="now">
 		<p>{{STATION_NAME}}</p>
-		<p class="large-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v4/{{NOW_ICON}}.svg');" />
+		<p class="large-icon" style="background-image: url('https://shutdownpublic.blob.core.windows.net/misc/weather-icons/{{NOW_ICON}}.svg');" />
 		<p>{{NOW_TEMP}}&deg;F</p>
 		<p>{{NOW_WIND_SPEED}} mph<br/>{{NOW_WIND_DIR}}</p>
 	  </div>
@@ -137,7 +137,7 @@
 		  {{:rpt H}}
 		  <div style="grid-column: {{FCAST_COLUMN}}" class="fcast-entry">
 			<p>{{FCAST_HOUR}}</p>
-			<p class="small-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v9/{{FCAST_ICON}}.svg');" />
+			<p class="small-icon" style="background-image: url('https://shutdownpublic.blob.core.windows.net/misc/weather-icons/{{FCAST_ICON}}.svg');" />
 			<p>
 			  {{FCAST_TEMP}}&deg;F<br/>
 			  {{FCAST_PRECIP}}
@@ -152,7 +152,7 @@
 		  {{:rpt D}}
 		  <div style="grid-column: {{FCAST_COLUMN}}" class="fcast-entry">
 			<p>{{FCAST_WEEKDAY}}</p>
-			<p class="small-icon" style="background-image: url('https://s3.amazonaws.com/tempest.cdn/assets/better-forecast/v9/{{FCAST_ICON}}.svg');" />
+			<p class="small-icon" style="background-image: url('https://shutdownpublic.blob.core.windows.net/misc/weather-icons/{{FCAST_ICON}}.svg');" />
 			<p>
 			  {{FCAST_TEMP}}&deg;F<br/>
 			  {{FCAST_CONDITIONS}}
