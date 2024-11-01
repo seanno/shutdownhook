@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html>
+  <head>
+
+    <title>myNotes Patient Launch</title>
+    <script src="https://cdn.jsdelivr.net/npm/fhirclient/build/fhir-client.min.js"></script>
+
+  </head>
+  <body>
+    <script>
+
+	  const params = new URLSearchParams(document.location.search);
+	  const client = params.get('client');
+
+	  const ichQuestion = window.location.href.indexOf('?');
+	  
+	  const url = (ichQuestion == -1
+				   ? window.location.href
+				   : window.location.href.substring(0, ichQuestion));
+	  
+	  const redirect = url.substring(0, url.lastIndexOf('/') + 1);
+
+	  const scope =
+			'openid launch/patient profile online_access ' +
+			'patient/Patient.read ' +
+			'patient/Binary.read ' +
+			'patient/DocumentReference.read ' +
+			'patient/Encounter.read ' +
+			'patient/Encounter.search ';
+	  
+      FHIR.oauth2.authorize({
+        'clientId': client,
+		'redirectUri': redirect,
+		'scope': scope
+	  });
+
+    </script>
+  </body>
+</html>
