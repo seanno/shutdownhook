@@ -1,4 +1,6 @@
- 
+
+import { isEpic } from './endpoints.js';
+
 // +----------+
 // | fetchAll |
 // +----------+
@@ -13,7 +15,7 @@ export async function fetchAll(fhir, resourceType, filterParams) {
   while (url && entries.length <= 500) {
 	
 	const searchSet = await fhir.patient.request(url);
-	//console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
+	// console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
 	
 	if (!searchSet) return(undefined);
 	if (!searchSet.entry || !searchSet.entry.length) return(entries);
@@ -78,9 +80,6 @@ export function filterByEncounter(fhir, encounterId) {
   return("encounter=" + encodeURIComponent((isEpic(fhir) ? 'Encounter/' : '') + encounterId));
 }
 
-function isEpic(fhir) {
-  return(fhir.state.serverUrl.indexOf("epic.com") !== -1);
-}
 
 
 

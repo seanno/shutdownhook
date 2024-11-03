@@ -21,10 +21,11 @@
 	  const redirect = url.substring(0, url.lastIndexOf('/') + 1);
 
 	  const scope =
-			'openid launch/patient profile online_access ' +
+			'openid launch/patient profile ' +
 			'patient/Patient.read ' +
 			'patient/Binary.read ' +
 			'patient/DocumentReference.read ' +
+			'patient/DocumentReference.search ' +
 			'patient/Encounter.read ' +
 			'patient/Encounter.search ';
 	  

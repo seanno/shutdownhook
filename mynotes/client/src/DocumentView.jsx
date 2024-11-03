@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react'
 import { Button } from '@mui/material';
 import { fetchBase64 } from './lib/fhirCalls.js';
-import { b64_to_str } from './lib/b64.js'
+import { b64_to_str } from './lib/b64.js';
+import CdaStyler from './CdaStyler.jsx';
 
 import styles from './App.module.css'
 
@@ -60,9 +61,16 @@ export default function DocumentView({ fhir, doc }) {
 	  if (!att.contentType) continue;
 
 	  switch (att.contentType) {
+
+		// easy ones
 		case 'text/html': return(att);
 		case 'application/pdf': return(att);
-		// nyi others
+
+		//  CDA
+		case 'application/xml':
+		  if (doc.content[i].format.code.startsWith('urn:hl7-org:sdwg:ccda-structuredBody:')) {
+			return(att);
+		  }
 	  }
 	}
 
@@ -88,11 +96,12 @@ export default function DocumentView({ fhir, doc }) {
 	const html = b64_to_str(data);
 	return(<div dangerouslySetInnerHTML={{ __html: html }}></div>);
   }
-  
+
   function renderData() {
 	switch (contentType) {
 	  case 'text/html': return(renderHTML());
 	  case 'application/pdf': return(renderPDF());
+	  case 'application/xml': return(<CdaStyler xmlText={b64_to_str(data)} />);
 	}
 
 	// should never get here
