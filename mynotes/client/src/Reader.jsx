@@ -2,7 +2,6 @@ import { useEffect, useState } from 'react'
 
 import ResourceList from './ResourceList.jsx';
 import DocumentView from './DocumentView.jsx';
-import { filterByEncounter } from './lib/fhirCalls.js';
 
 import styles from './App.module.css'
 
@@ -57,7 +56,7 @@ export default function Reader({ fhir }) {
 		  <ResourceList
 			fhir={fhir}
 			resourceType='DocumentReference'
-			filterParams={filterByEncounter(fhir, selectedEncounter.id)}
+			encounterId={selectedEncounter.id}
 			selectedIndex={selectedDocumentIndex}
 			onClick={onDocumentClick} />
 		</div>

@@ -58,8 +58,9 @@ function encounterHandler() {
 	  if (!aDate && bDate) return(1);
 
 	  // else compare by date
-	  if (!aDate && !bDate) return(0); // arbitrary
-	  return(bDate.getTime() - aDate.getTime());
+	  if (!aDate && !bDate) return(compareIds(a, b));
+	  const cmp = compareDates(bDate, aDate); // reverse
+	  return(cmp === 0 ? compareIds(a, b) : cmp);
 	},
 
 	// +---------
@@ -132,6 +133,10 @@ function documentHandler() {
 
 	  var texts = [];
 
+	  if (r.author && r.author.length > 0 && r.author[0].display) {
+		texts.push(r.author[0].display);
+	  }
+	  
 	  if (r.date) texts.push(renderDateTime(r.date));
 	  else if (r.period && r.period.end) texts.push(renderDateTime(r.period.end));
 	  else if (r.period && r.period.start) texts.push(renderDateTime(r.period.start));
@@ -140,13 +145,34 @@ function documentHandler() {
 	},
 
 	compare: function(a, b) {
-	  // nyi
-	  return(0);
+
+	  const aDate = (a.date ? parseDateTime(a.date) : null);
+	  const bDate = (b.date ? parseDateTime(b.date) : null);
+
+	  if (aDate && !bDate) return(-1);
+	  if (!aDate && bDate) return(1);
+
+	  if (!aDate && !bDate) return(compareIds(a, b));
+
+	  const cmp = compareDates(bDate, aDate); // reverse
+	  return(cmp === 0 ? compareIds(a, b) : cmp);
 	}
 
 	// +---------
 	// | private
 	
   });
+}
+
+// +---------+
+// | helpers |
+// +---------+
+
+function compareIds(a, b) {
+  return(a.id.localeCompare(b.id));
+}
+
+function compareDates(a, b) {
+  return(a.getTime() - b.getTime());
 }
 

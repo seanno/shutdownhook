@@ -6,7 +6,7 @@ import { getResourceHandler } from './lib/resourceHandlers.js';
 
 import styles from './App.module.css'
 
-export default function ResourceList({ fhir, resourceType, filterParams, selectedIndex, onClick }) {
+export default function ResourceList({ fhir, resourceType, encounterId, selectedIndex, onClick }) {
 
   const [resources, setResources] = useState(undefined);
   const [error, setError] = useState(undefined);
@@ -20,7 +20,7 @@ export default function ResourceList({ fhir, resourceType, filterParams, selecte
   useEffect(() => {
 
 	const loadResources = async () => {
-	  fetchAll(fhir, resourceType, filterParams)
+	  fetchAll(fhir, resourceType, encounterId)
 		.then(result => {
 		  result.sort((a,b) => resourceHandler.compare(a,b));
 		  setResources(result);
@@ -38,7 +38,7 @@ export default function ResourceList({ fhir, resourceType, filterParams, selecte
 	  setError(undefined);
 	});
 	
-  }, [resourceType, filterParams]);
+  }, [resourceType, encounterId]);
 
   // +-----------------+
   // | renderResources |

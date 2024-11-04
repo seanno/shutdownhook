@@ -23,7 +23,12 @@ export default function CdaStyler({ xmlText }) {
 		const styledDoc = xslt.transformToDocument(xmlDoc);
 
 		const serializer = new XMLSerializer();
-		setHtml(serializer.serializeToString(styledDoc));
+		var styledHtml = serializer.serializeToString(styledDoc);
+
+		// https://stackoverflow.com/questions/42475012/how-to-make-href-anchors-in-iframe-srcdoc-actually-work
+		styledHtml = styledHtml.replaceAll('href="#', 'href="about:srcdoc#');
+		
+		setHtml(styledHtml);
 	  });
 	
   }, []);
@@ -33,8 +38,13 @@ export default function CdaStyler({ xmlText }) {
   // +-------------+
 
   return(
-	<div style={{ height: '100%', width: '100%' }}
-		 dangerouslySetInnerHTML={{ __html: html }}></div>
+	<iframe
+	  srcdoc={html}
+	  src='frame.html'
+	  width="100%"
+	  height="98%"
+	  style={{ border: 'none', margin: '0px', padding: '0px' }} >
+	</iframe>
   );
   
 }

@@ -5,17 +5,17 @@ import { isEpic } from './endpoints.js';
 // | fetchAll |
 // +----------+
 
-export async function fetchAll(fhir, resourceType, filterParams) {
+export async function fetchAll(fhir, resourceType, encounterId) {
 
   const entries = [];
 
   var url = resourceType + "?_count=100";
-  if (filterParams) url += "&" + filterParams;
+  if (encounterId) url += "&" + filterByEncounter(fhir, encounterId);
 
   while (url && entries.length <= 500) {
 	
 	const searchSet = await fhir.patient.request(url);
-	// console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
+	console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
 	
 	if (!searchSet) return(undefined);
 	if (!searchSet.entry || !searchSet.entry.length) return(entries);
@@ -23,6 +23,7 @@ export async function fetchAll(fhir, resourceType, filterParams) {
 	for (var i = 0; i < searchSet.entry.length; ++i) {
 	  const resource = searchSet.entry[i].resource;
 	  if (resource.resourceType !== resourceType) continue;
+	  if (!checkEncounterId(resource, encounterId)) continue;
 	  entries.push(resource);
 	}
 
@@ -30,6 +31,20 @@ export async function fetchAll(fhir, resourceType, filterParams) {
   }
   
   return(entries);
+}
+
+function checkEncounterId(r, id) {
+
+  // is this real life?
+  if (!r.context) return(true);
+  if (!r.context.encounter || r.context.encounter.length === 0) return(true);
+
+  for (var i = 0; i < r.context.encounter.length; ++i) {
+	const e = r.context.encounter[i];
+	if (e.reference && e.reference.indexOf(id) !== -1) return(true);
+  }
+
+  return(false);
 }
 
 function getNextLink(searchSet) {
@@ -76,7 +91,7 @@ export async function fetchBase64(fhir, fhirAttachment) {
 // | filterByEncounter |
 // +-------------------+
 
-export function filterByEncounter(fhir, encounterId) {
+function filterByEncounter(fhir, encounterId) {
   return("encounter=" + encodeURIComponent((isEpic(fhir) ? 'Encounter/' : '') + encounterId));
 }
 
