@@ -1,7 +1,9 @@
 import { useEffect, useState } from 'react'
-import { Button } from '@mui/material';
 import { fetchBase64 } from './lib/fhirCalls.js';
 import { b64_to_str } from './lib/b64.js';
+import { Tabs, Tab } from '@mui/material';
+
+import Explain from './Explain.jsx';
 import CdaStyler from './CdaStyler.jsx';
 
 import styles from './App.module.css'
@@ -11,6 +13,8 @@ export default function DocumentView({ fhir, doc }) {
   const [data, setData] = useState(undefined);
   const [contentType, setContentType] = useState(undefined);
   const [error, setError] = useState(undefined);
+
+  const [selectedTab, setSelectedTab] = useState(0);
 
   // +--------+
   // | effect |
@@ -94,7 +98,8 @@ export default function DocumentView({ fhir, doc }) {
 
   function renderHTML() {
 	const html = b64_to_str(data);
-	return(<div dangerouslySetInnerHTML={{ __html: html }}></div>);
+	return(<div style={{ paddingTop: '20px' }}
+				dangerouslySetInnerHTML={{ __html: html }}></div>);
   }
 
   function renderData() {
@@ -127,7 +132,35 @@ export default function DocumentView({ fhir, doc }) {
 	<>
 	  { error  && renderMessage(error, true) }
 	  { !error && !data && renderMessage('loading...') }
-	  { !error && data && renderData() }
+	  
+	  { !error && data && 
+		<div style={{
+			   display: 'grid',
+			   height: '100%',
+			   gridTemplateRows: '40px 1fr'
+			 }}>
+
+		  <div style={{ gridRow: 1 }}>
+			
+			<Tabs
+			  value={selectedTab}
+			  onChange={(evt, newValue) => setSelectedTab(newValue)}
+			  orientation='horizontal'>
+
+			  <Tab value={0} label='source' />
+			  <Tab value={1} label='explain' />
+			  
+			</Tabs>
+
+		  </div>
+		  <div style={{ gridRow: 2 }}>
+		  
+			{ selectedTab === 0 && renderData() }
+			{ selectedTab === 1 && <Explain data={data} contentType={contentType} /> }
+
+		  </div>
+		</div>
+	  }
 	</>
   );
 }
