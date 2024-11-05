@@ -54,8 +54,7 @@ export default function Intro() {
 		  <p>
 			<span style={{ color: 'red' }}><b>Also important!</b></span> When
 			you connect this site to your healthcare provider, the provider collects your login
-			information and will show you exactly what types of data will be shared
-			with us. 
+			information and will show you exactly what types of data will be shared.
 		  </p>
 		  <p>
 			As you browse encounters and view original documents, none of
@@ -68,11 +67,11 @@ export default function Intro() {
 			forwarded on to OpenAI servers where it can be processed by ChatGPT.
 		  </p>
 		  <p>
-			Your data are <b>never saved on our servers</b>; they exist there only for the
+			Your data are <b>never saved on our servers</b>. They exist there only for the
 			duration of the call to OpenAI. OpenAI has (in our opinion) a reasonable set
 			of policies for securing and using data, but they are <b>not</b> under our
 			control. Please read the OpenAI privacy policy and terms of use for
-			yourself <b>before using the explain feature</b>:
+			yourself <b>before</b> using the explain feature:
 		  </p>
 		  <ul>
 			<li><a target="_blank"
