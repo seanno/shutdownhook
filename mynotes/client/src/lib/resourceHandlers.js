@@ -26,17 +26,17 @@ function encounterHandler() {
 	// | public
 	
 	primaryText: function(r) {
-	  return(`${(this.getType(r) ?? 'Visit')} (${r.status})`);
+	  return(this.getType(r) ?? 'Visit');
 	},
 
 	secondaryTexts: function(r) {
 	  
 	  const texts = [];
 	  
+	  if (r.period) texts.push(renderPeriod(r.period));
+
 	  const loc = this.getLocation(r);
 	  if (loc) texts.push(loc);
-
-	  if (r.period) texts.push(renderPeriod(r.period));
 
 	  return(texts);
 	},

@@ -89,16 +89,18 @@ export function renderDateTime(d) {
 
 export function renderPeriod(p) {
 
-  if (p.start) {
-	if (p.end) {
-	  return(renderDateTime(p.start) + " to " + renderDateTime(p.end));
-	}
-	else {
-	  return("started " + renderDateTime(p.start));
-	}
+  if (p.start && p.end) {
+
+	const startTxt = renderDate(p.start);
+	const endTxt = renderDate(p.end);
+
+	return(startTxt === endTxt ? startTxt : startTxt + " to " + endTxt);
+  }
+  else if (p.start) {
+	return("started " + renderDate(p.start));
   }
   else if (p.end) {
-	return("ended " + renderDateTime(p.end));
+	return("ended " + renderDate(p.end));
   }
   
   return("");

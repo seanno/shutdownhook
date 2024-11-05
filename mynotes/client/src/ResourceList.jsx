@@ -57,7 +57,7 @@ export default function ResourceList({ fhir, resourceType, encounterId, selected
 	if (resources.length == 0) {
 	  return(<div>No {labelForResourceType(resourceType)} found</div>);
 	}
-	
+
 	const items = resources.map((r, i) => {
 
 	  const key = `${resourceType}-${i}`;
@@ -67,7 +67,10 @@ export default function ResourceList({ fhir, resourceType, encounterId, selected
 	  return(
 		<ListItem key={key} dense={true} disablePadding>
 		  <ListItemButton selected={selectedIndex === i} onClick={() => onClick(r, i)}>
-			<ListItemText primary={primary} secondary={secondary} />
+			<ListItemText
+			  primary={primary}
+			  primaryTypographyProps={{ style: { fontWeight: 'bold' } }}
+			  secondary={secondary} />
 		  </ListItemButton>
 		</ListItem>
 	  );

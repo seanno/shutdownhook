@@ -1,0 +1,31 @@
+
+.container {
+	display: grid;
+	gap: 20px;
+	grid-template-columns: 50% 50%;
+	
+	padding-right: 20px;
+	font-size: smaller;
+}
+
+.container h2 {
+	margin: 0px;
+	padding: 0px;
+}
+
+.intro {
+	margin: 0px;
+	padding-top: 12px;
+	padding-left: 0px;
+}
+
+.intro p {
+	margin: 2px;
+}
+
+.detail {
+	padding: 20px;
+	margin: 0px;
+	background-color: aliceblue;
+	border: 1px solid darkslateblue;
+}
