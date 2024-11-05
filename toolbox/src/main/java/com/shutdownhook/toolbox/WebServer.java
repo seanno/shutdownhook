@@ -408,8 +408,9 @@ public class WebServer implements Closeable
 				
 			public void handle(HttpExchange exchange) {
 				
-				log.info(String.format("WebServer %s: %s (%s)",
+				log.info(String.format("WebServer %s: %s: %s (%s)",
 									   handler.getClass().getName(),
+									   exchange.getRemoteAddress(),
 									   exchange.getRequestURI(),
 									   exchange.getRequestMethod()));
 

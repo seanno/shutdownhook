@@ -10,7 +10,7 @@ export default function CdaStyler({ xmlText }) {
 
   useEffect(() => {
 
-	fetch('cda/CDA.xsl')
+	fetch('cda-web.xsl')
 	  .then(response => response.text())
 	  .then(xslText => {
 		
