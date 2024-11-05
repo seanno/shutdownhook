@@ -49,6 +49,7 @@ export default function DocumentView({ fhir, doc }) {
 	  setData(undefined);
 	  setContentType(undefined);
 	  setError(undefined);
+	  setSelectedTab(0);
 	});
 	
   }, [doc]);
@@ -98,7 +99,7 @@ export default function DocumentView({ fhir, doc }) {
 
   function renderHTML() {
 	const html = b64_to_str(data);
-	return(<div style={{ paddingTop: '20px' }}
+	return(<div style={{ paddingTop: '20px'  }}
 				dangerouslySetInnerHTML={{ __html: html }}></div>);
   }
 
@@ -147,7 +148,7 @@ export default function DocumentView({ fhir, doc }) {
 			  onChange={(evt, newValue) => setSelectedTab(newValue)}
 			  orientation='horizontal'>
 
-			  <Tab value={0} label='source' />
+			  <Tab value={0} label='original' />
 			  <Tab value={1} label='explain' />
 			  
 			</Tabs>

@@ -5,7 +5,7 @@
 
 	display: grid;
 	grid-template-rows: 1fr;
-	grid-template-columns: 50px 300px 300px 1fr;
+	grid-template-columns: 50px 280px 280px 1fr;
 }
 
 .header {
