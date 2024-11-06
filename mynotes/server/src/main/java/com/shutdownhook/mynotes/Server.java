@@ -6,6 +6,7 @@
 package com.shutdownhook.mynotes;
 
 import java.io.Closeable;
+import java.nio.charset.StandardCharsets;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -93,7 +94,11 @@ public class Server implements Closeable
 
 		server.registerHandler(cfg.ExplainUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
-				response.setText("nyi");
+				
+				String input = new String(request.BodyStream.readAllBytes(),
+										  StandardCharsets.UTF_8);
+				
+				response.setText(openai.explain(input));
 			}
 		});
 		

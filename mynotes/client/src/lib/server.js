@@ -1,24 +1,32 @@
 
-import { b64_to_arr } from './b64.js';
+// +----------+
+// | wrappers |
+// +----------+
 
-// +------------+
-// | convertPDF |
-// +------------+
+export async function convertPDF(base64data) {
+  return(await serverFetch("pdf", base64data));
+}
 
-export async function convertPDF(base64pdf) {
+export async function explain(input) {
+  return(await serverFetch("explain", input));
+}
 
-  console.log('converting pdf');
-  
-  const url = window.serverBase + "pdf";
+// +-------------+
+// | serverFetch |
+// +-------------+
+
+export async function serverFetch(endpoint, input) {
+
+  const url = window.serverBase + endpoint;
 
   const options = {
 	method: 'POST',
-	body: base64pdf,
+	body: input,
 	headers: { 'Content-Type': 'text/plain' }
   };
 
   const response = await fetch(url, options);
-  if (response.status !== 200) throw new Error(`convertPDF: ${response.status}`);
+  if (response.status !== 200) throw new Error(`serverFetch (${endpoint}): ${response.status}`);
 
   return(await response.text());
 }

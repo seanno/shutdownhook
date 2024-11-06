@@ -1,5 +1,7 @@
 import { useEffect, useState, useRef } from 'react'
 import { fetchAndConvertToHtml } from './lib/convertToHtml.js';
+import { explain } from './lib/server.js';
+import { Button } from '@mui/material';
 
 import styles from './App.module.css'
 
@@ -8,20 +10,18 @@ export default function DocumentView({ fhir, doc }) {
   const [html, setHtml] = useState(undefined);
   const [error, setError] = useState(undefined);
 
+  const [selectedText, setSelectedText] = useState(undefined);
+  
   // +------------------+
   // | explain handlers |
   // +------------------+
 
-  const explainRef = useRef(null);
-
-  function explainClick() {
-	const selectionText = window.getSelection().toString().trim();
-	alert(selectionText);
+  function explainClick(evt) {
+	explain(selectedText).then((txt) => alert(txt));
   }
   
   function selectionChanged() {
-	const selectionText = window.getSelection().toString().trim();
-	explainRef.current.disabled = (selectionText === '');
+	setSelectedText(window.getSelection().toString().trim());
   }
   
   useEffect(() => {
@@ -92,13 +92,12 @@ export default function DocumentView({ fhir, doc }) {
 			 }}>
 
 		  <div style={{ gridRow: 1 }}>
-			<button
+			<Button
 			  className={styles.explainButton}
-			  ref={explainRef}
-			  onClick={explainClick}
-			  disabled>
+			  onClick={(evt) => explainClick(evt)}
+			  >
 			  Explain Selection
-			</button>
+			</Button>
 		  </div>
 
 		  <div style={{ gridRow: 2, paddingTop: '20px', overflowY: 'auto' }}
