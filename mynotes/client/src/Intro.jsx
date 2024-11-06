@@ -32,10 +32,9 @@ export default function Intro() {
 			with each.
 			</p>
 		  <p>
-			Click the "explain" link above any document, and we'll ask ChatGPT
-			to summarize and explain its contents using terms that make sense
-			to those of us without a medical degree. Use the tabs to flip
-			back and forth between the original and "translated" document.
+			Select text in the document and click the "Explain Selection"
+			button; we'll ask ChatGPT to explain it using terms that make sense
+			to those of us without a medical degree.
 		  </p>
 		  <p>
 			<span style={{ color: 'red' }}><b>Important!</b></span> AI is impressive
@@ -57,21 +56,22 @@ export default function Intro() {
 			information and will show you exactly what types of data will be shared.
 		  </p>
 		  <p>
-			As you browse encounters and view original documents, none of
-		    that information is visible to us. Everything stays in your browser, on your
-			device, until you click the "explain" tab to get a summary.
+			As you browse encounters and view original documents, most of that information
+			remains in your browser and is invisible to us. The exception is PDF-formatted
+			content, which is sent over the Internet to our server (a physical computer
+			in my basement) to be translated into HTML that we can read. 
 		  </p>
 		  <p>
-			When you choose "explain," the contents of the current document are sent
-			over the Internet to our server (a physical computer in my basement) and then
-			forwarded on to OpenAI servers where it can be processed by ChatGPT.
+			When you click the "Explain Selection" button, the text you've selected is sent
+			to our server and then forwarded on to OpenAI servers, where it can be
+			processed by ChatGPT.
 		  </p>
 		  <p>
 			Your data are <b>never saved on our servers</b>. They exist there only for the
-			duration of the call to OpenAI. OpenAI has (in our opinion) a reasonable set
-			of policies for securing and using data, but they are <b>not</b> under our
-			control. Please read the OpenAI privacy policy and terms of use for
-			yourself <b>before</b> using the explain feature:
+			duration of PDF rendering or the call to OpenAI. OpenAI has (in our opinion)
+			a reasonable set of policies for securing and using data, but they
+			are <b>not</b> under our control. Please read the OpenAI privacy policy and
+			terms of use for yourself <b>before</b> using the explain feature:
 		  </p>
 		  <ul>
 			<li><a target="_blank"
@@ -81,9 +81,10 @@ export default function Intro() {
 		  </ul>
 		  <p>
 			Most importantly, <b>neither we nor OpenAI are HIPAA covered entities
-			or business associates of any healthcare provider</b>. In the United States you have the
-			right to share your personal healthcare data with anyone you choose, including this site
-			and OpenAI, but doing so is your responsibility and you accept the risks of doing so. Enough said.
+			or business associates of any healthcare provider</b>. In the United States
+			you have the right to share your personal healthcare data with anyone you
+			choose, including this site and OpenAI, but doing so is your responsibility
+			and you acknowledge and accept the risks. Enough said.
 		  </p>
 		  
 		</div>

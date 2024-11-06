@@ -15,7 +15,7 @@ export async function fetchAll(fhir, resourceType, encounterId) {
   while (url && entries.length <= 500) {
 	
 	const searchSet = await fhir.patient.request(url);
-	console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
+	//console.log(`fetchAllNative for ${resourceType}:\n${JSON.stringify(searchSet, null, 2)}`);
 	
 	if (!searchSet) return(undefined);
 	if (!searchSet.entry || !searchSet.entry.length) return(entries);

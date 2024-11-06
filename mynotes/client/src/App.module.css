@@ -52,3 +52,11 @@
 	font-color: red;
 }
 
+.explainButton:disabled {
+	border: 1px solid grey;
+}
+
+.explainButton:enabled {
+	background-color: #3367D1; 
+	color: white;
+}

@@ -23,10 +23,16 @@ public class Server implements Closeable
 
 	public static class Config
 	{
+		public PDF.Config PDF = new PDF.Config();
+		public OpenAI.Config OpenAI = new OpenAI.Config();
+			
 		public WebServer.Config WebServer = new WebServer.Config();
 		public String LoggingConfigPath = "@logging.properties";
 
 		public String ClientSiteZip = "@clientSite.zip";
+
+		public String PdfUrl = "/pdf";
+		public String ExplainUrl = "/explain";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -36,6 +42,10 @@ public class Server implements Closeable
 	public Server(Config cfg) throws Exception {
 		
 		this.cfg = cfg;
+		this.pdf = new PDF(cfg.PDF);
+		this.openai = new OpenAI(cfg.OpenAI);
+
+		cfg.WebServer.ReadBodyAsString = false;
 
 		if (cfg.WebServer.StaticPagesDirectory == null) {
 			this.cfg.WebServer.StaticPagesZip = cfg.ClientSiteZip;
@@ -47,7 +57,8 @@ public class Server implements Closeable
 	
 	private void setupWebServer() throws Exception {
 		server = WebServer.create(cfg.WebServer);
-		// nyi routes
+		registerPDF();
+		registerExplain();
 	}
 
 	// +----------------+
@@ -58,11 +69,43 @@ public class Server implements Closeable
 	public void runSync() throws Exception { server.runSync(); }
 	public void close() { server.close(); }
 
+	// +-------------+
+	// | registerPDF |
+	// +-------------+
+
+	private void registerPDF() throws Exception {
+
+		server.registerHandler(cfg.PdfUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				
+				response.BodyFile = pdf.convertToHtmlAsync(request.BodyStream).get();
+				response.DeleteBodyFile = true;
+				response.ContentType = "text/html";
+			}
+		});
+	}
+
+	// +-----------------+
+	// | registerExplain |
+	// +-----------------+
+
+	private void registerExplain() throws Exception {
+
+		server.registerHandler(cfg.ExplainUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				response.setText("nyi");
+			}
+		});
+		
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
 
 	private Config cfg;
+	private PDF pdf;
+	private OpenAI openai;
 	private WebServer server;
 
 	private final static Logger log = Logger.getLogger(Server.class.getName());

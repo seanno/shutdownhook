@@ -23,8 +23,13 @@ public class App
 
 		Server server = new Server(cfg);
 
-		try { server.runSync(); }
-		finally { server.close(); }
+		try {
+			server.runSync();
+		}
+		finally {
+			server.close();
+			Exec.shutdownPool();
+		}
 	}
 
 	private final static Logger log = Logger.getLogger(App.class.getName());

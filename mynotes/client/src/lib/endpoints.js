@@ -96,6 +96,16 @@ const hardCodedEndpoints = [
 	]
   },
   {
+	name: 'Cerner Sandbox',
+	clientId: 'faa3ae50-ca8d-482d-bf20-a2d41e4f2748',
+	endpoints: [
+	  {
+		name: 'Cerner Sandbox (TEST)',
+		iss: 'https://fhir-myrecord.cerner.com/r4/ec2458f2-1e24-41c8-b71b-0e701af7583d'
+	  }
+	]
+  },
+  {
 	type: SMART_TYPE,
 	name: 'Smart Launcher',
 	clientId: '43294215-4555-4ce2-811f-15cfd0fc3ae0',

@@ -1,119 +1,66 @@
-import { useEffect, useState } from 'react'
-import { fetchBase64 } from './lib/fhirCalls.js';
-import { b64_to_str } from './lib/b64.js';
-import { Tabs, Tab } from '@mui/material';
-
-import Explain from './Explain.jsx';
-import CdaStyler from './CdaStyler.jsx';
+import { useEffect, useState, useRef } from 'react'
+import { fetchAndConvertToHtml } from './lib/convertToHtml.js';
 
 import styles from './App.module.css'
 
 export default function DocumentView({ fhir, doc }) {
 
-  const [data, setData] = useState(undefined);
-  const [contentType, setContentType] = useState(undefined);
+  const [html, setHtml] = useState(undefined);
   const [error, setError] = useState(undefined);
 
-  const [selectedTab, setSelectedTab] = useState(0);
+  // +------------------+
+  // | explain handlers |
+  // +------------------+
 
-  // +--------+
-  // | effect |
-  // +--------+
+  const explainRef = useRef(null);
+
+  function explainClick() {
+	const selectionText = window.getSelection().toString().trim();
+	alert(selectionText);
+  }
+  
+  function selectionChanged() {
+	const selectionText = window.getSelection().toString().trim();
+	explainRef.current.disabled = (selectionText === '');
+  }
+  
+  useEffect(() => {
+
+	if (!html) return;
+
+	document.addEventListener('selectionchange', selectionChanged);
+
+	return(() => {
+	  document.removeEventListener('selectionchange', selectionChanged);
+	});
+	
+  }, [html]);
+
+  // +-------------+
+  // | html effect |
+  // +-------------+
 
   useEffect(() => {
 
-	const att = findAttachment();
-
-	if (att == null) {
-	  setError('No renderable content found.');
-	}
-	else if (att.data) {
-	  // data is local
-	  setData(att.data);
-	  setContentType(att.contentType);
-	}
-	else {
-
-	  fetchBase64(fhir, att)
-		.then(result => {
-		  setData(result);
-		  setContentType(att.contentType);
-		})
-		.catch(error => {
-		  console.error(erro);
-		  setError('Error loading binary data');
-		});
-	}
+	fetchAndConvertToHtml(fhir, doc)
+	  .then((converted) => {
+		// yay
+		setHtml(converted);
+		setError(undefined);
+	  })
+	  .catch((err) => {
+		// boo
+		console.log(JSON.stringify(err, null, 2));
+		setHtml(undefined);
+		setError('Unable to render document');
+	  });
 	
 	return(() => {
-	  setData(undefined);
-	  setContentType(undefined);
+	  setHtml(undefined);
 	  setError(undefined);
-	  setSelectedTab(0);
 	});
 	
   }, [doc]);
-
-  // +---------+
-  // | Helpers |
-  // +---------+
-  
-  function findAttachment() {
-	
-	for (var i = 0; i < doc.content.length; ++i) {
-	  
-	  const att = doc.content[i].attachment;
-	  if (!att.contentType) continue;
-
-	  switch (att.contentType) {
-
-		// easy ones
-		case 'text/html': return(att);
-		case 'application/pdf': return(att);
-
-		//  CDA
-		case 'application/xml':
-		  if (doc.content[i].format.code.startsWith('urn:hl7-org:sdwg:ccda-structuredBody:')) {
-			return(att);
-		  }
-	  }
-	}
-
-	return(null);
-  }
-
-  // +------------+
-  // | renderData |
-  // +------------+
-
-  function renderPDF() {
-	return(
-	  <iframe
-		src={'data:application/pdf;base64,' + encodeURIComponent(data)}
-		width="100%"
-		height="98%"
-		style={{ border: 'none', margin: '0px', padding: '0px' }} >
-	  </iframe>
-	);
-  }
-
-  function renderHTML() {
-	const html = b64_to_str(data);
-	return(<div style={{ paddingTop: '20px'  }}
-				dangerouslySetInnerHTML={{ __html: html }}></div>);
-  }
-
-  function renderData() {
-	switch (contentType) {
-	  case 'text/html': return(renderHTML());
-	  case 'application/pdf': return(renderPDF());
-	  case 'application/xml': return(<CdaStyler xmlText={b64_to_str(data)} />);
-	}
-
-	// should never get here
-	console.error('why am i here?');
-	return(<></>);
-  }
 
   // +---------------+
   // | renderMessage |
@@ -129,37 +76,34 @@ export default function DocumentView({ fhir, doc }) {
   // | Main Render |
   // +-------------+
 
+  // if (html) console.log(html);
+  
   return(
 	<>
 	  { error  && renderMessage(error, true) }
-	  { !error && !data && renderMessage('loading...') }
+	  { !error && !html && renderMessage('loading...') }
 	  
-	  { !error && data && 
+	  { !error && html && 
 		<div style={{
 			   display: 'grid',
+			   gap: '8px',
 			   height: '100%',
 			   gridTemplateRows: '40px 1fr'
 			 }}>
 
 		  <div style={{ gridRow: 1 }}>
-			
-			<Tabs
-			  value={selectedTab}
-			  onChange={(evt, newValue) => setSelectedTab(newValue)}
-			  orientation='horizontal'>
-
-			  <Tab value={0} label='original' />
-			  <Tab value={1} label='explain' />
-			  
-			</Tabs>
-
+			<button
+			  className={styles.explainButton}
+			  ref={explainRef}
+			  onClick={explainClick}
+			  disabled>
+			  Explain Selection
+			</button>
 		  </div>
-		  <div style={{ gridRow: 2 }}>
+
+		  <div style={{ gridRow: 2, paddingTop: '20px', overflowY: 'auto' }}
+			   dangerouslySetInnerHTML={{ __html: html }}></div>
 		  
-			{ selectedTab === 0 && renderData() }
-			{ selectedTab === 1 && <Explain data={data} contentType={contentType} /> }
-
-		  </div>
 		</div>
 	  }
 	</>
