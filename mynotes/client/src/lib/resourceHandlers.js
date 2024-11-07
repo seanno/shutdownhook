@@ -1,5 +1,6 @@
 
-import { parseDateTime, renderCodeable, renderCodeables, renderDateTime, renderPeriod } from './fhirTypes.js';
+import { parseDateTime, renderCodeable, renderCodeables,
+		 renderCoding, renderDateTime, renderPeriod } from './fhirTypes.js';
 
 // +--------------------+
 // | getResourceHandler |
@@ -34,6 +35,7 @@ function encounterHandler() {
 	  const texts = [];
 	  
 	  if (r.period) texts.push(renderPeriod(r.period));
+	  if (r.type) texts.push(renderCodeables(r.type));
 
 	  const loc = this.getLocation(r);
 	  if (loc) texts.push(loc);
@@ -43,13 +45,6 @@ function encounterHandler() {
 
 	compare: function(a, b) {
 
-	  const aActive = this.isActive(a);
-	  const bActive = this.isActive(b);
-
-	  // active floats to the top
-	  if (aActive && !bActive) return(-1);
-	  if (!aActive && bActive) return(1);
-
 	  const aDate = this.getParsedDate(a);
 	  const bDate = this.getParsedDate(b);
 	  
@@ -57,10 +52,18 @@ function encounterHandler() {
 	  if (aDate && !bDate) return(-1);
 	  if (!aDate && bDate) return(1);
 
-	  // else compare by date
-	  if (!aDate && !bDate) return(compareIds(a, b));
-	  const cmp = compareDates(bDate, aDate); // reverse
-	  return(cmp === 0 ? compareIds(a, b) : cmp);
+	  const cmp = (aDate && bDate ? compareDates(bDate, aDate) : 0);
+	  if (cmp !== 0) return(cmp);
+
+	  // active floats to the top
+	  const aActive = this.isActive(a);
+	  const bActive = this.isActive(b);
+
+	  if (aActive && !bActive) return(-1);
+	  if (!aActive && bActive) return(1);
+
+	  // oh well
+	  return(compareIds(a, b));
 	},
 
 	// +---------
@@ -100,8 +103,7 @@ function encounterHandler() {
 	getType: function(r) {
 
 	  if (r.serviceType) return(renderCodeables(r.serviceType));
-	  if (r.type) return(renderCodeables(r.type));
-	  return(null);
+	  return(renderCoding(r.class));
 	}
 	
 	
