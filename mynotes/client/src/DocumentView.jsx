@@ -1,7 +1,7 @@
-import { useEffect, useState, useRef } from 'react'
+import { useEffect, useState } from 'react'
 import { fetchAndConvertToHtml } from './lib/convertToHtml.js';
-import { explain } from './lib/server.js';
 import { Button } from '@mui/material';
+import Explain from './Explain.jsx';
 
 import styles from './App.module.css'
 
@@ -11,13 +11,18 @@ export default function DocumentView({ fhir, doc }) {
   const [error, setError] = useState(undefined);
 
   const [selectedText, setSelectedText] = useState(undefined);
+  const [showExplain, setShowExplain] = useState(false);
   
   // +------------------+
   // | explain handlers |
   // +------------------+
 
   function explainClick(evt) {
-	explain(selectedText).then((txt) => alert(txt));
+	setShowExplain(true);
+  }
+
+  function onExplainClose() {
+	setShowExplain(false);
   }
   
   function selectionChanged() {
@@ -95,6 +100,7 @@ export default function DocumentView({ fhir, doc }) {
 			<Button
 			  className={styles.explainButton}
 			  onClick={(evt) => explainClick(evt)}
+			  disabled={!selectedText}
 			  >
 			  Explain Selection
 			</Button>
@@ -102,6 +108,8 @@ export default function DocumentView({ fhir, doc }) {
 
 		  <div style={{ gridRow: 2, paddingTop: '20px', overflowY: 'auto' }}
 			   dangerouslySetInnerHTML={{ __html: html }}></div>
+
+		  { showExplain && <Explain inputText={selectedText} onClose={onExplainClose} /> }
 		  
 		</div>
 	  }

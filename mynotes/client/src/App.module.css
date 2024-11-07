@@ -60,3 +60,14 @@
 	background-color: #3367D1; 
 	color: white;
 }
+
+.expHeader {
+	font-weight: bold;
+	color: darkslateblue;
+	font-size: larger;
+	margin-bottom: 0px;
+}
+
+.showdown p {
+	margin-top: 0px;
+}
