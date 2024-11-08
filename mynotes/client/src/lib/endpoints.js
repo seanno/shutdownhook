@@ -37,7 +37,7 @@ function addEndpoints_Epic(endpoints) {
   const epic = {
 	type: EPIC_TYPE,
 	name: 'Epic Production R4',
-	clientId: '9b078bf5-343d-4679-a18e-12c1d13613d8',
+	clientId: 'd93b3b15-4eb4-4c80-9bdc-e75fc2311caa',
 	endpoints: []
   };
   
@@ -87,7 +87,7 @@ const hardCodedEndpoints = [
   {
 	type: EPIC_TYPE,
 	name: 'Epic Sandbox',
-	clientId: 'd8029749-b555-4c16-ad29-bd636c5404c9',
+	clientId: '2ec6d1a2-604d-4769-af2e-ba42f4011d02',
 	endpoints: [
 	  {
 		name: 'Epic Sandbox (TEST)',
