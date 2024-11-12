@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { getEndpoints } from './lib/endpoints.js';
 import Intro from './Intro.jsx';
+import Explain from './Explain.jsx';
 
 import { Autocomplete, Button, Checkbox, ListItem,
 		 ListItemButton, ListItemIcon,
@@ -12,6 +13,7 @@ export default function FacilityPicker() {
 
   const [selectedEndpoint, setSelectedEndpoint] = useState(undefined);
   const [checkedOK, setCheckedOK] = useState(false);
+  const [showExplain, setShowExplain] = useState(false);
   
   // +---------+
   // | actions |
@@ -28,6 +30,14 @@ export default function FacilityPicker() {
 		  '&iss=' + encodeURIComponent(selectedEndpoint.iss);
 
 	window.location = url;
+  }
+
+  function okToPaste() {
+	return(checkedOK);
+  }
+
+  function pasteExplain() {
+	setShowExplain(true);
   }
 
   // +--------------+
@@ -96,10 +106,18 @@ export default function FacilityPicker() {
 		
 		<Button
 		  variant='contained'
-		  sx={{ mt: 1 }}
+		  sx={{ mt: 1, mr: 1 }}
 		  disabled={!okToLaunch()}
 		  onClick={launch}>
 		  Connect
+		</Button>
+		
+		<Button
+		  variant='contained'
+		  sx={{ mt: 1 }}
+		  disabled={!okToPaste()}
+		  onClick={pasteExplain}>
+		  Or, paste notes from any document
 		</Button>
 	  </div>
 	);
@@ -113,6 +131,7 @@ export default function FacilityPicker() {
 	  <div className={styles.content}>
 		{ renderPicker() }
 		<Intro />
+		{ showExplain && <Explain onClose={() => setShowExplain(false) } /> }
 	  </div>
 	);
 }

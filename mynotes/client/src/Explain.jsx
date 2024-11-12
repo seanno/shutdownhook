@@ -1,14 +1,43 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import MarkdownView from 'react-showdown';
-import { Button, Dialog, DialogActions, DialogContent } from '@mui/material';
+import { Button, Dialog, DialogActions, DialogContent, TextField } from '@mui/material';
 import { explain } from './lib/server.js';
 
 import styles from './App.module.css'
 
-export default function Explain({ inputText, onClose }) {
+export default function Explain({ initialText, onClose }) {
 
+  const [explainText, setExplainText] = useState(initialText);
+  const [editText, setEditText] = useState(undefined);
+  
   const [result, setResult] = useState(undefined);
   const [error, setError] = useState(undefined);
+
+  // +---------+
+  // | actions |
+  // +---------+
+
+  function showEdit() {
+	return(explainText && (result || error));
+  }
+  
+  function onEdit() {
+	setEditText(explainText);
+	setExplainText(undefined);
+	setResult(undefined);
+	setError(undefined);
+  }
+
+  function showExplain() {
+	return(!explainText && editText);
+  }
+
+  function onExplain() {
+	setExplainText(editText);
+	setEditText(undefined);
+	setResult(undefined);
+	setError(undefined);
+  }
 
   // +--------+
   // | effect |
@@ -16,7 +45,9 @@ export default function Explain({ inputText, onClose }) {
 
   useEffect(() => {
 
-	explain(inputText)
+	if (!explainText) return;
+	
+	explain(explainText)
 	  .then((result) => {
 		setResult(result);
 		setError(undefined);
@@ -32,7 +63,7 @@ export default function Explain({ inputText, onClose }) {
 	  setResult(undefined);
 	});
 	
-  }, [inputText]);
+  }, [explainText]);
 
   // +-------------+
   // | Main Render |
@@ -56,6 +87,7 @@ export default function Explain({ inputText, onClose }) {
 	<Dialog
 	  onClose={onClose}
 	  maxWidth='lg'
+	  disableRestoreFocus
 	  open={true} >
 	  
 	  <DialogContent>
@@ -72,15 +104,35 @@ export default function Explain({ inputText, onClose }) {
 		  <div className={styles.expHeader} style={{ gridRow: 1, gridColumn: 2 }}>
 			Explained by AI
 		  </div>
+
+		  { /* input text */ }
+
+		  { explainText &&
+			<div className={styles.expText} style={{ gridRow: 2, gridColumn: 1 }}
+				 dangerouslySetInnerHTML={{ __html: explainText }}></div>
+		  }
+
+		  { !explainText &&
+			<div className={styles.expText} style={{ gridRow: 2, gridColumn: 1 }}>
+			  <TextField
+				multiline
+				autoFocus
+				label='input text'
+				variant='outlined'
+				value={editText}
+				onChange={(evt) => setEditText(evt.target.value)}
+				onKeyDown={(evt) => { if (evt.key === 'Enter' && editText) { onExplain() } } }
+			  />
+			</div>
+		  }
 		  
-		  <div style={{ paddingRight: '4px', borderRight: '1px solid grey', gridRow: 2, gridColumn: 1 }}
-			   dangerouslySetInnerHTML={{ __html: inputText }}></div>
-		  
+		  { /* results */ }
+
 		  <div style={{ gridRow: 2, gridColumn: 2 }}>
 			
 			{ error && renderMessage(error, true) }
 			
-			{ !error && !result && renderMessage("loading...", false) }
+			{ !error && !result && explainText && renderMessage("loading...", false) }
 			
 			{ !error && result && <MarkdownView
 									className={styles.showdown}
@@ -91,6 +143,8 @@ export default function Explain({ inputText, onClose }) {
 	  </DialogContent>
 
       <DialogActions>
+        { showEdit() && <Button onClick={onEdit}>Edit</Button> }
+		{ showExplain() && <Button onClick={onExplain}>Explain</Button> }
         <Button onClick={onClose}>Close</Button>
       </DialogActions>
 	  

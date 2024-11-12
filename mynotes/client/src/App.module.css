@@ -66,6 +66,14 @@
 	color: darkslateblue;
 	font-size: larger;
 	margin-bottom: 0px;
+	min-width: 300px;
+}
+
+.expText {
+	
+	padding-right: 8px;
+	border-right: 1px solid grey;
+	min-width: 300px;
 }
 
 .showdown p {

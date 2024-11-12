@@ -109,7 +109,7 @@ export default function DocumentView({ fhir, doc }) {
 		  <div style={{ gridRow: 2, paddingTop: '20px', overflowY: 'auto' }}
 			   dangerouslySetInnerHTML={{ __html: html }}></div>
 
-		  { showExplain && <Explain inputText={selectedText} onClose={onExplainClose} /> }
+		  { showExplain && <Explain initialText={selectedText} onClose={onExplainClose} /> }
 		  
 		</div>
 	  }

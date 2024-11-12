@@ -35,6 +35,10 @@ export default function Intro() {
 			Select text in the document and click the "Explain Selection"
 			button; we'll ask ChatGPT to explain it using terms that make sense
 			to those of us without a medical degree.
+			</p>
+		  <p>
+			Alternatively, You can use the "paste" button to explain notes or other
+			medical content from any website or document.
 		  </p>
 		  <p>
 			<span style={{ color: 'red' }}><b>Important!</b></span> AI is impressive
