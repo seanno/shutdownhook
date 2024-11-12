@@ -37,7 +37,7 @@ export default function Intro() {
 			to those of us without a medical degree.
 			</p>
 		  <p>
-			Alternatively, You can use the "paste" button to explain notes or other
+			Alternatively, You can use the "paste" button above to explain notes or other
 			medical content from any website or document.
 		  </p>
 		  <p>
