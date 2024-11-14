@@ -11,6 +11,13 @@ export async function explain(input) {
   return(await serverFetch("explain", input));
 }
 
+export async function filter(input) {
+  const url = window.serverBase + 'filter?input=' + encodeURIComponent(input);
+  const response = await fetch(url);
+  if (response.status !== 200) throw new Error(`filter: ${response.status}`);
+  return(await response.json());
+}
+
 // +-------------+
 // | serverFetch |
 // +-------------+

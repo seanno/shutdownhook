@@ -25,14 +25,13 @@
 			'patient/Patient.read ' +
 			'patient/Binary.read ' +
 			'patient/DocumentReference.read ' +
-			'patient/DocumentReference.search ' +
-			'patient/Encounter.read ' +
-			'patient/Encounter.search ';
+			'patient/Encounter.read'; 
 	  
       FHIR.oauth2.authorize({
         'clientId': client,
 		'redirectUri': redirect,
-		'scope': scope
+		'scope': scope,
+		'pkceMode': 'unsafeV1'
 	  });
 
     </script>

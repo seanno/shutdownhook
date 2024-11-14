@@ -1,5 +1,5 @@
 
-import { isEpic } from './endpoints.js';
+import { b64_to_str } from './b64.js';
 
 // +----------+
 // | fetchAll |
@@ -93,6 +93,24 @@ export async function fetchBase64(fhir, fhirAttachment) {
 
 function filterByEncounter(fhir, encounterId) {
   return("encounter=" + encodeURIComponent((isEpic(fhir) ? 'Encounter/' : '') + encounterId));
+}
+
+// +--------+
+// | isEpic |
+// +--------+
+
+function isEpic(fhir) {
+
+  try {
+	const tokenParts = fhir.state.tokenResponse.access_token.split(".");
+	const tokenJson = b64_to_str(tokenParts[1]);
+	return(tokenJson.indexOf("\"epic.") !== -1);
+  }
+  catch (err) {
+	// token not a JWT
+	return(false);
+  }
+  
 }
 
 

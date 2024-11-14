@@ -26,6 +26,7 @@ public class Server implements Closeable
 	{
 		public PDF.Config PDF = new PDF.Config();
 		public OpenAI.Config OpenAI = new OpenAI.Config();
+		public Endpoints.Config Endpoints = new Endpoints.Config();
 			
 		public WebServer.Config WebServer = new WebServer.Config();
 		public String LoggingConfigPath = "@logging.properties";
@@ -34,6 +35,7 @@ public class Server implements Closeable
 
 		public String PdfUrl = "/pdf";
 		public String ExplainUrl = "/explain";
+		public String FilterUrl = "/filter";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -45,6 +47,7 @@ public class Server implements Closeable
 		this.cfg = cfg;
 		this.pdf = new PDF(cfg.PDF);
 		this.openai = new OpenAI(cfg.OpenAI);
+		this.endpoints = new Endpoints(cfg.Endpoints);
 
 		cfg.WebServer.ReadBodyAsString = false;
 
@@ -60,6 +63,7 @@ public class Server implements Closeable
 		server = WebServer.create(cfg.WebServer);
 		registerPDF();
 		registerExplain();
+		registerFilter();
 	}
 
 	// +----------------+
@@ -104,6 +108,21 @@ public class Server implements Closeable
 		
 	}
 
+	// +----------------+
+	// | registerFilter |
+	// +----------------+
+
+	private void registerFilter() throws Exception {
+
+		server.registerHandler(cfg.FilterUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+				String input = request.QueryParams.get("input");
+				if (Easy.nullOrEmpty(input)) throw new Exception("Input required");
+				response.setJson(endpoints.filterAsync(input).get());
+			}
+		});
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
@@ -111,6 +130,7 @@ public class Server implements Closeable
 	private Config cfg;
 	private PDF pdf;
 	private OpenAI openai;
+	private Endpoints endpoints;
 	private WebServer server;
 
 	private final static Logger log = Logger.getLogger(Server.class.getName());

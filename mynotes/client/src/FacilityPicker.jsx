@@ -1,138 +1,95 @@
-import { useState } from 'react'
-import { getEndpoints } from './lib/endpoints.js';
-import Intro from './Intro.jsx';
-import Explain from './Explain.jsx';
-
-import { Autocomplete, Button, Checkbox, ListItem,
-		 ListItemButton, ListItemIcon,
-		 ListItemText, TextField } from '@mui/material';
-
-import styles from './App.module.css'
-
-export default function FacilityPicker() {
-
-  const [selectedEndpoint, setSelectedEndpoint] = useState(undefined);
-  const [checkedOK, setCheckedOK] = useState(false);
-  const [showExplain, setShowExplain] = useState(false);
+import { useEffect, useState } from 'react'
+import { Autocomplete, CircularProgress, TextField } from '@mui/material';
+import { filter } from './lib/server.js';
   
-  // +---------+
-  // | actions |
-  // +---------+
+export default function FacilityPicker({ setSelectedEndpoint }) {
 
-  function okToLaunch() {
-	return(selectedEndpoint && checkedOK);
-  }
+  const [inputText, setInputText] = useState('');
+  const [options, setOptions] = useState([]);
+  const [loading, setLoading] = useState(false);
+  
+  // +--------+
+  // | effect |
+  // +--------+
 
-  function launch() {
-	
-	const url = 'launch.html?client=' +
-		  encodeURIComponent(selectedEndpoint.clientId) +
-		  '&iss=' + encodeURIComponent(selectedEndpoint.iss);
+  useEffect(() => {
 
-	window.location = url;
-  }
-
-  function okToPaste() {
-	return(checkedOK);
-  }
-
-  function pasteExplain() {
-	setShowExplain(true);
-  }
-
-  // +--------------+
-  // | renderPicker |
-  // +--------------+
-
-  function getPickerOptions()
-  {
-	const endpoints = getEndpoints();
-	const options = [];
-	
-	for (var i = 0; i < endpoints.length; ++i) {
-	  
-	  const ehr = endpoints[i];
-	  
-	  for (var j = 0; j < ehr.endpoints.length; ++j) {
-		
-		const endpoint = ehr.endpoints[j];
-
-		options.push({
-		  label: endpoint.name,
-		  iss: endpoint.iss,
-		  clientId: ehr.clientId
-		});
-	  }
+	if (!inputText || inputText.length < window.gramLength) {
+	  setOptions([]);
+	  return;
 	}
 
-	options.sort((a,b) => a.label.localeCompare(b.label));
-	return(options);
-  }
-  
-  function renderPicker() {
+	setLoading(true);
 
-	return(
-	  <div>
-		<Autocomplete
-		  disablePortal
-		  options={ getPickerOptions() }
-		  onChange={ (evt, newValue) => setSelectedEndpoint(newValue) }
-		  renderInput={ (params) => <TextField {...params} autoFocus
-											   label="Choose a Provider" /> }
-		/>
-		
-		<ListItem disablePadding>
-		  <ListItemButton
-			rule={undefined}
-			onClick={() => setCheckedOK(!checkedOK)}>
-			<ListItemIcon sx={{ minWidth: '20px' }}>
-			  <Checkbox
-				edge='start'
-				checked={checkedOK}
-				tabIndex={-1}
-				disableRipple
-				inputProps={{ 'aria-labelledby': 'checkedOKLabel' }}
-				sx={{ padding: '0px' }}
-			  />
-			</ListItemIcon>
+	const getOptions = async () => {
+	  try {
+		const options = await filter(inputText);
+		setOptions(options);
+	  }
+	  catch (err) {
+		console.error(`getOptions: ${err}`);
+		setOptions([]);
+	  }
+	  finally {
+		setLoading(false);
+	  }
+	};
 
-			<ListItemText
-			  sx={{ margin: '0px' }}
-			  id='checkedOKLabel'
-			  primary='I have read, understood and accepted all the words on this page'
-			/>
-		  </ListItemButton>
-		</ListItem>
-		
-		<Button
-		  variant='contained'
-		  sx={{ mt: 1, mr: 1 }}
-		  disabled={!okToLaunch()}
-		  onClick={launch}>
-		  Connect
-		</Button>
-		
-		<Button
-		  variant='contained'
-		  sx={{ mt: 1 }}
-		  disabled={!okToPaste()}
-		  onClick={pasteExplain}>
-		  Or, paste notes from any document
-		</Button>
-	  </div>
-	);
+	getOptions();
+	
+  }, [inputText]);
+
+  // +-----------+
+  // | debouncer |
+  // +-----------+
+
+  var timerId = undefined;
+
+  function debounceInputChange(newValue) {
+
+	if (timerId) clearTimeout(timerId);
+
+	timerId = setTimeout(() => setInputText(newValue),
+						 window.debounceMillis);
   }
-  
+
   // +-------------+
   // | Main Render |
   // +-------------+
   
-	return(
-	  <div className={styles.content}>
-		{ renderPicker() }
-		<Intro />
-		{ showExplain && <Explain onClose={() => setShowExplain(false) } /> }
-	  </div>
-	);
+  return(
+	<Autocomplete
+	  
+	  disablePortal
+	  options={ options }
+	  loading={ loading }
+	  
+	  onInputChange={ (evt, newValue) => {
+		debounceInputChange(newValue);
+	  }}
+	  
+	  onChange={ (evt, newValue) => {
+		setSelectedEndpoint(newValue)
+	  }}
+	  
+	  renderInput={ (params) => (
+		<TextField
+		  {...params}
+		  autoFocus
+		  label="Choose a Provider"
+		  InputProps={{
+			...params.InputProps,
+			endAdornment: (
+			  <>
+				{ loading ? <CircularProgress color="inherit" size={20} /> : undefined }
+				{ params.InputProps.endAdornment }
+			  </>
+			)
+		  }}
+		/>
+	  )}
+	  
+	/>
+  );
 }
 

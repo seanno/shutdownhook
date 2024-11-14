@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useOptionalFhir } from './OptionalFhir.jsx';
 import AppHeader from './AppHeader.jsx';
-import FacilityPicker from './FacilityPicker.jsx';
+import Home from './Home.jsx';
 import Reader from './Reader.jsx';
 
 import styles from './App.module.css'
@@ -19,7 +19,7 @@ export default function App() {
 		<AppHeader fhir={fhir} />
 	  </div>
 	  
-	  { !fhir && !codeInQuery && <FacilityPicker /> }
+	  { !fhir && !codeInQuery && <Home /> }
 	  { fhir && <Reader fhir={fhir} /> }
 	  
     </div>
