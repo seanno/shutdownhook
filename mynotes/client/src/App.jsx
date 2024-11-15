@@ -12,8 +12,9 @@ export default function App() {
   const codeInQuery = (document.location.search.indexOf("code=") !== -1);
 
   var incomingText = document.location.hash;
-  if (incomingText && incomingText.startsWith('#')) {
-	incomingText = incomingText.substring(1);
+  if (incomingText) {
+	if (incomingText.startsWith('#')) incomingText = incomingText.substring(1);
+	incomingText = decodeURIComponent(incomingText);
   }
   
   return (
