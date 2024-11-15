@@ -141,7 +141,7 @@ async function updateAll() {
 
   var endpoints = [];
   await addEpicEndpoints(endpoints);
-  await addAthenaEndpoints(endpoints);
+  // await addAthenaEndpoints(endpoints);
   await addTestEndpoints(endpoints);
 
   endpoints = sortAndUnique(endpoints);

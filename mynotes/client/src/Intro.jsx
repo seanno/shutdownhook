@@ -10,13 +10,6 @@ export default function Intro() {
 		<div className={styles.intro}
 			 style={{ gridRow: '1', gridColumn: '1 / 3' }}>
 
-		  <p><i>
-			<span style={{ color: 'red' }}><b>Note:</b></span> I just
-			added AthenaHealth endpoints to the list but don't have a
-			real portal account to test with; please let me know if it
-			doesn't work for you.
-		  </i></p>
-		  
 		  <p>
 			Thanks to a lot of hard work by a lot of folks, most of us have
 			access to the clinical notes written during our healthcare visits.
