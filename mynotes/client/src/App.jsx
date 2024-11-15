@@ -10,6 +10,11 @@ export default function App() {
 
   const fhir = useOptionalFhir();
   const codeInQuery = (document.location.search.indexOf("code=") !== -1);
+
+  var incomingText = document.location.hash;
+  if (incomingText && incomingText.startsWith('#')) {
+	incomingText = incomingText.substring(1);
+  }
   
   return (
 	
@@ -18,8 +23,8 @@ export default function App() {
 	  <div className={styles.header}>
 		<AppHeader fhir={fhir} />
 	  </div>
-	  
-	  { !fhir && !codeInQuery && <Home /> }
+
+	  { !fhir && !codeInQuery && <Home incomingText={incomingText} /> }
 	  { fhir && <Reader fhir={fhir} /> }
 	  
     </div>

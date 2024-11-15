@@ -9,7 +9,7 @@ import { Button, Checkbox, ListItem,
 
 import styles from './App.module.css'
 
-export default function Home() {
+export default function Home({ incomingText }) {
 
   const [selectedEndpoint, setSelectedEndpoint] = useState(undefined);
   const [checkedOK, setCheckedOK] = useState(false);
@@ -38,6 +38,27 @@ export default function Home() {
 
   function pasteExplain() {
 	setShowExplain(true);
+  }
+
+  // +------------------------+
+  // | renderIncomingControls |
+  // +------------------------+
+
+  function renderIncomingControls() {
+
+	return(
+	  <div>
+		<p>
+		  <b>By clicking below, you acknowledge that you've read, understood and
+		   agreed to all the words on this page.</b>
+		</p>
+		<Button
+		  variant='contained'
+		  onClick={pasteExplain}>
+		  Agreed, please explain my text
+		</Button>
+	  </div>
+	);
   }
 
   // +----------------+
@@ -98,9 +119,18 @@ export default function Home() {
   
 	return(
 	  <div className={styles.content}>
-		{ renderControls() }
+		
+		{ incomingText && renderIncomingControls() }
+		{ !incomingText && renderControls() }
+		
 		<Intro />
-		{ showExplain && <Explain onClose={() => setShowExplain(false) } /> }
+		
+		{ showExplain && !incomingText &&
+		  <Explain onClose={() => setShowExplain(false) } /> }
+		
+		{ showExplain && incomingText &&
+		  <Explain initialText={incomingText} onClose={() => window.location='/' } /> }
+		
 	  </div>
 	);
 }
