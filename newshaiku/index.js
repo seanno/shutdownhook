@@ -5,13 +5,14 @@ const PROMPT_ASK = "write a funny haiku summarizing this topic: ";
 const dotenv = require('dotenv');
 const rss = require('./rss.js');
 const openai = require('./openai.js');
-const twitter = require('./twitter.js');
+//const twitter = require('./twitter.js');
+const bluesky = require('./bluesky.js');
 
 const go = async () => {
 
   try {
 	// get news items
-	const [ titles, links ] = await rss.getItemTitlesAndLinks(RSS_URL);
+	const [ titles, links, images ] = await rss.getItemTitlesAndLinks(RSS_URL);
 	const i = Math.floor(Math.random() * titles.length);
 
 	// get haiku
@@ -20,8 +21,13 @@ const go = async () => {
 	const haiku = openai.firstResponse(completion);
 
 	// tweet away
-	const tweet = await twitter.tweet(haiku + "\n" + links[i]);
-	console.log(tweet);
+	//const tweet = await twitter.tweet(haiku + "\n" + links[i]);
+	//console.log(tweet);
+
+	// skeet away
+	const skeet = await bluesky.skeet(haiku + "\n" + links[i], images[i], titles[i]);
+	console.log(skeet);
+	
   }
   catch (err) {
 	console.error(err);

@@ -9,6 +9,7 @@
   "author": "",
   "license": "MIT",
   "dependencies": {
+    "@atproto/api": "^0.13.18",
     "dotenv": "^16.0.3",
     "node-fetch": "^2.6.9",
     "twitter-api-v2": "^1.14.2",
