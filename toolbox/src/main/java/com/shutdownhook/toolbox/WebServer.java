@@ -18,6 +18,7 @@ import java.io.UnsupportedEncodingException;
 import java.lang.IllegalArgumentException;
 import java.lang.InterruptedException;
 import java.lang.Runtime;
+import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.nio.file.Files;
 import java.util.List;
@@ -47,6 +48,7 @@ public class WebServer implements Closeable
 		// | Connection
 		
 		public int Port = 7071;
+		public Boolean LocalhostOnly = false;
 
 		// if these are set, will create a SecureServer instead of
 		// a regular one. Parameters are named to match Apache config values
@@ -298,7 +300,8 @@ public class WebServer implements Closeable
 			System.setProperty("sun.net.httpserver.maxRspTime", Long.toString(cfg.MaxWriteSeconds));
 		}
 
-		server.createHttpServer(new InetSocketAddress(cfg.Port));
+		InetAddress addr = (cfg.LocalhostOnly ? InetAddress.getLocalHost() : null);
+		server.createHttpServer(new InetSocketAddress(addr, cfg.Port));
 		server.setExecutor();
 
 		server.registerStaticRoutes();
@@ -468,7 +471,7 @@ public class WebServer implements Closeable
 	}
 
 	protected void createHttpServer(InetSocketAddress address) throws Exception {
-		server = HttpServer.create(new InetSocketAddress(cfg.Port), 0);
+		server = HttpServer.create(address, 0);
 	}
 	
 	private void setExecutor() {
