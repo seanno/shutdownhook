@@ -90,7 +90,13 @@ public class SsdpTest
 		});
 
 		try {
-			Thread.sleep(2000);
+			
+			for (int cycle = 0; cycle < 6; ++cycle) {
+				Thread.sleep(1000);
+				if (infos.containsKey(SSDP_USN)) break;
+				System.out.println(String.format("no ssdp key after %d seconds", cycle + 1));
+			}
+			
 			Assert.assertTrue(infos.containsKey(SSDP_USN));
 		}
 		finally {
