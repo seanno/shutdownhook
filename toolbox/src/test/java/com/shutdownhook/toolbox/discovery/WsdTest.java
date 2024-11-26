@@ -86,7 +86,12 @@ public class WsdTest
 		});
 
 		try {
-			Thread.sleep(2000);
+			for (int cycle = 0; cycle < 6; ++cycle) {
+				Thread.sleep(1000);
+				if (infos.containsKey(WSD_ID)) break;
+				System.out.println(String.format("no wsd key after %d seconds", cycle + 1));
+			}
+			
 			Assert.assertTrue(infos.containsKey(WSD_ID));
 		}
 		finally {
