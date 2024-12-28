@@ -21,22 +21,59 @@ public class App
 
 	private static void life(String args[]) throws Exception {
 
-		int dx = (args.length >= 2 ? Integer.parseInt(args[1]) : 5);
-		int dy = (args.length >= 3 ? Integer.parseInt(args[2]) : 5);
-		int generations = (args.length >= 4 ? Integer.parseInt(args[3]) : 5);
+		int generations = (args.length >= 2 ? Integer.parseInt(args[1]) : 10);
+		String startState = (args.length >= 3 ? args[2].toLowerCase() : "random");
+		Bitmap3D environment = getEnvironment(startState, args);
 		
-		Bitmap3D environment = new Bitmap3D(dx, dy);
-		environment.randomize(null);
-		System.out.println("-------- INITIAL STATE");
-		System.out.println(Serializers.toString(environment));
-		
+		Cursor.cls();
+		System.out.println(String.format("(1 of %d) %s", generations,
+										 Serializers.toString(environment)));
+
 		LifeRules rules = new LifeRules();
 		
 		for (int i = 0; i < generations; ++i) {
 			environment = Rules.apply(environment, rules);
-			System.out.println(String.format("-------- GENERATION %d", i+1));
+
+			Thread.sleep(500);
+			Cursor.cls();
+			System.out.print(String.format("(%d of %d) ", i+1, generations));
 			System.out.println(Serializers.toString(environment));
 		}
+	}
+
+	private static Bitmap3D getEnvironment(String state, String[] args) throws Exception {
+
+		switch (state) {
+			case "blinker": return(Serializers.fromString(LifeRules.BLINKER));
+			case "lwss": return(Serializers.fromString(LifeRules.LWSS));
+			case "pulsar": return(Serializers.fromString(LifeRules.PULSAR));
+		}
+
+		int dx = (args.length >= 4 ? Integer.parseInt(args[3]) : 5);
+		int dy = (args.length >= 5 ? Integer.parseInt(args[4]) : 5);
+		Bitmap3D env = new Bitmap3D(dx, dy);
+
+		if (state == "fill") {
+			env.fill(true);
+			return(env);
+		}
+
+		if (args.length >= 6) env.seed(Long.parseLong(args[5]));
+		env.randomize();
+
+		return(env);
+	}
+
+	// +------+
+	// | test |
+	// +------+
+
+	private static void test(String[] cmds) throws Exception {
+		Cursor.cls();
+		Cursor.set(0,0);
+		System.out.print("yo");
+		Cursor.set(10,10);
+		System.out.print("dawg");
 	}
 
 	// +------------+
@@ -71,6 +108,10 @@ public class App
 					life(cmds);
 					break;
 
+				case "test":
+					test(cmds);
+					break;
+
 				default:
 					System.out.println("huh?");
 					break;
@@ -82,9 +123,13 @@ public class App
 	}
 
 	private static void help() {
-		System.out.println("life X Y Z: run the game of life on an X/Y grid for Z generations");
+		System.out.println("life [G] [pattern]: run life pattern for G generations");
+		System.out.println("life [G] random DX DY [seed]: run random DX/DY life for G generations (opt seed)");
+		System.out.println("life [G] fill DX DY: run filled DX/DY life for G generations (opt seed)");
 		System.out.println("quit: quit the program");
 		System.out.println("help: this message");
+		System.out.println("help: this message");
+		System.out.println("(known life patterns: blinker, lwss, pulsar)");
 	}
 
 	private final static Logger log = Logger.getLogger(App.class.getName());

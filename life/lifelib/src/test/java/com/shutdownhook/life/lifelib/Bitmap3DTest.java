@@ -16,7 +16,7 @@ public class Bitmap3DTest
 
 		Bitmap3D bits = new Bitmap3D(12,12);
 		assertBits(bits, 0, new long[] { 0, 0, 0 });
-		bits.randomize(null);
+		bits.randomize();
 
 		File file = File.createTempFile("xxx", null);
 		file.deleteOnExit();

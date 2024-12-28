@@ -13,7 +13,7 @@ public class GraphicsTest
 	public void svg() throws Exception {
 		
 		Bitmap3D bits = new Bitmap3D(10, 10);
-		bits.randomize(null);
+		bits.randomize();
 
 		Graphics g = new Graphics(new Graphics.Config());
 		String svg = g.renderSVG(bits);

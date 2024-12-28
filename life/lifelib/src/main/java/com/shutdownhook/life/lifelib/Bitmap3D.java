@@ -58,9 +58,9 @@ public class Bitmap3D
 
 	public long[] getAsDNA() { return(longs); }
 	
-	// +-----------+
-	// | get / set |
-	// +-----------+
+	// +------------------+
+	// | get / set / fill |
+	// +------------------+
 
 	public boolean get(int x, int y) {
 		return(get(x, y, 0));
@@ -87,6 +87,17 @@ public class Bitmap3D
 
 		if (val) { longs[ilong] ^= (1L << ibit); }
 		else { longs[ilong] &= ~(1L << ibit); }
+	}
+
+	public void fill(boolean val) {
+
+		long setter = (val ? -1L : 0L);
+		
+		for (int i = 0; i < longs.length; ++i) {
+			longs[i] = setter;
+		}
+
+		if (val) cleanupLastLong();
 	}
 
 	// +--------------+
@@ -164,31 +175,32 @@ public class Bitmap3D
 		return(get(xReal, yReal, z));
 	}
 
-	// +-----------+
-	// | randomize |
-	// +-----------+
+	// +--------------+
+	// | randomize    |
+	// | setOneRandom |
+	// | seed         |
+	// +--------------+
 
-	public void randomize(Long seed) {
-
-		Random rand = (seed == null ? new Random() : new Random(seed));
-
-		// randomize them all
+	public void randomize() {
 
 		for (int i = 0; i < longs.length; ++i) {
 			longs[i] = rand.nextLong();
 		}
 
-		// and clean up the last one, careful to leave the unused bits empty
-		
-		int meaningfulBitsInLastLong = getBitCount() % Long.SIZE;
-		if (meaningfulBitsInLastLong == 0) return;
-		
-		long mask = 0L;
-		for (int i = 0; i < meaningfulBitsInLastLong; ++i) {
-			mask <<= 1; mask |= 1L;
-		}
+		cleanupLastLong();
+	}
 
-		longs[longs.length-1] &= mask;
+	public void setOneRandom(boolean val) {
+		
+		int x = rand.nextInt(dx);
+		int y = rand.nextInt(dy);
+		int z = rand.nextInt(dz);
+
+		set(x, y, z, val);
+	}
+	
+	public void seed(Long seedVal) {
+		rand = (seedVal == null ? new Random() : new Random(seedVal));
 	}
 	
 	// +---------+
@@ -214,6 +226,21 @@ public class Bitmap3D
 		return(div + (mod == 0 ? 0 : 1));
 	}
 
+	private void cleanupLastLong() {
+		
+		// make sure unused bits are empty
+		
+		int meaningfulBitsInLastLong = getBitCount() % Long.SIZE;
+		if (meaningfulBitsInLastLong == 0) return;
+		
+		long mask = 0L;
+		for (int i = 0; i < meaningfulBitsInLastLong; ++i) {
+			mask <<= 1; mask |= 1L;
+		}
+
+		longs[longs.length-1] &= mask;
+	}
+	
 	// +---------+
 	// | Members |
 	// +---------+
@@ -222,6 +249,8 @@ public class Bitmap3D
 	private int dy;
 	private int dz;
 	protected long[] longs; // package-accessible
+
+	private Random rand = new Random();
 
 	private final static Logger log = Logger.getLogger(Bitmap3D.class.getName());
 }

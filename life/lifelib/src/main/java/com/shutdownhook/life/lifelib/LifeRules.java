@@ -54,4 +54,49 @@ public class LifeRules implements Rules.Rule
 	private long aliveMask;
 
 	private final static Logger log = Logger.getLogger(LifeRules.class.getName());
+
+	// +----------+
+	// | Patterns |
+	// +----------+
+
+	public final static String BLINKER =
+		"5 5 1 " + "....." +
+		           "....." +
+		           ".XXX." +
+		           "....." +
+		           "....." ;
+
+	public final static String LWSS =
+		"10 10 1 " + ".......... " + 
+		             ".........." +
+		             "...XXXX..." +
+		             "..X...X..." +
+		             "......X..." +
+		             "..X..X...." +
+		             ".........." +
+		             ".........." +
+		             ".........." +
+		             ".........." ;
+
+	public final static String PULSAR =
+		"17 17 1 " + "................." + 
+		             "................." +
+		             "....XXX...XXX...." +
+		             "................." +
+		             "..X....X.X....X.." +
+		             "..X....X.X....X.." +
+		             "..X....X.X....X.." +
+		             "....XXX...XXX...." +
+		             "................." +
+		             "....XXX...XXX...." +
+		             "..X....X.X....X.." +
+		             "..X....X.X....X.." +
+		             "..X....X.X....X.." +
+		             "................." +
+		             "....XXX...XXX...." +
+		             "................." +
+		             "................." ;
+
+
+
 }
