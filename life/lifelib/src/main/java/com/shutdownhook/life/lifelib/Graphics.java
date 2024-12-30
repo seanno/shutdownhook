@@ -19,7 +19,7 @@ public class Graphics
 	public static class Config
 	{
 		// SVG
-		
+
 		public Integer SvgItemRadius = 2;
 		
 		public String SvgTemplate =
@@ -37,11 +37,7 @@ public class Graphics
 	// | renderSVG |
 	// +-----------+
 
-	public String renderSVG(final Bitmap3D bits) throws Exception {
-		return(renderSVG(bits, 0));
-	}
-	
-	public String renderSVG(final Bitmap3D bits, final int z) throws Exception {
+	public String renderSVG(final Bitmap bits) throws Exception {
 
 		final int radius = cfg.SvgItemRadius;
 		final int diameter = radius * 2;
@@ -57,7 +53,7 @@ public class Graphics
 
 				while (advance()) {
 
-					if (bits.get(x, y, z)) {
+					if (bits.get(x, y)) {
 						tokens.put("X", Integer.toString((x * diameter) + radius));
 						tokens.put("Y", Integer.toString((y * diameter) + radius));
 						return(true);

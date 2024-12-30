@@ -8,48 +8,44 @@ import java.util.logging.Logger;
 
 public class Rules
 {
-	// +------+
-	// | Rule |
-	// +------+
+	// +---------------+
+	// | RuleProcessor |
+	// +---------------+
 
 	public static enum Outcome
 	{
 		On,
 		Off,
+		Flip,
 		Inertia
 	}
 	
-	public interface Rule {
-
-		Outcome apply(Bitmap3D neighborhood);
-		
-		default int getRadius() { return(1); }
-		default Bitmap3D.EdgeStrategy getEdgeStrategy() { return(Bitmap3D.EdgeStrategy.Wrap); }
+	public interface RuleProcessor {
+		Outcome apply(Bitmap env, int x, int y);
 	}
 
 	// +-------+
 	// | apply |
 	// +-------+
 
-	public static Bitmap3D apply(Bitmap3D env, Rule rule) {
+	public static Bitmap apply(Bitmap env, RuleProcessor proc) {
 
-		int radius = rule.getRadius();
-		Bitmap3D.EdgeStrategy edgeStrategy = rule.getEdgeStrategy();
-		
 		int dx = env.getDx();
 		int dy = env.getDy();
 		
-		Bitmap3D newEnv = new Bitmap3D(dx, dy);
+		Bitmap newEnv = new Bitmap(dx, dy);
 		
 		for (int x = 0; x < dx; ++x) {
 			for (int y = 0; y < dy; ++y) {
 
-				Bitmap3D neighborhood = env.getNeighborhood(x, y, radius, edgeStrategy);
-				Outcome outcome = rule.apply(neighborhood);
+				Outcome outcome = proc.apply(env, x, y);
 
-				if (outcome == Outcome.On) { newEnv.set(x, y, true); }
-				else if (outcome == Outcome.Off) { newEnv.set(x, y, false); }
-				else { newEnv.set(x, y, env.get(x, y)); }
+				switch (outcome) {
+					case On: newEnv.set(x, y, true); break;
+					case Off: newEnv.set(x, y, false); break;
+					case Flip: newEnv.set(x, y, !env.get(x, y)); break;
+					case Inertia: newEnv.set(x, y, env.get(x, y)); break;
+				}
 			}
 		}
 

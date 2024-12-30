@@ -7,7 +7,7 @@ package com.shutdownhook.life.cli;
 import java.util.Scanner;
 import java.util.logging.Logger;
 
-import com.shutdownhook.life.lifelib.Bitmap3D;
+import com.shutdownhook.life.lifelib.Bitmap;
 import com.shutdownhook.life.lifelib.LifeRules;
 import com.shutdownhook.life.lifelib.Rules;
 import com.shutdownhook.life.lifelib.Serializers;
@@ -23,7 +23,7 @@ public class App
 
 		int generations = (args.length >= 2 ? Integer.parseInt(args[1]) : 10);
 		String startState = (args.length >= 3 ? args[2].toLowerCase() : "random");
-		Bitmap3D environment = getEnvironment(startState, args);
+		Bitmap environment = getEnvironment(startState, args);
 		
 		Cursor.cls();
 		System.out.println(String.format("(1 of %d) %s", generations,
@@ -41,7 +41,7 @@ public class App
 		}
 	}
 
-	private static Bitmap3D getEnvironment(String state, String[] args) throws Exception {
+	private static Bitmap getEnvironment(String state, String[] args) throws Exception {
 
 		switch (state) {
 			case "blinker": return(Serializers.fromString(LifeRules.BLINKER));
@@ -51,7 +51,7 @@ public class App
 
 		int dx = (args.length >= 4 ? Integer.parseInt(args[3]) : 5);
 		int dy = (args.length >= 5 ? Integer.parseInt(args[4]) : 5);
-		Bitmap3D env = new Bitmap3D(dx, dy);
+		Bitmap env = new Bitmap(dx, dy);
 
 		if (state == "fill") {
 			env.fill(true);

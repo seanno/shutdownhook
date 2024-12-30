@@ -28,18 +28,18 @@ public class Serializers
 	// +------------+
 
 	public interface Serializer {
-		public void serialize(Bitmap3D bm, PrintWriter pw) throws Exception;
-		default public Bitmap3D deserialize(Scanner scanner) throws Exception { return(null); }
+		public void serialize(Bitmap bm, PrintWriter pw) throws Exception;
+		default public Bitmap deserialize(Scanner scanner) throws Exception { return(null); }
 	}
 
 	// +------+
 	// | file |
 	// +------+
 
-	public static void toFile(Bitmap3D bm, File file, Serializer serializer) throws Exception {
+	public static void toFile(Bitmap bm, File file, Serializer serializer) throws Exception {
 
-		log.info(String.format("Writing %d,%d,%d bitmap to %s",
-							   bm.getDx(), bm.getDy(), bm.getDz(),
+		log.info(String.format("Writing %d,%d bitmap to %s",
+							   bm.getDx(), bm.getDy(),
 							   file.getAbsolutePath()));
 
 		FileWriter fw = null;
@@ -56,11 +56,11 @@ public class Serializers
 		}
 	}
 
-	public static void toFile(Bitmap3D bm, File file) throws Exception {
+	public static void toFile(Bitmap bm, File file) throws Exception {
 		toFile(bm, file, new CompactSerializer());
 	}
 	
-	public static Bitmap3D fromFile(File file, Serializer serializer) throws Exception {
+	public static Bitmap fromFile(File file, Serializer serializer) throws Exception {
 
 		log.info(String.format("Reading bitmap from %s", file.getAbsolutePath()));
 		
@@ -75,7 +75,7 @@ public class Serializers
 		}
 	}
 
-	public static Bitmap3D fromFile(File file) throws Exception {
+	public static Bitmap fromFile(File file) throws Exception {
 		return(fromFile(file, new CompactSerializer()));
 	}
 
@@ -83,10 +83,10 @@ public class Serializers
 	// | String |
 	// +--------+
 
-	public static String toString(Bitmap3D bm, Serializer serializer) throws Exception {
+	public static String toString(Bitmap bm, Serializer serializer) throws Exception {
 
-		log.info(String.format("Writing %d,%d,%d bitmap to string",
-							   bm.getDx(), bm.getDy(), bm.getDz()));
+		log.info(String.format("Writing %d,%d bitmap to string",
+							   bm.getDx(), bm.getDy()));
 
 		StringWriter sw = null;
 		PrintWriter pw = null;
@@ -104,11 +104,11 @@ public class Serializers
 		}
 	}
 
-	public static String toString(Bitmap3D bm) throws Exception {
+	public static String toString(Bitmap bm) throws Exception {
 		return(toString(bm, new ExpandedSerializer()));
 	}
 	
-	public static Bitmap3D fromString(String str, Serializer serializer) throws Exception {
+	public static Bitmap fromString(String str, Serializer serializer) throws Exception {
 
 		log.info("Reading bitmap from string");
 		
@@ -123,7 +123,7 @@ public class Serializers
 		}
 	}
 
-	public static Bitmap3D fromString(String str) throws Exception {
+	public static Bitmap fromString(String str) throws Exception {
 		return(fromString(str, new ExpandedSerializer()));
 	}
 
@@ -133,26 +133,24 @@ public class Serializers
 
 	public static class CompactSerializer implements Serializer {
 
-		public void serialize(Bitmap3D bm, PrintWriter pw) throws Exception {
+		public void serialize(Bitmap bm, PrintWriter pw) throws Exception {
 			pw.println(bm.getDx());
 			pw.println(bm.getDy());
-			pw.println(bm.getDz());
 
 			for (int i = 0; i < bm.longs.length; ++i) pw.println(bm.longs[i]);
 		}
 		
-		public Bitmap3D deserialize(Scanner scanner) throws Exception {
+		public Bitmap deserialize(Scanner scanner) throws Exception {
 			int dx = scanner.nextInt();
 			int dy = scanner.nextInt();
-			int dz = scanner.nextInt();
 
-			int longsNeeded = Bitmap3D.getLongsNeeded(dx, dy, dz);
+			int longsNeeded = Bitmap.getLongsNeeded(dx, dy);
 			long[] longs = new long[longsNeeded];
 			for (int i = 0; i < longsNeeded; ++i) {
 				longs[i] = scanner.nextLong();
 			}
 
-			return(new Bitmap3D(dx, dy, dz, longs));
+			return(new Bitmap(dx, dy, longs));
 		}
 	}
 
@@ -162,33 +160,28 @@ public class Serializers
 
 	public static class ExpandedSerializer implements Serializer {
 
-		public void serialize(Bitmap3D bm, PrintWriter pw) throws Exception {
+		public void serialize(Bitmap bm, PrintWriter pw) throws Exception {
 
 			int dx = bm.getDx();
 			int dy = bm.getDy();
-			int dz = bm.getDz();
 			
-			pw.println(String.format("%d %d %d", dx, dy, dz));
+			pw.println(String.format("%d %d", dx, dy));
 
-			for (int z = 0; z < dz; ++z) {
-				for (int y = 0; y < dy; ++y) {
-					for (int x = 0; x < dx; ++x) {
-						pw.print(bm.get(x,y,z) ? CELL_ON : CELL_OFF);
-					}
-					pw.println();
+			for (int y = 0; y < dy; ++y) {
+				for (int x = 0; x < dx; ++x) {
+					pw.print(bm.get(x,y) ? CELL_ON : CELL_OFF);
 				}
 				pw.println();
 			}
 		}
 
-		public Bitmap3D deserialize(Scanner scanner) throws Exception {
+		public Bitmap deserialize(Scanner scanner) throws Exception {
 			int dx = scanner.nextInt();
 			int dy = scanner.nextInt();
-			int dz = scanner.nextInt();
 
 			int bitsRead = 0;
-			int bitsNeeded = Bitmap3D.getBitCount(dx, dy, dz);
-			long[] longs = new long[Bitmap3D.getLongsNeeded(dx, dy, dz)];
+			int bitsNeeded = Bitmap.getBitCount(dx, dy);
+			long[] longs = new long[Bitmap.getLongsNeeded(dx, dy)];
 
 			for (int i = 0; i < longs.length; ++i) {
 
@@ -205,7 +198,7 @@ public class Serializers
 				}
 			}
 
-			return(new Bitmap3D(dx, dy, dz, longs));
+			return(new Bitmap(dx, dy, longs));
 		}
 			
 		private char nextChar(Scanner scanner) throws Exception {
