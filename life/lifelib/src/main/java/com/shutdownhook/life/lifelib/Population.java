@@ -151,7 +151,7 @@ public class Population
 
 		Organism.sortByFitness(organisms);
 		
-		log.info(String.format("cycle %d complete: " + getLastMetrics().toString()));
+		log.info(String.format("cycle %s complete: ", getLastMetrics().toString()));
 
 		if (popWriter != null) {
 			
@@ -278,7 +278,7 @@ public class Population
 
 	private void finalizeMetrics() {
 		FitnessMetrics metrics = getLastMetrics();
-		metrics.Avg /= ((double)cycleCount);
+		metrics.Avg /= ((double)organisms.length);
 	}
 	
 	// +---------+
