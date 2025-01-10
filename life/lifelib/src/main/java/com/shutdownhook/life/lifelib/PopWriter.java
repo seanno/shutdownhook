@@ -103,9 +103,13 @@ public class PopWriter
 		tokens.put("CONFIG_URL", getConfigFile().getName());
 		tokens.put("FIRST_CYCLE_URL", getPopulationFile(1).getName());
 		tokens.put("LAST_CYCLE_URL", getPopulationFile(cycleCount).getName());
-		
+
+		tokens.put("WINNER_ORG_DIV", getOrganismDiv(pop.getOrganisms()[0], 1, 1));
+				   
 		String json = new GsonBuilder().setPrettyPrinting().create().toJson(pop.getConfig());
 		tokens.put("CONFIG_JSON", json);
+
+		addFitnessLists(tokens);
 		
 		String html = indexTemplate.render(tokens, new Template.TemplateProcessor() {
 
@@ -124,6 +128,37 @@ public class PopWriter
 		});
 
 		Easy.stringToFile(file.getAbsolutePath(), html);
+	}
+
+	private void addFitnessLists(Map<String,String> tokens) {
+		
+		List<Population.FitnessMetrics> allMetrics = pop.getMetrics();
+		
+		StringBuilder sbCycles = new StringBuilder();
+		StringBuilder sbMax = new StringBuilder();
+		StringBuilder sbAvg = new StringBuilder();
+		StringBuilder sbMin = new StringBuilder();
+
+		for (int i = 0; i < allMetrics.size(); ++i) {
+			
+			if (i > 0) {
+				sbCycles.append(",");
+				sbMax.append(",");
+				sbAvg.append(",");
+				sbMin.append(","); }
+
+			sbCycles.append(Integer.toString(i+1));
+			
+			Population.FitnessMetrics metrics = allMetrics.get(i);
+			sbMax.append(String.format("%.3f", metrics.Max));
+			sbAvg.append(String.format("%.3f", metrics.Avg));
+			sbMin.append(String.format("%.3f", metrics.Min));
+		}
+
+		tokens.put("CYCLE_LIST", sbCycles.toString());
+		tokens.put("MAX_FITNESSES", sbMax.toString());
+		tokens.put("AVG_FITNESSES", sbAvg.toString());
+		tokens.put("MIN_FITNESSES", sbMin.toString());
 	}
 
 	// +-----------------+

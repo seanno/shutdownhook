@@ -1,24 +1,87 @@
 <html>
   <head>
+	
 	<style>
+	  .orgDiv {
+		  margin: 12px;
+	  }
+	  .orgImg {
+		  width: 150px;
+		  height: 150px;
+		  padding: 4px;
+		  border: 1px solid grey;;
+	  }
+	  #fitnessChart {
+		  width: 100%;
+		  max-width:600px;
+		  height:200px;
+		  margin: 12px;
+	  }
 	</style>
+
+	<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.4/Chart.js"></script>
+	
 	<script>
+	  
 	  function cycleSelectClick() {
 		var elt = document.getElementById("cycleSelect");
 		var url = elt.value;
 		if (url) window.location = url;
 	  }
+
+	  function renderChart() {
+		new Chart("fitnessChart", {
+		  type: "line",
+		  data: {
+			labels: cycles,
+			datasets: [{
+			  label: "Max",
+			  backgroundColor:"rgba(0,200,0,1.0)",
+			  borderColor: "rgba(0,200,0,0.4)",
+			  fill: false,
+			  data: maxFitnesses
+			},{
+			  label: "Avg",
+			  backgroundColor:"rgba(0,0,255,1.0)",
+			  borderColor: "rgba(0,0,255,0.4)",
+			  fill: false,
+			  data: avgFitnesses
+			},{
+			  label: "Min",
+			  backgroundColor:"rgba(255,0,0,1.0)",
+			  borderColor: "rgba(255,0,0,0.4)",
+			  fill: false,
+			  data: minFitnesses
+			}]
+		  },
+		  options: {
+			legend: { display: false }
+		  }
+		});
+	  }
+
+	  const cycles = [{{ CYCLE_LIST }}];
+	  const maxFitnesses = [{{ MAX_FITNESSES }}];
+	  const avgFitnesses = [{{ AVG_FITNESSES }}];
+	  const minFitnesses = [{{ MIN_FITNESSES }}];
+
+	  function onLoad() {
+		renderChart();
+	  }
+	  
 	</script>
+
+
   </head>
-  <body>
+  <body onload="onLoad()">
 
 	<div>
 
-	  <h2>{{ NAME}}</h2>
+	  <h1>{{ NAME}}</h1>
 
 	  <div>
 		{{ CYCLE_COUNT }} total cycles:
-v		
+
 		<a href="{{ FIRST_CYCLE_URL }}">first</a>
 		&nbsp;|&nbsp;
 		<a href="{{ LAST_CYCLE_URL }}">last</a>
@@ -30,6 +93,14 @@ v
 		  {{ :end }}
 		</select>
 		<button onClick="cycleSelectClick()">Go</button>
+	  </div>
+
+	  <h3>Winner</h3>
+	  {{ :raw WINNER_ORG_DIV }}
+	  
+	  <h3>Fitness</h3>
+	  <div>
+		<canvas id="fitnessChart"></canvas>
 	  </div>
 
 	  <h3><a href="{{ CONFIG_URL }}">Config</a></h3>
