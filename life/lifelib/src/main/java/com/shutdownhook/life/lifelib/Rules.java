@@ -6,11 +6,13 @@ package com.shutdownhook.life.lifelib;
 
 import java.util.logging.Logger;
 
+import com.shutdownhook.life.lifelib.Neighborhood.NeighborhoodType;
+
 public class Rules
 {
-	// +---------------+
-	// | RuleProcessor |
-	// +---------------+
+	// +----------------+
+	// | RulesProcessor |
+	// +----------------+
 
 	public static enum Outcome
 	{
@@ -20,15 +22,16 @@ public class Rules
 		Inertia
 	}
 	
-	public interface RuleProcessor {
+	public interface RulesProcessor {
 		Outcome apply(Bitmap env, int x, int y);
+		RulesProcessor reproduce(RulesProcessor other, Reproduction.Params params);
 	}
 
 	// +-------+
 	// | apply |
 	// +-------+
 
-	public static Bitmap apply(Bitmap env, RuleProcessor proc) {
+	public static Bitmap apply(Bitmap env, RulesProcessor proc) {
 
 		int dx = env.getDx();
 		int dy = env.getDy();
@@ -52,6 +55,41 @@ public class Rules
 		return(newEnv);
 	}
 
+	// +-----+
+	// | get |
+	// +-----+
+
+	public static enum RulesType
+	{
+		Life,
+		Neighborhood_Moore,
+		Neighborhood_VonNeumann,
+		Neighborhood_VonNeumannR2,
+		Neighborhood_Cross2
+	}
+
+	public static RulesProcessor get(RulesType rulesType) {
+		
+		switch (rulesType) {
+			
+			case Life:
+				return(new LifeRulesProcessor());
+				
+			default: case Neighborhood_Moore:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.Moore));
+				
+			case Neighborhood_VonNeumann:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.VonNeumann));
+				
+			case Neighborhood_VonNeumannR2:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.VonNeumannR2));
+				
+			case Neighborhood_Cross2:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.Cross2));
+		}
+		
+	}
+	
 	// +---------+
 	// | Members |
 	// +---------+

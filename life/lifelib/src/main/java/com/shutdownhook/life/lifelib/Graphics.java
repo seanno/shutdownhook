@@ -4,9 +4,13 @@
 
 package com.shutdownhook.life.lifelib;
 
+import java.awt.image.BufferedImage;
+import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
+import java.util.Base64;
 import java.util.HashMap;
 import java.util.logging.Logger;
+import javax.imageio.ImageIO;
 
 import com.shutdownhook.toolbox.Template;
 
@@ -31,6 +35,52 @@ public class Graphics
 	public Graphics(Config cfg) throws Exception {
 		this.cfg = cfg;
 		this.svgTemplate = new Template(cfg.SvgTemplate);
+	}
+
+	// +---------------+
+	// | renderDataURL |
+	// +---------------+
+
+	public String renderDataURL(Bitmap bits) throws Exception {
+		return(renderDataURL(bits, "bmp"));
+	}
+
+	public String renderDataURL(Bitmap bits, String format) throws Exception {
+
+		BufferedImage img = renderBufferedImage(bits);
+
+		// close is a documented nop for BAOS so don't worry about it
+		ByteArrayOutputStream stm = new ByteArrayOutputStream();
+		boolean ret = ImageIO.write(img, format, stm);
+		if (!ret) throw new Exception("ImageIO write failed");
+
+		String b64 = Base64
+			.getEncoder()
+			.encodeToString(stm.toByteArray());
+
+		return("data:image/" + format + ";base64," + b64);
+	}
+
+	// +---------------------+
+	// | renderBufferedImage |
+	// +---------------------+
+
+	public BufferedImage renderBufferedImage(final Bitmap bits) throws Exception {
+
+		int dx = bits.getDx();
+		int dy = bits.getDy();
+
+		// image pixels are initialized to 0 (black) so turn ON the white ones
+		
+		BufferedImage img = new BufferedImage(dx, dy, BufferedImage.TYPE_BYTE_BINARY);
+		
+		for (int x = 0; x < dx; ++x) {
+			for (int y = 0; y < dy; ++y) {
+				if (!bits.get(x, y)) img.setRGB(x, y, 0xFFFFFF);
+			}
+		}
+
+		return(img);
 	}
 
 	// +-----------+

@@ -1,0 +1,35 @@
+<html>
+  <head>
+	<style>
+	  .popGrid {
+		  width: 100%;
+		  display: grid;
+		  gap: 12px;
+		  grid-template-columns: {{ COL_TEMPLATE }};
+	  }
+	  .orgDiv {
+		  width: 100%;
+	  }
+	  .orgImg {
+		  width: 100%;
+	  }
+	</style>
+  </head>
+  <body>
+
+	<div>
+
+	  <h2>{{ ID }}</h2>
+
+	  {{ :if HAVE_PARENTS }}
+	  
+	  <h3>Parents</h3>
+	  <div class="popGrid">
+		{{ :raw PARENT1_ORG_DIV }}
+		{{ :raw PARENT2_ORG_DIV }}
+	  </div>
+	  
+	  {{ :end }}
+
+	  <h3>History</h3>
+	  <div class="popGrid">

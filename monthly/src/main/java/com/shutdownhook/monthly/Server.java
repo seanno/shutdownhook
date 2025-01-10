@@ -10,7 +10,9 @@ import java.time.DayOfWeek;
 import java.time.LocalDate;
 import java.time.Month;
 import java.time.ZoneId;
+import java.time.YearMonth;
 import java.time.format.TextStyle;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
@@ -104,7 +106,16 @@ public class Server implements Closeable
 
 				int month = Integer.parseInt(request.QueryParams.get("m"));
 				int year = Integer.parseInt(request.QueryParams.get("y"));
+
+				String imageDir = String.format("shutdownhook-insta-%d%s%s/", year, month < 10 ? "0" : "", month);
+
+				final String userName = "shutdownhook";
+				final Map<Integer, List<Instagram.ProcessedPost>> postMap =
+					makeTemplatePostMap(year, month, imageDir);
 				
+				/*
+				  THANKS FOR NOTHING INSTAGRAM
+
 				final Map<Integer, List<Instagram.ProcessedPost>> postMap =
 					insta.getProcessedPostsForMonth(request.User.Token, zone, month, year);
 
@@ -114,10 +125,40 @@ public class Server implements Closeable
 				}
 
 				final String userName = insta.getUserInfo(request.User.Token).username;
+				*/
 													
 				response.setHtml(renderTemplate(template, userName, month, year, postMap));
 			}
 		});
+	}
+
+	private Map<Integer, List<Instagram.ProcessedPost>> makeTemplatePostMap(int year, int month, String urlBase) {
+
+		YearMonth ym = YearMonth.of(year, month);
+		int daysInMonth = ym.lengthOfMonth();
+
+		String urlPrefix = String.format("%d%s%s", year, month < 10 ? "0" : "", month);
+		String captionPrefix = String.format("%d-%s-", year, month);
+		
+		Map<Integer, List<Instagram.ProcessedPost>> postMap =
+			new HashMap<Integer, List<Instagram.ProcessedPost>>();
+
+		for (int day = 1; day <= daysInMonth; ++day) {
+			
+			String dayStr = Integer.toString(day);
+			
+			List<Instagram.ProcessedPost> posts = new ArrayList<Instagram.ProcessedPost>();
+			postMap.put(day, posts);
+			
+			Instagram.ProcessedPost pp = new Instagram.ProcessedPost();
+			posts.add(pp);
+			
+			pp.Caption = captionPrefix + dayStr;
+			pp.TargetUrl = urlBase + urlPrefix + (day < 10 ? "0" : "") + dayStr + ".jpg";
+			pp.ImageUrl = pp.TargetUrl;
+		}
+		
+		return(postMap);
 	}
 
 	private String renderTemplate(Template template,

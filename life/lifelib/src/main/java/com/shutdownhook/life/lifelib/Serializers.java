@@ -18,6 +18,8 @@ import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
 
+import com.shutdownhook.life.lifelib.Bitmap.EdgeStrategy;
+
 public class Serializers
 {
 	public final static char CELL_ON = 'X';
@@ -136,6 +138,7 @@ public class Serializers
 		public void serialize(Bitmap bm, PrintWriter pw) throws Exception {
 			pw.println(bm.getDx());
 			pw.println(bm.getDy());
+			pw.println(bm.getEdgeStrategy().toString());
 
 			for (int i = 0; i < bm.longs.length; ++i) pw.println(bm.longs[i]);
 		}
@@ -143,6 +146,7 @@ public class Serializers
 		public Bitmap deserialize(Scanner scanner) throws Exception {
 			int dx = scanner.nextInt();
 			int dy = scanner.nextInt();
+			EdgeStrategy edgeStrategy = EdgeStrategy.valueOf(scanner.next());
 
 			int longsNeeded = Bitmap.getLongsNeeded(dx, dy);
 			long[] longs = new long[longsNeeded];
@@ -150,7 +154,7 @@ public class Serializers
 				longs[i] = scanner.nextLong();
 			}
 
-			return(new Bitmap(dx, dy, longs));
+			return(new Bitmap(dx, dy, edgeStrategy, longs));
 		}
 	}
 
@@ -165,7 +169,7 @@ public class Serializers
 			int dx = bm.getDx();
 			int dy = bm.getDy();
 			
-			pw.println(String.format("%d %d", dx, dy));
+			pw.println(String.format("%d %d %s ", dx, dy, bm.getEdgeStrategy()));
 
 			for (int y = 0; y < dy; ++y) {
 				for (int x = 0; x < dx; ++x) {
@@ -178,6 +182,7 @@ public class Serializers
 		public Bitmap deserialize(Scanner scanner) throws Exception {
 			int dx = scanner.nextInt();
 			int dy = scanner.nextInt();
+			EdgeStrategy edgeStrategy = EdgeStrategy.valueOf(scanner.next());
 
 			int bitsRead = 0;
 			int bitsNeeded = Bitmap.getBitCount(dx, dy);
@@ -198,7 +203,7 @@ public class Serializers
 				}
 			}
 
-			return(new Bitmap(dx, dy, longs));
+			return(new Bitmap(dx, dy, edgeStrategy, longs));
 		}
 			
 		private char nextChar(Scanner scanner) throws Exception {

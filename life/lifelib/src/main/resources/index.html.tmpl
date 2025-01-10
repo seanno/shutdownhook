@@ -1,0 +1,43 @@
+<html>
+  <head>
+	<style>
+	</style>
+	<script>
+	  function cycleSelectClick() {
+		var elt = document.getElementById("cycleSelect");
+		var url = elt.value;
+		if (url) window.location = url;
+	  }
+	</script>
+  </head>
+  <body>
+
+	<div>
+
+	  <h2>{{ NAME}}</h2>
+
+	  <div>
+		{{ CYCLE_COUNT }} total cycles:
+v		
+		<a href="{{ FIRST_CYCLE_URL }}">first</a>
+		&nbsp;|&nbsp;
+		<a href="{{ LAST_CYCLE_URL }}">last</a>
+		&nbsp;|&nbsp;
+
+		<select id="cycleSelect">
+		  {{ :rpt cycles }}
+		  <option value="{{ CYCLE_URL }}">{{ CYCLE_NUM }}</option>
+		  {{ :end }}
+		</select>
+		<button onClick="cycleSelectClick()">Go</button>
+	  </div>
+
+	  <h3><a href="{{ CONFIG_URL }}">Config</a></h3>
+	  <div>
+		<pre><code>{{ CONFIG_JSON }}</code></pre>
+	  </div>
+
+	</div>
+	
+  </body>
+</html>

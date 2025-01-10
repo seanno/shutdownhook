@@ -1,0 +1,38 @@
+<html>
+  <head>
+	<style>
+	  .popGrid {
+		  width: 100%;
+		  display: grid;
+		  gap: 12px;
+		  grid-template-columns: {{ COL_TEMPLATE }};
+	  }
+	  .orgDiv {
+		  width: 100%;
+	  }
+	  .orgImg {
+		  width: 100%;
+	  }
+	  .nav {
+		  float: right;
+	  }
+	</style>
+  </head>
+  <body>
+
+	<div>
+
+	  <div class="nav">
+		<a href="./">home</a>&nbsp;{{ :raw PREV_LINK }}&nbsp;{{ :raw NEXT_LINK }}
+	  </div>
+	  
+	  <h2>{{ NAME}}: Cycle #{{ AGE }} of {{ CYCLE_COUNT }}</h2>
+
+	  <p>Fitness Metrics: {{ FITNESS_METRICS }}</p>
+
+	  <div class="popGrid">{{ :rpt worlds }}{{ :raw ORG_DIV }}{{ :end }} </div>
+
+	</div>
+	
+  </body>
+</html>

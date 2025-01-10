@@ -23,6 +23,7 @@ import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.file.Files;
 import java.nio.file.Paths;
+import java.nio.file.StandardOpenOption;
 import java.nio.file.attribute.PosixFilePermission;
 import java.security.InvalidKeyException;
 import java.security.MessageDigest;
@@ -137,6 +138,10 @@ public class Easy
 
 	public static void stringToFile(String path, String data) throws IOException {
 		Files.write(Paths.get(path), data.getBytes("UTF-8"));
+	}
+
+	public static void appendStringToFile(String path, String data) throws IOException {
+		Files.write(Paths.get(path), data.getBytes("UTF-8"), StandardOpenOption.APPEND);
 	}
 
 	public static void setFileOwnerOnly(String path) throws IOException {
@@ -775,6 +780,18 @@ public class Easy
 		PrintWriter pw = new PrintWriter(sw);
 		e.printStackTrace(pw);
 		return(sw.toString());
+	}
+
+	public static String jvmInfo() {
+		
+		Runtime runtime = Runtime.getRuntime();
+
+		return(String.format("Java: %s \n" +
+							 "Max Heap: %d mb \n" +
+							 "Processors: %d \n",
+							 System.getProperty("java.version"),
+							 runtime.maxMemory() / 1024 / 1024,
+							 runtime.availableProcessors()));
 	}
 
 	public static void configureLoggingProperties(String smartyPath) {

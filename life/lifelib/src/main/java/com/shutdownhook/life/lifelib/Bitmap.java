@@ -15,11 +15,24 @@ public class Bitmap
 	// | Setup |
 	// +-------+
 
-	public Bitmap(int dx, int dy) throws IllegalArgumentException {
-		this(dx, dy, null);
+	public static enum EdgeStrategy
+	{
+		On,
+		Off,
+		Wrap;
 	}
 
-	protected Bitmap(int dx, int dy, long[] longs) throws IllegalArgumentException {
+	public Bitmap(int dx, int dy) throws IllegalArgumentException {
+		this(dx, dy, EdgeStrategy.Wrap, null);
+	}
+
+	public Bitmap(int dx, int dy, EdgeStrategy edgeStrategy) throws IllegalArgumentException {
+		this(dx, dy, edgeStrategy, null);
+	}
+
+	protected Bitmap(int dx, int dy,
+					 EdgeStrategy edgeStrategy,
+					 long[] longs) throws IllegalArgumentException {
 
 		if (dx < 1 || dy < 1) {
 			String msg = String.format("Invalid dimensions %d,%d", dx, dy);
@@ -28,6 +41,7 @@ public class Bitmap
 			
 		this.dx = dx;
 		this.dy = dy;
+		this.edgeStrategy = edgeStrategy;
 
 		if (longs != null) {
 			this.longs = longs;
@@ -43,12 +57,28 @@ public class Bitmap
 
 	public int getDx() { return(dx); }
 	public int getDy() { return(dy); }
+	public EdgeStrategy getEdgeStrategy() { return(edgeStrategy); }
 
-	public long[] getAsDNA() { return(longs); }
+	// +-----+
+	// | DNA |
+	// +-----+
 	
-	// +------------------+
-	// | get / set / fill |
-	// +------------------+
+	public long[] getAsDNA() { return(longs); }
+
+	public String getAsDNAText() {
+		StringBuilder sb = new StringBuilder();
+		for (long l : longs) {
+			String bits = Long.toBinaryString(l);
+			int leadingZeros = Long.SIZE - bits.length();
+			if (leadingZeros > 0) sb.append("0".repeat(leadingZeros));
+			sb.append(bits);
+		}
+		return(sb.toString());
+	}
+	
+	// +-----------+
+	// | get / set |
+	// +-----------+
 
 	public boolean get(int x, int y) {
 		
@@ -68,6 +98,25 @@ public class Bitmap
 
 		if (val) { longs[ilong] |= (1L << ibit); }
 		else { longs[ilong] &= ~(1L << ibit); }
+	}
+
+	// +------+
+	// | fill |
+	// +------+
+
+	public static enum FillType
+	{
+		Solid,
+		Empty,
+		Random
+	}
+
+	public void fill(FillType fillType) {
+		switch (fillType) {
+			case Solid: fill(true); break;
+			case Empty: fill(false); break;
+			case Random: randomize(); break;
+		}
 	}
 
 	public void fill(boolean val) {
@@ -95,16 +144,7 @@ public class Bitmap
 	// | getRelative |
 	// +-------------+
 
-	public static enum EdgeStrategy
-	{
-		On,
-		Off,
-		Wrap;
-	}
-
-	public boolean getRelative(int x, int y, 
-							   int dxOffset, int dyOffset,
-							   EdgeStrategy edgeStrategy) {
+	public boolean getRelative(int x, int y, int dxOffset, int dyOffset) {
 
 		int xTarget = x + dxOffset;
 		int yTarget = y + dyOffset;
@@ -123,10 +163,10 @@ public class Bitmap
 		int yFinal = yTarget;
 		
 		if (xTarget < 0) { while (xFinal < 0) xFinal += dx; }
-		else if (xTarget > dx) { while (xFinal >= dx) xFinal -= dx; }
+		else if (xTarget >= dx) { while (xFinal >= dx) xFinal -= dx; }
 		
 		if (yTarget < 0) { while (yFinal < 0) yFinal += dy; }
-		else if (yTarget > dy) { while (yFinal >= dy) yFinal -= dy; }
+		else if (yTarget >= dy) { while (yFinal >= dy) yFinal -= dy; }
 
 		return(get(xFinal, yFinal));
 	}
@@ -202,6 +242,7 @@ public class Bitmap
 
 	private int dx;
 	private int dy;
+	private EdgeStrategy edgeStrategy;
 	protected long[] longs; // package-accessible
 
 	private Random rand = new Random();

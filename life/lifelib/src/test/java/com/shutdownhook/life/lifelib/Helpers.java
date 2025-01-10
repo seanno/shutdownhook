@@ -19,5 +19,5 @@ public class Helpers
     }
 
 	static { Helpers.init(); }
-	
+
 }
