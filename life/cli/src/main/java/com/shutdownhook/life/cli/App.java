@@ -82,30 +82,40 @@ public class App
 
 		String json = Easy.stringFromSmartyPath(args[1]);
 		Integer cycleCount = Integer.parseInt(args[2]);
+		Integer runs = (args.length >= 4 ? Integer.parseInt(args[3]) : 1);
 	
 		Population.Config cfg = new Gson().fromJson(json, Population.Config.class);
-		Population pop = new Population(cfg, cycleCount);
-		
 		Exec exec = new Exec();
+		
+		for (int i = 0; i < runs; ++i) {
+			evolveOne(cfg, cycleCount, i+1, exec);
+		}
+
+		exec.shutdownPool();
+		
+		System.out.println("done");
+	}
+	
+	private static void evolveOne(Population.Config cfg,
+								  int cycleCount,
+								  int runNumber,
+								  Exec exec) throws Exception {
+
+		Population pop = new Population(cfg, cycleCount);
 
 		for (int i = 0; i < cycleCount; ++i) {
 
-			System.out.println(String.format("running pop cycle %d of %d",
-											 i + 1, cycleCount));
+			System.out.print(String.format("run %d: cycle %d of %d... ",
+											 runNumber, i + 1, cycleCount));
 
 			pop.runCycleAsync(exec, false).get();
 
 			System.out.println(pop.getLastMetrics().toString());
 
 			if (i != (cycleCount -1)) {
-				System.out.println("reproducing...");
 				pop.reproduceAsync(exec).get();
 			}
 		}
-
-		exec.shutdownPool();
-		
-		System.out.println("done");
 	}
 	
 	// +------+

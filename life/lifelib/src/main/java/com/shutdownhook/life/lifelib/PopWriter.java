@@ -42,6 +42,7 @@ public class PopWriter
 		public String ConfigFileName = "config.json";
 		public String PopulationFileNameFormat = "population-%03d.html";
 		public String OrganismFileNameFormat = "organism-%s.html";
+		public String CsvFileName = "metrics.csv";
 		
 		public String PopulationTemplate = "@population.html.tmpl";
 		public Integer PopulationColumns = 8;
@@ -101,6 +102,7 @@ public class PopWriter
 		tokens.put("NAME", pop.getName());
 		tokens.put("CYCLE_COUNT", Integer.toString(cycleCount));
 		tokens.put("CONFIG_URL", getConfigFile().getName());
+		tokens.put("CSV_URL", getCsvFile().getName());
 		tokens.put("FIRST_CYCLE_URL", getPopulationFile(1).getName());
 		tokens.put("LAST_CYCLE_URL", getPopulationFile(cycleCount).getName());
 
@@ -159,6 +161,29 @@ public class PopWriter
 		tokens.put("MAX_FITNESSES", sbMax.toString());
 		tokens.put("AVG_FITNESSES", sbAvg.toString());
 		tokens.put("MIN_FITNESSES", sbMin.toString());
+	}
+
+	// +----------+
+	// | writeCsv |
+	// +----------+
+
+	public void writeCsv() throws Exception {
+		
+		File file = getCsvFile();
+
+		StringBuilder sb = new StringBuilder();
+		sb.append("Maximum,Average,Minimum\n");
+		
+		List<Population.FitnessMetrics> allMetrics = pop.getMetrics();
+
+		for (int i = 0; i < allMetrics.size(); ++i) {
+			Population.FitnessMetrics metrics = allMetrics.get(i);
+			sb.append(String.format("%.3f,%.3f,%.3f\n",
+									metrics.Max, metrics.Avg,
+									metrics.Min));
+		}
+		
+		Easy.stringToFile(file.getAbsolutePath(), sb.toString());
 	}
 
 	// +-----------------+
@@ -311,6 +336,10 @@ public class PopWriter
 
 	private File getIndexFile() {
 		return(new File(getWriteDir(), cfg.IndexFileName));
+	}
+
+	private File getCsvFile() {
+		return(new File(getWriteDir(), cfg.CsvFileName));
 	}
 	
 	private File getWriteDir() {

@@ -1,3 +1,4 @@
+
 <html>
   <head>
 	
@@ -103,9 +104,15 @@
 		<canvas id="fitnessChart"></canvas>
 	  </div>
 
-	  <h3><a href="{{ CONFIG_URL }}">Config</a></h3>
+	  <h3>Config</h3>
 	  <div>
 		<pre><code>{{ CONFIG_JSON }}</code></pre>
+	  </div>
+	  
+	  <h3>Data</h3>
+	  <div>
+		<a href="{{ CONFIG_URL }}">Config</a><br/>
+		<a href="{{ CSV_URL }}">Fitness Metrics</a><br/>
 	  </div>
 
 	</div>

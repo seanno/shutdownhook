@@ -164,6 +164,7 @@ public class Population
 				}
 
 				popWriter.writeIndex();
+				popWriter.writeCsv();
 			}
 		}
 
