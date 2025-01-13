@@ -87,6 +87,11 @@ public class Population
 	public Organism[] getOrganisms() { return(organisms); }
 	public PopWriter getPopWriter() { return(popWriter); }
 
+	// dangerous!
+	public void updateCycleCount(int cycleCount) {
+		this.cycleCount = cycleCount;
+	}
+
 	// +-----------------+
 	// | runCycle(Async) |
 	// +-----------------+
@@ -165,6 +170,7 @@ public class Population
 
 				popWriter.writeIndex();
 				popWriter.writeCsv();
+				popWriter.writeTopRules();
 			}
 		}
 

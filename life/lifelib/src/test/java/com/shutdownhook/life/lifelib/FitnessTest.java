@@ -12,6 +12,14 @@ import com.shutdownhook.life.lifelib.Fitness.FitnessType;
 public class FitnessTest
 {
 	@Test
+	public void twoByFitness() throws Exception {
+		assertFitness(BITS_PERFECT_2BY_1, FitnessType.TwoBySquares, 1.0);
+		assertFitness(BITS_PERFECT_2BY_2, FitnessType.TwoBySquares, 1.0);
+		assertFitness(BITS_HALF_2BY, FitnessType.TwoBySquares, 0.5);
+		assertFitness(BITS_QUARTER_2BY, FitnessType.TwoBySquares, 0.25);
+	}
+
+	@Test
 	public void edgeFitness() throws Exception {
 		assertFitness(BITS_PERFECT_EDGES, FitnessType.Edges, 1.0);
 		assertFitness(BITS_ZERO_EDGES, FitnessType.Edges, 0.0);
@@ -129,4 +137,27 @@ public class FitnessTest
      		          "X.X." +
      		          ".X.X" ;
 
+	public final static String BITS_PERFECT_2BY_1 =
+		"4 4 Wrap " + "XX.." +
+		              "XX.." +
+     		          "..XX" +
+     		          "..XX" ;
+
+	public final static String BITS_PERFECT_2BY_2 =
+		"7 4 Wrap " + "..XX..X" + 
+		              "..XX..X" +
+     		          "XX..XX." +
+     		          "XX..XX." ;
+
+	public final static String BITS_HALF_2BY =
+		"4 4 Wrap " + "...." +
+		              "...." +
+     		          "...." +
+     		          "...." ;
+	
+	public final static String BITS_QUARTER_2BY =
+		"4 4 Wrap " + "XXXX" +
+		              "XXXX" +
+     		          "XX.." +
+     		          "XX.." ;
 }

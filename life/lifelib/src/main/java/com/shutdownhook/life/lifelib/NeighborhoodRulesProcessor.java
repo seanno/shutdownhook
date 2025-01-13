@@ -4,9 +4,15 @@
 
 package com.shutdownhook.life.lifelib;
 
+import java.io.File;
+import java.io.FileWriter;
+import java.io.PrintWriter;
 import java.util.Set;
 import java.util.HashSet;
+import java.util.Scanner;
 import java.util.logging.Logger;
+
+import com.shutdownhook.toolbox.Easy;
 
 import com.shutdownhook.life.lifelib.Bitmap.EdgeStrategy;
 import com.shutdownhook.life.lifelib.Neighborhood.NeighborhoodType;
@@ -44,6 +50,9 @@ public class NeighborhoodRulesProcessor implements Rules.RulesProcessor
 		}
 	}
 
+	public NeighborhoodType getNeighborhoodType() { return(neighborhoodType); }
+	protected Bitmap getVals() { return(vals); }
+	
 	// +----------------------+
 	// | RulesProcessor.apply |
 	// +----------------------+
@@ -67,6 +76,44 @@ public class NeighborhoodRulesProcessor implements Rules.RulesProcessor
 		NeighborhoodRulesProcessor otherNRP = (NeighborhoodRulesProcessor) other;
 		Bitmap newVals = Reproduction.reproduce(vals, otherNRP.vals, params);
 		return(new NeighborhoodRulesProcessor(neighborhoodType, newVals));
+	}
+
+	// +----------+
+	// | toFile   |
+	// | fromFile |
+	// +----------+
+
+	public void toFile(File file) throws Exception {
+		
+		FileWriter fw = null;
+		PrintWriter pw = null;
+
+		try {
+			fw = new FileWriter(file);
+			pw = new PrintWriter(fw);
+
+			pw.println(neighborhoodType.toString());
+			new Serializers.CompactSerializer().serialize(vals, pw);
+		}
+		finally {
+			Easy.safeClose(pw);
+			Easy.safeClose(fw);
+		}
+	}
+
+	public static NeighborhoodRulesProcessor fromFile(File file) throws Exception {
+		
+		Scanner scanner = null;
+
+		try {
+			scanner = new Scanner(file);
+			NeighborhoodType neighborhoodType = NeighborhoodType.valueOf(scanner.next());
+			Bitmap vals = new Serializers.CompactSerializer().deserialize(scanner);
+			return(new NeighborhoodRulesProcessor(neighborhoodType, vals));
+		}
+		finally {
+			Easy.safeClose(scanner);
+		}
 	}
 
 	// +---------+

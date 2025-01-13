@@ -47,6 +47,8 @@ public class Organism
 	public int getAge() { return(age); }
 	public Cycle getLastCycle() { return(lastCycle); }
 
+	public RulesProcessor getRulesProcessor() { return(rules); }
+	
 	// +-----------------+
 	// | runCycle(Async) |
 	// +-----------------+

@@ -9,7 +9,11 @@ import java.util.Scanner;
 import java.util.logging.Logger;
 
 import com.shutdownhook.life.lifelib.Bitmap;
+import com.shutdownhook.life.lifelib.Fitness;
 import com.shutdownhook.life.lifelib.LifeRulesProcessor;
+import com.shutdownhook.life.lifelib.Misc;
+import com.shutdownhook.life.lifelib.Neighborhood.NeighborhoodType;
+import com.shutdownhook.life.lifelib.NeighborhoodRulesProcessor;
 import com.shutdownhook.life.lifelib.Population;
 import com.shutdownhook.life.lifelib.Rules;
 import com.shutdownhook.life.lifelib.Serializers;
@@ -34,8 +38,9 @@ public class App
 		System.out.println(String.format("(1 of %d) %s", generations,
 										 Serializers.toString(environment)));
 
-		Rules.RulesProcessor rules =
-			Rules.get(lifeRules ? Rules.RulesType.Life: Rules.RulesType.Neighborhood_Moore);
+		Rules.RulesProcessor rules = lifeRules
+			? Rules.get(Rules.RulesType.Life)
+			: NeighborhoodRulesProcessor.fromFile(new File("/tmp/evolution/moore.bin"));
 		
 		for (int i = 0; i < generations; ++i) {
 			environment = Rules.apply(environment, rules);
@@ -44,6 +49,11 @@ public class App
 			Cursor.cls();
 			System.out.print(String.format("(%d of %d) ", i+1, generations));
 			System.out.println(Serializers.toString(environment));
+		}
+
+		if (!lifeRules) {
+			double fitness = Fitness.compute(environment, Fitness.FitnessType.VStripesCombo);
+			System.out.println(String.format("Final fitness: %.3f", fitness));
 		}
 	}
 
@@ -102,22 +112,55 @@ public class App
 								  Exec exec) throws Exception {
 
 		Population pop = new Population(cfg, cycleCount);
+		int effectiveCycleCount = cycleCount;
 
-		for (int i = 0; i < cycleCount; ++i) {
+		for (int i = 0; i < effectiveCycleCount; ++i) {
 
+			if (checkShortCircuit()) {
+				effectiveCycleCount = i + 1;
+				pop.updateCycleCount(effectiveCycleCount);
+			}
+			
 			System.out.print(String.format("run %d: cycle %d of %d... ",
-											 runNumber, i + 1, cycleCount));
+											 runNumber, i + 1, effectiveCycleCount));
 
 			pop.runCycleAsync(exec, false).get();
 
 			System.out.println(pop.getLastMetrics().toString());
 
-			if (i != (cycleCount -1)) {
+			if (i != (effectiveCycleCount - 1)) {
 				pop.reproduceAsync(exec).get();
 			}
 		}
 	}
+
+	private static boolean checkShortCircuit() {
+		File shortCircuitFile = new File("__shortcircuit.txt");
+		return(shortCircuitFile.exists());
+	}
 	
+	// +-----------+
+	// | vnToMoore |
+	// +-----------+
+
+	private static void vnToMoore(String[] cmds) throws Exception {
+
+		File vnFile = new File(cmds[1]);
+		File mooreFile = new File(cmds[2]);
+
+		System.out.println(String.format("Converting VN rules %s to Moore rules %s",
+										 vnFile.getAbsolutePath(),
+										 mooreFile.getAbsolutePath()));
+		
+		NeighborhoodRulesProcessor vnRules = NeighborhoodRulesProcessor.fromFile(vnFile);
+		if (!vnRules.getNeighborhoodType().equals(NeighborhoodType.VonNeumann)) {
+			throw new Exception("input rules wrong type");
+		}
+
+		NeighborhoodRulesProcessor mooreRules = Misc.convertRules_VN2Moore(vnRules);
+		mooreRules.toFile(mooreFile);
+	}
+
 	// +------+
 	// | test |
 	// +------+
@@ -137,29 +180,19 @@ public class App
 	private static boolean handleCommand(String[] cmds) throws Exception {
 		
 		switch (cmds[0]) {
-			case "h": case "help": help(); break;
 			default: System.out.println("huh?"); break;
 			case "q": case "quit": return(false);
 
 			case "life": life(true, cmds); break;
 			case "evolve": evolve(cmds); break;
 			case "nh": life(false, cmds); break;
+			case "vn-to-moore": vnToMoore(cmds); break;
 			case "test": test(cmds); break;
 		}
 
 		return(true);
 	}
 	
-	private static void help() {
-		System.out.println("life [G] [pattern]: run life pattern for G generations");
-		System.out.println("life [G] random DX DY [seed]: run random DX/DY life for G generations (opt seed)");
-		System.out.println("life [G] fill DX DY: run filled DX/DY life for G generations (opt seed)");
-		System.out.println("quit: quit the program");
-		System.out.println("help: this message");
-		System.out.println("help: this message");
-		System.out.println("(known life patterns: blinker, lwss, pulsar)");
-	}
-
 	public static void main(String[] args) throws Exception {
 
 		Easy.configureLoggingProperties("@logging.properties");

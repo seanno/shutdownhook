@@ -22,7 +22,7 @@ public class Fitness
 		VStripes,
 		VStripes2,
 		VStripesCombo,
-		VBlocks,
+		TwoBySquares,
 		Checkerboard
 	}
 
@@ -39,7 +39,7 @@ public class Fitness
 			case VStripes: return(vStripesScore(env));
 			case VStripes2: return(vStripes2Score(env));
 			case VStripesCombo: return(vStripesComboScore(env));
-			case VBlocks: return(vBlocksScore(env));
+			case TwoBySquares: return(twoBySquaresScore(env));
 			case Checkerboard: return(checkerboardScore(env));
 		}
 	}
@@ -190,24 +190,33 @@ public class Fitness
 		return((vStripes2Score + fiftyFiftyScore) / 2.0);
 	}
 
-	// how close to all columns being the same --- that is, vertical stripes
-	// but in any order and sequence of true/false
+	// 2x2 checkerboard
 	
-	private static double vBlocksScore(Bitmap env) {
+	private static double twoBySquaresScore(Bitmap env) {
 
 		int dx = env.getDx();
 		int dy = env.getDy();
 
 		int countCorrect = 0;
+		boolean startVal = env.get(0,0);
 
-		for (int x = 0; x < dx; x += 1) {
-			boolean targetVal = env.get(x, 0);
-			for (int y = 1; y < dy; ++y) {
-				if (env.get(x,y) == targetVal) ++countCorrect;
+		for (int x = 0; x < dx; x += 2) {
+			
+			boolean val = startVal;
+			startVal = !startVal;
+			
+			for (int y = 0; y < dy; y += 2) {
+				
+				if (env.get(x, y) == val) ++countCorrect; 
+				if (x+1 < dx && env.get(x+1,y) == val) ++countCorrect; 
+				if (y+1 < dy && env.get(x, y+1) == val) ++countCorrect; 
+				if (x+1 < dx && y+1 < dy && env.get(x+1,y+1) == val) ++countCorrect;
+				
+				val = !val;
 			}
 		}
-		
-		double score = ((double)countCorrect) / ((double)(dx * (dy-1)));
+
+		double score = ((double)countCorrect) / ((double)(dx * dy));
 		
 		return(score);
 	}

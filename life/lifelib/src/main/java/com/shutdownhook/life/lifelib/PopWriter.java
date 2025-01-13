@@ -26,6 +26,7 @@ import com.shutdownhook.toolbox.Exec;
 import com.shutdownhook.toolbox.Template;
 
 import com.shutdownhook.life.lifelib.Organism.Cycle;
+import com.shutdownhook.life.lifelib.Rules.RulesProcessor;
 
 public class PopWriter
 {
@@ -38,6 +39,9 @@ public class PopWriter
 	{
 		public String BasePath;
 
+		public String RulesFileNameFormat = "rules-%03d-%s.bin";
+		public Integer TopRulesCount = 5;
+			
 		public String IndexFileName = "index.html";
 		public String ConfigFileName = "config.json";
 		public String PopulationFileNameFormat = "population-%03d.html";
@@ -184,6 +188,31 @@ public class PopWriter
 		}
 		
 		Easy.stringToFile(file.getAbsolutePath(), sb.toString());
+	}
+
+	// +---------------+
+	// | writeTopRules |
+	// +---------------+
+
+	public void writeTopRules() throws Exception {
+		for (int i = 0; i < cfg.TopRulesCount && i < pop.getOrganisms().length; ++i) {
+			writeRules(pop.getOrganisms()[i], i+1);
+		}
+	}
+
+	private void writeRules(Organism org, int position) throws Exception {
+		
+		String name = String.format(cfg.RulesFileNameFormat, position, org.getId());
+		File file = new File(getWriteDir(), name);
+
+		RulesProcessor rulesProcessor = org.getRulesProcessor();
+		if (!(rulesProcessor instanceof NeighborhoodRulesProcessor)) {
+			log.severe(String.format("Not writing rules for org %s; %s is not a NRP",
+									 org.getId(), org.getClass().getName()));
+			return;
+		}
+
+		((NeighborhoodRulesProcessor)rulesProcessor).toFile(file);
 	}
 
 	// +-----------------+
