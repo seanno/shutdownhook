@@ -65,7 +65,11 @@ public class Rules
 		Neighborhood_Moore,
 		Neighborhood_VonNeumann,
 		Neighborhood_VonNeumannR2,
-		Neighborhood_Cross2
+		Neighborhood_Cross2,
+		Neighborhood_VonNeumann_EdgeDetect,
+		Neighborhood_VonNeumann_Quadrants,
+		Neighborhood_VonNeumann_Halves,
+		Neighborhood_Moore_Halves
 	}
 
 	public static RulesProcessor get(RulesType rulesType) {
@@ -86,6 +90,18 @@ public class Rules
 				
 			case Neighborhood_Cross2:
 				return(new NeighborhoodRulesProcessor(NeighborhoodType.Cross2));
+
+			case Neighborhood_VonNeumann_EdgeDetect:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.VonNeumannEdgeDetect));
+
+			case Neighborhood_VonNeumann_Quadrants:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.VonNeumannQuadrants));
+
+			case Neighborhood_VonNeumann_Halves:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.VonNeumannHalves));
+				
+			case Neighborhood_Moore_Halves:
+				return(new NeighborhoodRulesProcessor(NeighborhoodType.MooreHalves));
 		}
 		
 	}

@@ -61,6 +61,14 @@ public class FitnessTest
 		bits.fill(false);
 		assertFitness(bits, FitnessType.VStripes, 0.5);
 	}
+
+	@Test
+	public void quadrantsFitness() throws Exception {
+		
+		assertFitness(BITS_PERFECT_QUADRANTS, FitnessType.ComboQuadrants, 1.0);
+		assertFitness(BITS_75_QUADRANTS, FitnessType.ComboQuadrants, 0.75);
+		assertFitness(BITS_0_QUADRANTS, FitnessType.ComboQuadrants, 0.0);
+	}
 	
 	// +---------+
 	// | helpers |
@@ -160,4 +168,41 @@ public class FitnessTest
 		              "XXXX" +
      		          "XX.." +
      		          "XX.." ;
+
+	public final static String BITS_PERFECT_QUADRANTS =
+		"12 10 Wrap " + "XXXXXX......" +
+		                "XXXXXX......" +
+		                "XXXXXX......" +
+		                "XXXXXX......" +
+		                "XXXXXX......" +
+		                ".X.X.XXXXXXX" +
+		                "X.X.X.XXXXXX" +
+		                ".X.X.XXXXXXX" +
+		                "X.X.X.XXXXXX" +
+		                ".X.X.XXXXXXX" ;
+
+		public final static String BITS_75_QUADRANTS =
+		"12 10 Wrap " + "............" +
+		                "............" +
+		                "............" +
+		                "............" +
+		                "............" +
+		                ".X.X.XXXXXXX" +
+		                "X.X.X.XXXXXX" +
+		                ".X.X.XXXXXXX" +
+		                "X.X.X.XXXXXX" +
+		                ".X.X.XXXXXXX" ;
+
+		public final static String BITS_0_QUADRANTS =
+		"10 10 Wrap " + ".....XXXXX" +
+		                ".....XXXXX" +
+		                ".....XXXXX" +
+		                ".....XXXXX" +
+		                ".....XXXXX" +
+		                "XXXXX....." +
+		                "XXXXX....." +
+		                "XXXXX....." +
+		                "XXXXX....." +
+		                "XXXXX....." ;
+
 }

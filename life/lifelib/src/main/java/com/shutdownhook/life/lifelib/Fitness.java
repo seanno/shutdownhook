@@ -5,8 +5,12 @@
 package com.shutdownhook.life.lifelib;
 
 import java.util.Arrays;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Random;
 import java.util.logging.Logger;
+
+import com.shutdownhook.toolbox.Easy;
 
 public class Fitness
 {
@@ -23,7 +27,11 @@ public class Fitness
 		VStripes2,
 		VStripesCombo,
 		TwoBySquares,
-		Checkerboard
+		Checkerboard,
+		ComboQuadrants,
+		Diamond21,
+		Triangle21,
+		Triangle41
 	}
 
 	// +---------+
@@ -41,6 +49,10 @@ public class Fitness
 			case VStripesCombo: return(vStripesComboScore(env));
 			case TwoBySquares: return(twoBySquaresScore(env));
 			case Checkerboard: return(checkerboardScore(env));
+			case ComboQuadrants: return(comboQuadrantsScore(env));
+			case Diamond21: return(matchFitness(env, "@diamond21.bitmap.txt"));
+			case Triangle21: return(matchFitness(env, "@triangle21.bitmap.txt"));
+			case Triangle41: return(matchFitness(env, "@triangle41.bitmap.txt"));
 		}
 	}
 
@@ -245,6 +257,90 @@ public class Fitness
 		return(score);
 	}
 
+	// different patterns in quadrants
+	// nw = black, ne = white, se = black, sw = 50/50
+	
+
+	private static double comboQuadrantsScore(Bitmap env) {
+
+		int dx = env.getDx();
+		int dy = env.getDy();
+		int dxHalf = dx / 2;
+		int dyHalf = dy / 2;
+		
+		double nwScore = blackScore(env, 0, dxHalf, 0, dyHalf);
+		double neScore = 1.0 - blackScore(env, dxHalf, dx, 0, dyHalf);
+		double seScore = blackScore(env, dxHalf, dx, dyHalf, dy);
+		
+		double swScore = blackScore(env, 0, dxHalf, dyHalf, dy);
+		if (swScore > 0.5) swScore = 0.5 - (swScore - 0.5);
+		swScore /= 0.5;
+
+		double score = (nwScore + neScore + seScore + swScore) / 4.0;
+
+		return(score);
+	}
+
+	private static double blackScore(Bitmap env,
+									 int xStart, int xMac,
+									 int yStart, int yMac) {
+
+		int count = 0;
+		for (int x = xStart; x < xMac; ++x) {
+			for (int y = yStart; y < yMac; ++y) {
+				if (env.get(x,y)) ++count;
+			}
+		}
+
+		int total = (xMac - xStart) * (yMac - yStart);
+		
+		return(((double)count) / (double)total);
+	}
+
+	// +--------------+
+	// | matchFitness |
+	// +--------------+
+	
+	private static double matchFitness(Bitmap env, String matchPath) {
+
+		Bitmap matchBits = getMatchBitmap(matchPath);
+
+		int dx = env.getDx();
+		int dy = env.getDy();
+
+		if (dx != matchBits.getDx() || dy != matchBits.getDy()) {
+			log.severe("Size mismatch for matchFitness");
+			return(0.0);
+		}
+
+		int countCorrect = 0;
+		for (int x = 0; x < dx; ++x) {
+			for (int y = 0; y < dy; ++y) {
+				if (env.get(x,y) == matchBits.get(x,y)) ++countCorrect;
+			}
+		}
+
+		return(((double)countCorrect) / ((double)(dx * dy)));
+	}
+
+	private static synchronized Bitmap getMatchBitmap(String matchPath) {
+		
+		if (bitmaps.containsKey(matchPath)) return(bitmaps.get(matchPath));
+
+		try {
+			String bitsString = Easy.stringFromSmartyPath(matchPath);
+			Bitmap bits = Serializers.fromString(bitsString);
+			bitmaps.put(matchPath, bits);
+			return(bits);
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "getMatchBitmap", false));
+			return(null);
+		}
+	}
+
+	private static Map<String,Bitmap> bitmaps = new HashMap<String,Bitmap>();
+	
 	// +---------+
 	// | Members |
 	// +---------+

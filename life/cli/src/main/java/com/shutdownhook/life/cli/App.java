@@ -5,11 +5,14 @@
 package com.shutdownhook.life.cli;
 
 import java.io.File;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Scanner;
 import java.util.logging.Logger;
 
 import com.shutdownhook.life.lifelib.Bitmap;
 import com.shutdownhook.life.lifelib.Fitness;
+import com.shutdownhook.life.lifelib.Graphics;
 import com.shutdownhook.life.lifelib.LifeRulesProcessor;
 import com.shutdownhook.life.lifelib.Misc;
 import com.shutdownhook.life.lifelib.Neighborhood.NeighborhoodType;
@@ -19,6 +22,7 @@ import com.shutdownhook.life.lifelib.Rules;
 import com.shutdownhook.life.lifelib.Serializers;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Exec;
+import com.shutdownhook.toolbox.Template;
 
 import com.google.gson.Gson;
 
@@ -28,33 +32,75 @@ public class App
 	// | life |
 	// +------+
 
-	private static void life(boolean lifeRules, String args[]) throws Exception {
+	// run [GENERATIONS] [STARTSTATE] [RULESNAME] [DX] [DY] [SEED]
+	// STARTSTATE = random, blinker, lwss, pulsar, combo, fill, empty, random
+	// RULESNAME = life or path to rules file
+	
+	private static void run_html(String args[]) throws Exception {
+		runHelper(args, true);
+	}
+
+	private static void run(String args[]) throws Exception {
+		runHelper(args, false);
+	}
+
+	private static void runHelper(String args[], boolean html) throws Exception {
 
 		int generations = (args.length >= 2 ? Integer.parseInt(args[1]) : 10);
 		String startState = (args.length >= 3 ? args[2].toLowerCase() : "random");
+		String rulesName = (args.length >= 4 ? args[3] : "life");
 		Bitmap environment = getEnvironment(startState, args);
-		
-		Cursor.cls();
-		System.out.println(String.format("(1 of %d) %s", generations,
-										 Serializers.toString(environment)));
 
-		Rules.RulesProcessor rules = lifeRules
+		Graphics graphics = new Graphics(new Graphics.Config());
+		StringBuilder sbHtml = new StringBuilder();
+
+		if (html) {
+			sbHtml.append("const imgs = [\n");
+		}
+		else {
+			Cursor.cls();
+			System.out.println(String.format("(1 of %d) %s", generations,
+											 Serializers.toString(environment)));
+		}
+
+		Rules.RulesProcessor rules = rulesName.equals("life")
 			? Rules.get(Rules.RulesType.Life)
-			: NeighborhoodRulesProcessor.fromFile(new File("/tmp/evolution/moore.bin"));
+			: NeighborhoodRulesProcessor.fromFile(new File(rulesName));
 		
 		for (int i = 0; i < generations; ++i) {
+			
 			environment = Rules.apply(environment, rules);
-
 			Thread.sleep(500);
-			Cursor.cls();
-			System.out.print(String.format("(%d of %d) ", i+1, generations));
-			System.out.println(Serializers.toString(environment));
+			
+			if (html) {
+				// dataurl output
+				String url = graphics.renderDataURL(environment, "bmp", 3);
+				if (i > 0) sbHtml.append(",");
+				sbHtml.append("'" + url + "'"); 
+			}
+			else {
+				// console output
+				Cursor.cls();
+				System.out.print(String.format("(%d of %d) ", i+1, generations));
+				System.out.println(Serializers.toString(environment));
+			}
 		}
 
-		if (!lifeRules) {
-			double fitness = Fitness.compute(environment, Fitness.FitnessType.VStripesCombo);
-			System.out.println(String.format("Final fitness: %.3f", fitness));
+		if (html) {
+			sbHtml.append("];");
+			String templateText = Easy.stringFromResource("animation.html.tmpl");
+			Template t = new Template(templateText);
+			Map<String,String> tokens = new HashMap<String,String>();
+			tokens.put("IMAGES", sbHtml.toString());
+			System.out.println(t.render(tokens));
 		}
+
+		/*
+		if (!rulesName.equals("life")) {
+			double fitness = Fitness.compute(environment, Fitness.FitnessType.VStripesCombo);
+			System.out.println(String.format("Final VStripesCombo fitness: %.3f", fitness));
+		}
+		*/
 	}
 
 	private static Bitmap getEnvironment(String state, String[] args) throws Exception {
@@ -63,10 +109,11 @@ public class App
 			case "blinker": return(Serializers.fromString(LifeRulesProcessor.BLINKER));
 			case "lwss": return(Serializers.fromString(LifeRulesProcessor.LWSS));
 			case "pulsar": return(Serializers.fromString(LifeRulesProcessor.PULSAR));
+			case "combo": return(Serializers.fromString(LifeRulesProcessor.COMBO));
 		}
 
-		int dx = (args.length >= 4 ? Integer.parseInt(args[3]) : 5);
-		int dy = (args.length >= 5 ? Integer.parseInt(args[4]) : 5);
+		int dx = (args.length >= 5 ? Integer.parseInt(args[4]) : 5);
+		int dy = (args.length >= 6 ? Integer.parseInt(args[5]) : 5);
 		Bitmap env = new Bitmap(dx, dy);
 
 		if (state.equals("fill")) {
@@ -78,7 +125,7 @@ public class App
 			return(env);
 		}
 
-		if (args.length >= 6) env.seed(Long.parseLong(args[5]));
+		if (args.length >= 7) env.seed(Long.parseLong(args[6]));
 		env.randomize();
 
 		return(env);
@@ -139,6 +186,31 @@ public class App
 		return(shortCircuitFile.exists());
 	}
 	
+	// +--------------------+
+	// | visualizeRules     |
+	// | visualizeRulesHtml |
+	// +--------------------+
+
+	private static void visualizeRules(String[] cmds) throws Exception {
+
+		File file = new File(cmds[1]);
+		NeighborhoodRulesProcessor rules = NeighborhoodRulesProcessor.fromFile(file);
+
+		Misc.visualizeRules(rules);
+	}
+	
+	private static void visualizeRulesHtml(String[] cmds) throws Exception {
+
+		File file = new File(cmds[1]);
+		NeighborhoodRulesProcessor rules = NeighborhoodRulesProcessor.fromFile(file);
+
+		String templateText = Easy.stringFromResource("rules.html.tmpl");
+		Template t = new Template(templateText);
+		Map<String,String> tokens = new HashMap<String,String>();
+		tokens.put("RULES", Misc.visualizeRulesHtml(rules));
+		System.out.println(t.render(tokens));
+	}
+	
 	// +-----------+
 	// | vnToMoore |
 	// +-----------+
@@ -183,10 +255,12 @@ public class App
 			default: System.out.println("huh?"); break;
 			case "q": case "quit": return(false);
 
-			case "life": life(true, cmds); break;
+			case "run": run(cmds); break;
+			case "run-html": run_html(cmds); break;
 			case "evolve": evolve(cmds); break;
-			case "nh": life(false, cmds); break;
 			case "vn-to-moore": vnToMoore(cmds); break;
+			case "viz": visualizeRules(cmds); break;
+			case "viz-html": visualizeRulesHtml(cmds); break;
 			case "test": test(cmds); break;
 		}
 
@@ -196,7 +270,7 @@ public class App
 	public static void main(String[] args) throws Exception {
 
 		Easy.configureLoggingProperties("@logging.properties");
-		System.out.println(Easy.jvmInfo());
+		System.err.println(Easy.jvmInfo());
 
 		Scanner scanner = new Scanner(System.in);
 

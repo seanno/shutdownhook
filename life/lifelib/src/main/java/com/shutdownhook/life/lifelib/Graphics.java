@@ -30,6 +30,7 @@ public class Graphics
 			"<svg width='{{DX}}' height={{DY}}' xmlns='http://www.w3.org/2000/svg' >" +
 			"{{:rpt itm}}<circle cx='{{X}}' cy='{{Y}}' r='{{R}}' fill='black' />{{:end}}" +
 			"</svg>";
+
 	}
 
 	public Graphics(Config cfg) throws Exception {
@@ -46,8 +47,12 @@ public class Graphics
 	}
 
 	public String renderDataURL(Bitmap bits, String format) throws Exception {
+		return(renderDataURL(bits, format, 1));
+	}
+	
+	public String renderDataURL(Bitmap bits, String format, int dp) throws Exception {
 
-		BufferedImage img = renderBufferedImage(bits);
+		BufferedImage img = renderBufferedImage(bits, dp);
 
 		// close is a documented nop for BAOS so don't worry about it
 		ByteArrayOutputStream stm = new ByteArrayOutputStream();
@@ -66,21 +71,35 @@ public class Graphics
 	// +---------------------+
 
 	public BufferedImage renderBufferedImage(final Bitmap bits) throws Exception {
+		return(renderBufferedImage(bits, 1));
+	}
+	
+	public BufferedImage renderBufferedImage(final Bitmap bits, int dpCell) throws Exception {
 
 		int dx = bits.getDx();
 		int dy = bits.getDy();
 
 		// image pixels are initialized to 0 (black) so turn ON the white ones
 		
-		BufferedImage img = new BufferedImage(dx, dy, BufferedImage.TYPE_BYTE_BINARY);
+		BufferedImage img = new BufferedImage(dx * dpCell, dy * dpCell, BufferedImage.TYPE_BYTE_BINARY);
 		
 		for (int x = 0; x < dx; ++x) {
 			for (int y = 0; y < dy; ++y) {
-				if (!bits.get(x, y)) img.setRGB(x, y, 0xFFFFFF);
+				if (!bits.get(x, y)) {
+					fillRect(img, x * dpCell, y * dpCell, dpCell, 0xFFFFFF);
+				}
 			}
 		}
 
 		return(img);
+	}
+
+	private void fillRect(BufferedImage img, int x, int y, int dp, int rgb) {
+		for (int xRect = x; xRect < x + dp; ++xRect) {
+			for (int yRect = y; yRect < y + dp; ++yRect) {
+				img.setRGB(xRect, yRect, rgb);
+			}
+		}
 	}
 
 	// +-----------+
