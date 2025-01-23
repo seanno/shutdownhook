@@ -16,6 +16,11 @@ public class Reproduction
 	// | assess |
 	// +--------+
 
+	public static enum SurvivalType {
+		TwoThirds,
+		Half
+	}
+	
 	public static enum PairingType {
 		Random,
 		Prom
@@ -45,52 +50,75 @@ public class Reproduction
 		}
 	}
 
+	public static Triple[] assess(FitnessIndex[] fitnesses, PairingType pairingType) {
+		return(assess(fitnesses, pairingType, SurvivalType.TwoThirds));
+	}
+
 	// Input is an array of FitnessIndex objects; return is an array
 	// of "Triples" which indicate reproduction events --- an index
 	// to be killed and replaced with the mating of two parter indices.
 	// pairingType defines who is paired with who.
 	// 
-	// The unfittest 1/3 of the population will die off.
+	// In "TwoThirds" survival type, The unfittest 1/3 of the population will die off,
+	// replaced by matings of the two two-thirds.
 	//
-	// if the # of worlds is not divisible by three, the best
-	// of the worst will live on but will not reproduce (they
-	// will simply not appear in the returned triples).
+	// In "Half" survival type, The unfittest 1/2 of the population will die off, replaced
+	// by 2x matings of the top half (each pair will have two offsprings).
+	
+	// if the # of organisms is not divisible evenly, the best of the worst will
+	// live on but will not reproduce (they will simply not appear in the
+	// returned triples).
 
-	public static Triple[] assess(FitnessIndex[] fitnesses, PairingType pairingType) {
+	public static Triple[] assess(FitnessIndex[] fitnesses,
+								  PairingType pairingType,
+								  SurvivalType survivalType) {
 
 		Arrays.sort(fitnesses);
-		
+
+		int killDiv = (survivalType.equals(SurvivalType.TwoThirds) ? 3 : 2);
+
 		int fitnessCount = fitnesses.length;
-		int third = fitnessCount / 3;
-		int leftovers = fitnessCount % 3;
+		int killCount = fitnessCount / killDiv;
+		int leftovers = fitnessCount % killDiv;
 
 		log.info(String.format("evaluating pairings; %d to kill (%d survive wout reproduction)",
-							   third, leftovers));
+							   killCount, leftovers));
 
 		int iKill = 0;
-		int iPartners = iKill + third + leftovers; 
+		int iPartners = iKill + killCount + leftovers; 
 
 		switch (pairingType) {
 			case Random: randomizePairings(fitnesses, iPartners); break;
 			case Prom: /* already in prom order */ break;
 		}
 
-		Triple[] triples = new Triple[third];
+		Triple[] triples = new Triple[killCount];
 
-		while (iKill < third) {
+		while (iKill < killCount) {
 
 			triples[iKill] = new Triple();
 			triples[iKill].Kill = fitnesses[iKill].Index;
 			triples[iKill].Partner1 = fitnesses[iPartners].Index;
 			triples[iKill].Partner2 = fitnesses[iPartners+1].Index;
-			
 			++iKill;
+
+			if (survivalType.equals(SurvivalType.Half)) {
+				triples[iKill] = new Triple();
+				triples[iKill].Kill = fitnesses[iKill].Index;
+				triples[iKill].Partner1 = fitnesses[iPartners].Index;
+				triples[iKill].Partner2 = fitnesses[iPartners+1].Index;
+				++iKill;
+			}
+			
 			iPartners += 2;
 		}
 
 		return(triples);
 	}
 
+	// this version keeps the top half of performers and mates those
+	// twice to replace the bottom half
+	
 	private static void randomizePairings(FitnessIndex[] fitnesses, int iPartners) {
 
 		int fitnessCount = fitnesses.length;

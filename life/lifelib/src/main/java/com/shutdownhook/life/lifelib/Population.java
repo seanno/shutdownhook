@@ -44,10 +44,11 @@ public class Population
 		public Integer OrganismCount;
 
 		public Rules.RulesType RulesType = Rules.RulesType.Neighborhood_Moore;
-		
+
 		public Fitness.FitnessType FitnessType = Fitness.FitnessType.FiftyFifty;
 		public Reproduction.PairingType PairingType = Reproduction.PairingType.Prom;
-
+		public Reproduction.SurvivalType SurvivalType = Reproduction.SurvivalType.TwoThirds;
+		
 		// 0-1; when computing fitness this fraction of the last fitness
 		// will be included (meaning 1-LFW is apportioned to the current fitness.
 		// This helps blunt the effect of "one bad showing"
@@ -200,7 +201,7 @@ public class Population
 			fitnesses[i] = new FitnessIndex(i, organisms[i].getLastCycle().Fitness);
 		}
 		
-		Triple[] triples = Reproduction.assess(fitnesses, cfg.PairingType);
+		Triple[] triples = Reproduction.assess(fitnesses, cfg.PairingType, cfg.SurvivalType);
 
 		// start them reproducing
 		
