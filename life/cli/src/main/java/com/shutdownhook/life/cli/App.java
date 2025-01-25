@@ -125,6 +125,11 @@ public class App
 			return(env);
 		}
 
+		if (state.equals("single")) {
+			env.set(dx / 2, dy / 2, true);
+			return(env);
+		}
+
 		if (args.length >= 7) env.seed(Long.parseLong(args[6]));
 		env.randomize();
 
