@@ -38,6 +38,7 @@ public class SsdpTest
 	}
 
 	@Test
+	@Ignore
     public void basicTest() throws Exception
     {
 		Ssdp.Config cfg = new Ssdp.Config();

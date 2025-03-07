@@ -60,7 +60,7 @@ public class EasyTest
 											  "| grep received " +
 											  "| wc -l");
 
-		Assert.assertEquals("1\n", piped);
+		Assert.assertEquals("1", piped.trim());
 	}
 
 	// +-------------+

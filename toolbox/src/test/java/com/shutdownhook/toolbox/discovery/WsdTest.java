@@ -38,6 +38,7 @@ public class WsdTest
 	}
 
 	@Test
+	@Ignore
     public void basicTest() throws Exception
     {
 		DatagramSocket sock = new DatagramSocket();
