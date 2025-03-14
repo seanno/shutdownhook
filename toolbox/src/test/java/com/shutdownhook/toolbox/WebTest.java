@@ -124,6 +124,13 @@ public class WebTest
 	}
 
 	@Test
+	public void emptyResponse() throws Exception
+	{
+		WebRequests.Response response = new WebRequests.Response();
+		String s = response.toString();
+	}
+	
+	@Test
     public void staticSuccess() throws Exception
     {
 		for (int i = 0; i < SERVER_COUNT; ++i) {

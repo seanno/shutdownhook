@@ -137,12 +137,18 @@ public class WebRequests implements Closeable
 			sb.append(Ex == null ? "No Exception" : Easy.exMsg(Ex, "", false)).append("\n");
 			sb.append(Body == null ? "No body" : "Body: " + Body + "\n");
 
-			sb.append("Headers:\n");
-			for (String key : Headers.keySet()) {
-				for (String val : Headers.get(key)) {
-					sb.append("\t").append(key).append(": ").append(val).append("\n");
+			if (Headers != null) {
+				sb.append("Headers:\n");
+				for (String key : Headers.keySet()) {
+					for (String val : Headers.get(key)) {
+						sb.append("\t").append(key).append(": ").append(val).append("\n");
+					}
 				}
 			}
+			else {
+				sb.append("No headers\n");
+			}
+			
 			return(sb.toString());
 		}
 	}
