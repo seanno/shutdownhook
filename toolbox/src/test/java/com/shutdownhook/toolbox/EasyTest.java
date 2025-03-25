@@ -63,6 +63,23 @@ public class EasyTest
 		Assert.assertEquals("1", piped.trim());
 	}
 
+	// +------+
+	// | Misc |
+	// +------+
+
+	@Test
+	public void testSmartyGetProperty() {
+		Assert.assertEquals("test", Easy.smartyGetProperty("test"));
+		Assert.assertEquals(null, Easy.smartyGetProperty(null));
+
+		System.setProperty("sadjlkdsafksadf3984432", "test");
+		Assert.assertEquals("test", Easy.smartyGetProperty("#sadjlkdsafksadf3984432"));
+		Assert.assertEquals("sadjlkdsafksadf3984432", Easy.smartyGetProperty("sadjlkdsafksadf3984432"));
+
+		Assert.assertEquals(System.getenv("HOME"), Easy.smartyGetProperty("#HOME"));
+		Assert.assertEquals("HOME", Easy.smartyGetProperty("HOME"));
+	}
+	
 	// +-------------+
 	// | Conversions |
 	// +-------------+

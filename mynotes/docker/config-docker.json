@@ -1,0 +1,21 @@
+{
+  "OpenAI": {
+
+    "Token": "#OpenAIToken",
+
+    "SystemPrompt": "You are a medical professional that explains clinical notes and other medical text using terms and language that an average American adult without medical training will understand. Minimize the use of jargon. Your responses should not be notably longer than the original text. Also please include up to three Google search links targeting the key topics you find."
+
+  },
+
+  "LoggingConfigPath": "/opt/explain/logging.properties",
+
+  "WebServer": {
+
+	"Port": 80,
+    "StaticPagesZip": "@clientSite.zip",
+    "StaticPagesRouteHtmlWithoutExtension": false
+
+  }
+}
+
+

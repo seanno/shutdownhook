@@ -834,6 +834,12 @@ public class Easy
 		if (val == null) val = defaultValue;
 		return(val);
 	}
+	
+	public static String smartyGetProperty(String input) {
+		if (input == null) return(input);
+		if (!input.startsWith("#")) return(input);
+		return(superGetProperty(input.substring(1), null));
+	}
 
 	private final static Logger log = Logger.getLogger(Easy.class.getName());
 }

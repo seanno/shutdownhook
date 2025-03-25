@@ -38,7 +38,9 @@ public class Server implements Closeable
 		public String FilterUrl = "/filter";
 
 		public static Config fromJson(String json) {
-			return(new Gson().fromJson(json, Config.class));
+			Config cfg = new Gson().fromJson(json, Config.class);
+			cfg.OpenAI.Token = Easy.smartyGetProperty(cfg.OpenAI.Token);
+			return(cfg);
 		}
 	}
 	

@@ -12,6 +12,7 @@ import java.util.logging.Logger;
 
 import com.google.gson.Gson;
 
+import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
 
 public class OpenAI implements Closeable
@@ -33,7 +34,8 @@ public class OpenAI implements Closeable
 		public WebRequests.Config WebRequests = new WebRequests.Config();
 
 		public static Config fromJson(String json) {
-			return(gson.fromJson(json, Config.class));
+			Config cfg = gson.fromJson(json, Config.class);
+			return(cfg);
 		}
 	}
 	
