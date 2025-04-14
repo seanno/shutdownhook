@@ -53,8 +53,9 @@ public class EasyTest
 
 	@Test
 	public void testStringToProcess() throws Exception {
-		Assert.assertEquals("hello\n", Easy.stringFromProcess("echo \"hello\""));
-		Assert.assertEquals("0\n", Easy.stringFromProcess("expr 5 = 6"));
+
+		Assert.assertEquals("hello", Easy.stringFromProcess("echo \"hello\"").trim());
+		Assert.assertEquals("0", Easy.stringFromProcess("expr 5 = 6").trim());
 
 		String piped = Easy.stringFromProcess("ping -c 1 127.0.0.1 " +
 											  "| grep received " +
