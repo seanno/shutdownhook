@@ -235,7 +235,10 @@ public class SqlStore
 		boolean exists = false;
 		
 		try {
-			String sql = "select 1 from " + tableName + " limit 1";
+			String topClause = (isSqlServer() ? " top 1 " : "");
+			String limitClause = (isSqlServer() ? "" : " limit 1 ");
+			String sql = "select " + topClause + " 1 from " + tableName + limitClause;
+			
 			query(sql, new SqlStore.QueryHandler() {
 				public void row(ResultSet rs, int irow) throws Exception { }
 			});
@@ -330,6 +333,10 @@ public class SqlStore
 		
 		int i = rs.getInt(field);
 		return(rs.wasNull() ? null : i);
+	}
+
+	public boolean isSqlServer() {
+		return(cfg.ConnectionString.toLowerCase().startsWith("jdbc:sqlserver:"));
 	}
 
 	// +---------+
