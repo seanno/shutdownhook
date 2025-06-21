@@ -5,10 +5,12 @@
 
 package com.shutdownhook.lorawan2;
 
+import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Optional;
 
@@ -27,6 +29,7 @@ import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.SqlStore;
+import com.shutdownhook.toolbox.Template;
 
 public class WitterWater {
 
@@ -105,7 +108,7 @@ public class WitterWater {
         context.getLogger().info("Request: WITTER-DATA");
 
 		String daysStr = request.getQueryParameters().get("days");
-		int days = (daysStr == null ? DATA_DAYS_DEFAULT : Integer.parseInt(daysStr));
+		int days = (daysStr == null ? DAYS_DEFAULT : Integer.parseInt(daysStr));
 
 		String zoneStr = request.getQueryParameters().get("tz");
 		ZoneId zone = ZoneId.of(zoneStr == null ? TZ_DEFAULT : zoneStr);
@@ -163,6 +166,59 @@ public class WitterWater {
 			   .build());
     }
 
+	// +------------------------+
+	// | Function: Witter-Graph |
+	// +------------------------+
+
+	private final static String GRAPH_TEMPLATE = "witterGraph.html.tmpl";
+	private final static String TKN_DATA_URL = "DATA_URL";
+	private final static String TKN_GRAPH_URL = "GRAPH_URL";
+	private final static String TKN_DAYS = "DAYS";
+	private final static String TKN_START = "START";
+
+    @FunctionName("Witter-Graph")
+    public HttpResponseMessage graph(
+								   
+            @HttpTrigger(
+                name = "req",
+                methods = {HttpMethod.GET},
+                authLevel = AuthorizationLevel.ANONYMOUS)
+                HttpRequestMessage<Optional<String>> request,
+            final ExecutionContext context) throws Exception {
+		
+        context.getLogger().info("Request: WITTER-GRAPH");
+		
+		String daysStr = request.getQueryParameters().get("days");
+		int days = (daysStr == null ? DAYS_DEFAULT : Integer.parseInt(daysStr));
+
+		String start = request.getQueryParameters().get("start");
+		if (Easy.nullOrEmpty(start)) start = "";
+
+		URI thisURI = request.getUri();
+		context.getLogger().info("URI is: " + thisURI.toString());
+		
+		HashMap tokens = new HashMap<String,String>();
+		tokens.put(TKN_DATA_URL, thisURI.resolve("witter-data").toString());
+		tokens.put(TKN_GRAPH_URL, thisURI.resolve("witter-graph").toString());
+		tokens.put(TKN_DAYS, Integer.toString(days));
+		tokens.put(TKN_START, start);
+				
+		return(request.createResponseBuilder(HttpStatus.OK)
+			   .header("Content-Type", "text/html")
+			   .body(getGraphTemplate().render(tokens))
+			   .build());
+    }
+
+	private synchronized Template getGraphTemplate() throws Exception {
+
+		if (graphTemplate == null) {
+			String templateText = Easy.stringFromResource(GRAPH_TEMPLATE);
+			graphTemplate = new Template(templateText);
+		}
+
+		return(graphTemplate);
+	}
+
 	// +---------+
 	// | Helpers |
 	// +---------+
@@ -205,9 +261,9 @@ public class WitterWater {
 
 	private static String WITTER_METRIC = "WitterTankLevel";
 	private static String TZ_DEFAULT = "PST8PDT";
-	
-	private static int DATA_DAYS_DEFAULT = 7;
+	private static int DAYS_DEFAULT = 7;
 	private static int CHECK_CM_DEFAULT = 100;
 	
 	private static MetricStore store = null;
+	private static Template graphTemplate = null;
 }
