@@ -21,7 +21,9 @@ public class Neighborhood
 		VonNeumannEdgeDetect,
 		VonNeumannQuadrants,
 		VonNeumannHalves,
-		MooreHalves
+		MooreHalves,
+		VonNeumannEdgeHalves,
+		Diagonals
 	}
 	
 	// +-----+
@@ -215,6 +217,21 @@ public class Neighborhood
 			{-1,  0}, { 0,  0},	{ 1,  0},
 			{-1,  1}, { 0,  1}, { 1,  1},
 			{NS, NS}, {WE, WE}
+		},{
+			// VON NEUMANN - EDGE HALVES
+			
+			          { 0, -1},
+			{-1,  0}, { 0,  0}, { 1,  0},
+			          { 0,  1},   
+                      { NS, NS }, 
+					  { WE, WE },
+					  { EDGE, EDGE }
+		},{
+			// DIAGONALS
+			
+			{-1, -1},           { 1, -1},
+			          { 0,  0},
+			{-1,  1},           { 1,  1}
 		}
 	};
 }
