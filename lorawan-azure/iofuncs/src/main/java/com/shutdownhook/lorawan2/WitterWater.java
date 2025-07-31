@@ -9,6 +9,7 @@ import java.net.URI;
 import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -28,8 +29,8 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
-import com.shutdownhook.toolbox.SqlStore;
 import com.shutdownhook.toolbox.Template;
+import com.shutdownhook.lorawan2.Helpers.QueryParams;
 
 public class WitterWater {
 
@@ -53,8 +54,8 @@ public class WitterWater {
 		
 		String auth = request.getHeaders().get("authorization");
 		
-		String expected = "Basic " + Easy.base64Encode(getWitterHookUser() + ":" +
-													   getWitterHookPassword());
+		String expected = "Basic " + Easy.base64Encode(Helpers.getWitterHookUser() + ":" +
+													   Helpers.getWitterHookPassword());
 
 		if (!expected.equals(auth)) {
 			context.getLogger().warning("Invalid auth: " + auth);
@@ -78,7 +79,7 @@ public class WitterWater {
         // store it
 
 		try {
-			getStore().saveMetric(WITTER_METRIC, waterLevel, epochSecond);
+			Helpers.getWitterStore().saveMetric(waterLevel, epochSecond);
 			return(request.createResponseBuilder(HttpStatus.OK).build());
 		}
 		catch (Exception e) {
@@ -86,7 +87,7 @@ public class WitterWater {
 			context.getLogger().warning(txt);
 			
 			return(request.createResponseBuilder(HttpStatus.INTERNAL_SERVER_ERROR)
-				   .body(returnExceptionText() ? txt : "")
+				   .body(Helpers.returnExceptionText() ? txt : "")
 				   .build());
 		}
     }
@@ -107,26 +108,10 @@ public class WitterWater {
 		
         context.getLogger().info("Request: WITTER-DATA");
 
-		String daysStr = request.getQueryParameters().get("days");
-		int days = (daysStr == null ? DAYS_DEFAULT : Integer.parseInt(daysStr));
-
-		String zoneStr = request.getQueryParameters().get("tz");
-		ZoneId zone = ZoneId.of(zoneStr == null ? TZ_DEFAULT : zoneStr);
-
-		Instant start, end;
-
-		String startStr = request.getQueryParameters().get("start");
-		if (Easy.nullOrEmpty(startStr)) {
-			start = Instant.now().minus(days, ChronoUnit.DAYS);
-			end = null;
-		}
-		else {
-			start = LocalDate.parse(startStr).atStartOfDay().atZone(zone).toInstant();
-			end = start.plus(days, ChronoUnit.DAYS);
-		}
+		QueryParams qp = Helpers.parseQueryParams(request);
 		
-		List<MetricStore.Metric> metrics = getStore().getMetrics(WITTER_METRIC, start,
-																 end, null, zone);
+		List<MetricStore.Metric> metrics =
+			Helpers.getWitterStore().getMetrics(qp.Start, qp.End, null, qp.Zone);
 
 		return(request.createResponseBuilder(HttpStatus.OK)
 			   .body(new Gson().toJson(metrics))
@@ -149,16 +134,12 @@ public class WitterWater {
 		
         context.getLogger().info("Request: WITTER-CHECK");
 
-		String cmStr = request.getQueryParameters().get("cm");
-		int cm = (cmStr == null ? CHECK_CM_DEFAULT : Integer.parseInt(cmStr));
+		QueryParams qp = Helpers.parseQueryParams(request);
 
-		String zoneStr = request.getQueryParameters().get("tz");
-		ZoneId zone = ZoneId.of(zoneStr == null ? TZ_DEFAULT : zoneStr);
-
-		MetricStore.Metric metric =	getStore().getLatestMetric(WITTER_METRIC, zone);
+		MetricStore.Metric metric = Helpers.getWitterStore().getLatestMetric(qp.Zone);
 
 		String body = String.format("%s (%.3f)",
-									metric.Value >= (double) cm ? "OK" : "LOW",
+									metric.Value >= (double) qp.Cm ? "OK" : "LOW",
 									metric.Value);
 
 		return(request.createResponseBuilder(HttpStatus.OK)
@@ -187,21 +168,20 @@ public class WitterWater {
             final ExecutionContext context) throws Exception {
 		
         context.getLogger().info("Request: WITTER-GRAPH");
+
+		QueryParams qp = Helpers.parseQueryParams(request);
+
+		String startTkn = request.getQueryParameters().get("start");
+		if (Easy.nullOrEmpty(startTkn)) startTkn = "";
 		
-		String daysStr = request.getQueryParameters().get("days");
-		int days = (daysStr == null ? DAYS_DEFAULT : Integer.parseInt(daysStr));
-
-		String start = request.getQueryParameters().get("start");
-		if (Easy.nullOrEmpty(start)) start = "";
-
 		URI thisURI = request.getUri();
 		context.getLogger().info("URI is: " + thisURI.toString());
 		
 		HashMap tokens = new HashMap<String,String>();
 		tokens.put(TKN_DATA_URL, thisURI.resolve("witter-data").toString());
 		tokens.put(TKN_GRAPH_URL, thisURI.resolve("witter-graph").toString());
-		tokens.put(TKN_DAYS, Integer.toString(days));
-		tokens.put(TKN_START, start);
+		tokens.put(TKN_DAYS, Integer.toString(qp.Days));
+		tokens.put(TKN_START, startTkn);
 				
 		return(request.createResponseBuilder(HttpStatus.OK)
 			   .header("Content-Type", "text/html")
@@ -220,50 +200,9 @@ public class WitterWater {
 	}
 
 	// +---------+
-	// | Helpers |
-	// +---------+
-
-	private synchronized MetricStore getStore() throws Exception {
-		
-		if (store == null) {
-			SqlStore.Config cfg = new SqlStore.Config(getWitterConnectionString());
-			store = new MetricStore(cfg);
-		}
-
-		return(store);
-	}
-
-	private static String getSetting(String name) {
-		return(System.getenv(name));
-	}
-
-	private static String getWitterConnectionString() {
-		return(getSetting("WITTER_CONNECTION_STRING"));
-	}
-
-	private static String getWitterHookUser() {
-		return(getSetting("WITTER_HOOK_USER"));
-	}
-
-	private static String getWitterHookPassword() {
-		return(getSetting("WITTER_HOOK_PASSWORD"));
-	}
-
-	private static boolean returnExceptionText() {
-		String ret = getSetting("RETURN_EXCEPTION_TEXT");
-		if (Easy.nullOrEmpty(ret)) return(false);
-		return(ret.toLowerCase().equals("true"));
-	}
-	
-	// +---------+
 	// | Members |
 	// +---------+
 
-	private static String WITTER_METRIC = "WitterTankLevel";
-	private static String TZ_DEFAULT = "PST8PDT";
-	private static int DAYS_DEFAULT = 7;
-	private static int CHECK_CM_DEFAULT = 100;
 	
-	private static MetricStore store = null;
 	private static Template graphTemplate = null;
 }

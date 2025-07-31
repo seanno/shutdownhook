@@ -1,0 +1,14 @@
+{
+  "protocolVersion": "2025-06-18",
+  
+  "capabilities": {
+	"tools": {}
+  },
+  
+  "serverInfo": {
+	"name": "WitterMCP",
+	"title": "Witter Beach MCP Server",
+	"version": "1.0.0"
+  }
+}
+

@@ -44,7 +44,7 @@ public class JsonRpc2Test
 		rpc = new JsonRpc2();
 
 		rpc.registerMethod(ECHO, new String[] { REQ, OPT }, new Method() {
-			public JsonObject execute(JsonObject params) throws Exception {
+			public JsonObject execute(JsonObject params, JsonObject req) throws Exception {
 				JsonObject result = new JsonObject();
 				if (!params.has(REQ)) throw new Exception("missing required param");
 				result.add(REQ, params.get(REQ));

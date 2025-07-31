@@ -42,7 +42,7 @@ public class JsonRpc2 implements Closeable
 	// +----------------+
 
 	public static interface Method {
-		public JsonObject execute(JsonObject params) throws Exception;
+		public JsonObject execute(JsonObject params, JsonObject req) throws Exception;
 	}
 
 	public void registerMethod(String name, String[] params, Method method) {
@@ -51,7 +51,8 @@ public class JsonRpc2 implements Closeable
 		info.Name = name;
 		info.Params = params;
 		info.Method = method;
-		
+
+		log.info("Registered method: " + name);
 		methods.put(name, info);
 	}
 
@@ -143,15 +144,17 @@ public class JsonRpc2 implements Closeable
 	private String executeOneInternal(JsonObject req) {
 
 		JsonElement id = req.get(PROP_ID);
-								 
-		MethodInfo info = methods.get(req.get(PROP_METHOD).getAsString());
+		String method = req.get(PROP_METHOD).getAsString();
+		log.info(String.format("executeOneInternal; method = %s, id = %s", method, id));
+		
+		MethodInfo info = methods.get(method);
 		if (info == null) return(makeErrorResponse(id, METHOD_NOT_FOUND, null));
 
 		JsonObject params = paramsFromRequest(req, info);
 		if (params == null) return(makeErrorResponse(id, INVALID_PARAMS, null));
 		
 		try {
-			JsonObject result = info.Method.execute(params);
+			JsonObject result = info.Method.execute(params, req);
 			return(makeResponse(id, result == null ? JsonNull.INSTANCE : result));
 		}
 		catch (Exception e) {

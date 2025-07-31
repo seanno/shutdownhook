@@ -1,0 +1,52 @@
+{
+  "tools": [ {
+	
+	"name": "get_witter_water_levels",
+	
+	"title": "Return historic and current Witter water tank levels",
+	
+	"description": "Returns JSON data representing historical and current water levels in the Witter Beach (Langley, Washington, USA) community water tank. Measurements are recorded every 10 minutes unless there is a problem with network connectivity. The tank holds a maximum of 2,000 gallons and values are reported in centimeters of height of water in the tank. Each 3.4 inches of height represents about 100 gallons of water in the tank. Parameters can be used to customize results; if none are provided the tool will return the most recent 7 days of data with timestamps in the US Pacific time zone.",
+
+	"inputSchema": {
+	  "type": "object",
+	  "properties": {
+		"zone": {
+		  "type": "string",
+		  "description": "The timezone for results (default PST8PDT). This value is parsed by the Java statement ZoneId.of(aone)."
+		},
+		"days": {
+		  "type": "integer",
+		  "description": "The number of days to return data for (default 7)."
+		},
+		"start": {
+		  "type": "string",
+		  "description": "The earliest timestamp for returned data (default = the current time minus the days property). If provided, this parameter is parsed by the Java statement LocalDate.parse(start).atStartOfDay().atZone(zone)."
+		}
+	  }
+	},
+
+	"outputSchema": {
+	  "type": "object",
+	  "properties": {
+		"data": {
+		  "type": "array",
+		  "items": {
+			"type": "object",
+			"properties": {
+			  "When": {
+				"type": "string",
+				"description": "The timestamp of the measurement in ISO-8601 extended offset date-time format."
+			  },
+			  "Value": {
+				"type": "integer",
+				"description": "The height of water in the tank in centimeters."
+			  }
+			}
+		  }
+		},
+		"required": [ "When", "Value" ]
+	  }
+	}
+	
+  } ]
+}
