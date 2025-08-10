@@ -89,6 +89,10 @@ public class WitterMCP {
 		
 		String responseJson = rpc.executeJsonAsync(requestJson).get();
 
+		if (Easy.nullOrEmpty(responseJson)) {
+			return(request.createResponseBuilder(HttpStatus.ACCEPTED).build());
+		}
+		
 		return(request.createResponseBuilder(HttpStatus.OK)
 			   .header("Content-Type", "application/json")
 			   .body(responseJson)
