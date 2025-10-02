@@ -1,0 +1,36 @@
+<html>
+  <head>
+	
+	<script>
+
+	  var images = [ {{IMAGES_CSV}} ];
+	  var nextIndex = 0;
+	  
+	  window.onload = function() { rotateImage(); }
+
+	  function rotateImage() {
+
+		document.getElementById('image').src = images[nextIndex++];
+		document.getElementById('cycle').innerText = String(nextIndex);
+
+		if (nextIndex < images.length) {
+		  window.setTimeout(rotateImage, 150);
+		}
+	  }
+	  
+	</script>
+
+  </head>
+  <body>
+	
+	<div>
+	  <div style="float:left; margin-left: 10px; width: 60px;"><h2 id="cycle"></h2></div>
+	  <img id="image" border="1" />
+	</div>
+
+	<div style="margin-top: 30px; padding: 8px; background-color: #f0f0f0">
+	  <xmp>{{CONFIG}}</xmp>
+	</div>
+
+  </body>
+</html>
