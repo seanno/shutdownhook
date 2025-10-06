@@ -1,0 +1,18 @@
+{
+  "WorldX": 60,
+  "WorldY": 30,
+  "AntCount": 40,
+  "AntReturningPheremone": 40,
+  "AntExplorationLikelihoodPct": 5,
+  "LocationPheremoneMax": 75,
+  "LocationPheremoneDecay": 1,
+  "FoodCaches": 4,
+  "FoodCacheSize": 25,
+  "ImageFormat": "jpeg",
+  "ImageCellDp": 16,
+  "ImageMaxPheremoneRGB": "0x00FF00",
+  "ImageMaxFoodRGB": "0x0000FF",
+  "ImageColonyRGB": "0xFF0000",
+  "ImageAntsRGB": "0x202020",
+  "Seed": 113436593927111
+}
