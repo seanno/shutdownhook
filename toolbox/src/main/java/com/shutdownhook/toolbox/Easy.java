@@ -742,6 +742,23 @@ public class Easy
 		return(s == null || s.isEmpty());
 	}
 
+	// +--------+
+	// | Ararys |
+	// +--------+
+
+	public static <T> void shuffle(T[] array) {
+		shuffle(array, new Random());
+	}
+	
+	public static <T> void shuffle(T[] array, Random rand) {
+		for (int i = 0; i < array.length; ++i) {
+			int iSwap = rand.nextInt(array.length);
+			T temp = array[iSwap];
+			array[iSwap] = array[i];
+			array[i] = temp;
+		}
+	}
+
 	// +------+
 	// | Misc |
 	// +------+

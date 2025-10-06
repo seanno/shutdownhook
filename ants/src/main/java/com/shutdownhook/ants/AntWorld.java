@@ -1,4 +1,4 @@
-//
+
 // ANTWORLD.JAVA
 //
 
@@ -155,7 +155,7 @@ public class AntWorld
 			ant.X = colonyX;
 			ant.Y = colonyY;
 			ant.Mode = AntMode.Waiting;
-			ant.LastDirection = Direction.random(rand);
+			ant.LastDirection = null;
 			
 			this.ants[i] = ant;
 			getLocation(ant.X, ant.Y).Ants++;
@@ -224,10 +224,15 @@ public class AntWorld
 		Location currentLoc = getLocation(ant.X, ant.Y);
 
 		// WAITING: see if we're ready for action!
+		// this means there is pheremone to be had OR we randomly decide to look
 		if (ant.Mode == AntMode.Waiting) {
-			
-			if (cfg.AntExplorationLikelihoodPct >= (rand.nextInt(100) + 1)) {
+
+			Direction mostPheremone = directionToMostPheremone(ant);
+			if (pheremoneAt(ant, mostPheremone) > 0 ||
+				cfg.AntExplorationLikelihoodPct >= (rand.nextInt(100) + 1)) {
+
 				ant.Mode = AntMode.Exploring;
+				ant.LastDirection = mostPheremone;
 			}
 			
 			return;
@@ -247,25 +252,31 @@ public class AntWorld
 
 			if (newLoc.Colony) {
 				ant.Mode = AntMode.Waiting;
-				ant.LastDirection = Direction.random(rand);
+				ant.LastDirection = null;
 			}
 
 			return;
 		}
 
 		// EXPLORING: move forward a step, preferring locations with more pheremone
+		// special case if we're right next to food go there because obviously
+		// we can smell it's there!
 
-		int[] weights = new int[3];
-		weights[0] = 1 + pheremoneAt(ant, ant.LastDirection);
-		weights[1] = weights[0] + 1 + pheremoneAt(ant, ant.LastDirection.counter());
-		weights[2] = weights[1] + 1 + pheremoneAt(ant, ant.LastDirection.clock());
+		Direction nextDirection = directionToFood(ant);
 
-		int rando = rand.nextInt(weights[2]);
-		Direction nextDirection = null;
+		if (nextDirection == null) {
+
+			int[] weights = new int[3];
+			weights[0] = 1 + pheremoneAt(ant, ant.LastDirection);
+			weights[1] = weights[0] + 1 + pheremoneAt(ant, ant.LastDirection.counter());
+			weights[2] = weights[1] + 1 + pheremoneAt(ant, ant.LastDirection.clock());
+
+			int rando = rand.nextInt(weights[2]);
 		
-		if (rando < weights[0]) { nextDirection = ant.LastDirection; }
-		else if (rando < weights[1]) { nextDirection = ant.LastDirection.counter(); }
-		else { nextDirection = ant.LastDirection.clock(); }
+			if (rando < weights[0]) { nextDirection = ant.LastDirection; }
+			else if (rando < weights[1]) { nextDirection = ant.LastDirection.counter(); }
+			else { nextDirection = ant.LastDirection.clock(); }
+		}
 
 		int newX = ant.X + nextDirection.Dx;
 		int newY = ant.Y + nextDirection.Dy;
@@ -291,15 +302,81 @@ public class AntWorld
 		}
 	}
 
-	private int pheremoneAt(Ant ant, Direction direction) {
-		
-		int x = ant.X + direction.Dx;
-		int y = ant.Y + direction.Dy;
+	// +--------------------------+
+	// | pheremoneAt              |
+	// | directionToMostPheremone |
+	// +--------------------------+
 
-		if (offWorld(x,y)) return(0);
-		
-		Location loc = getLocation(x, y, false);
+	private int pheremoneAt(Ant ant, Direction direction) {
+		Location loc = getLocationAt(ant, direction);
 		return(loc == null ? 0 : loc.Pheremone);
+	}
+
+	private Direction directionToMostPheremone(Ant ant) {
+		
+		// this is a cheap and lazy way of making sure if all are zero,
+		// we get a random direction rather than the same one every time
+		Direction dirMax = Direction.random(rand);
+		int pheremoneMax = pheremoneAt(ant, dirMax);
+
+		for (int i = 0; i < Direction.values().length; ++i) {
+			int pheremoneHere = pheremoneAt(ant, Direction.of(i));
+			if (pheremoneHere > pheremoneMax) {
+				dirMax = Direction.of(i);
+				pheremoneMax = pheremoneHere;
+			}
+		}
+
+		return(dirMax);
+	}
+
+	// +-----------------+
+	// | foodAt           |
+	// | directionToFood |
+	// +-----------------+
+
+	private int foodAt(Ant ant, Direction direction) {
+		Location loc = getLocationAt(ant, direction);
+		return(loc == null ? 0 : loc.Food);
+	}
+
+	private Direction directionToFood(Ant ant) {
+
+		// this is a (very) lazy way of picking a random cache if there
+		// are multiples nearby. If perf ever matters, look here! ;)
+		Direction[] values = Direction.values();
+		shuffle(values); 
+		
+		for (int i = 0; i < Direction.values().length; ++i) {
+			int food = foodAt(ant, Direction.of(i));
+			if (food > 0) return(Direction.of(i));
+		}
+
+		return(null);
+	}
+
+	// +-------------------+
+	// | directionToColony |
+	// +-------------------+
+
+	private Direction directionToColony(Ant ant) {
+
+		if (colonyX < ant.X) {
+			if (colonyY < ant.Y) return(Direction.NorthWest);
+			if (colonyY > ant.Y) return(Direction.SouthWest);
+			return(Direction.West);
+		}
+		
+		if (colonyX > ant.X) {
+			if (colonyY < ant.Y) return(Direction.NorthEast);
+			if (colonyY > ant.Y) return(Direction.SouthEast);
+			return(Direction.East);
+		}
+		
+		if (colonyY < ant.Y) return(Direction.North);
+		if (colonyY > ant.Y) return(Direction.South);
+
+		return(null);
 	}
 
 	// +---------------------+
@@ -424,30 +501,6 @@ public class AntWorld
 		return(rgbs);
 	}
 	
-	// +-------------------+
-	// | directionToColony |
-	// +-------------------+
-
-	private Direction directionToColony(Ant ant) {
-
-		if (colonyX < ant.X) {
-			if (colonyY < ant.Y) return(Direction.NorthWest);
-			if (colonyY > ant.Y) return(Direction.SouthWest);
-			return(Direction.West);
-		}
-		
-		if (colonyX > ant.X) {
-			if (colonyY < ant.Y) return(Direction.NorthEast);
-			if (colonyY > ant.Y) return(Direction.SouthEast);
-			return(Direction.East);
-		}
-		
-		if (colonyY < ant.Y) return(Direction.North);
-		if (colonyY > ant.Y) return(Direction.South);
-
-		return(null);
-	}
-
 	// +---------+
 	// | Helpers |
 	// +---------+
@@ -464,9 +517,11 @@ public class AntWorld
 	}
 	
 	private Location getLocation(int x, int y, boolean createIfNeeded) {
+
+		if (offWorld(x, y)) return(null);
 		
 		Location loc = world[x][y];
-		
+
 		if (loc == null && createIfNeeded) {
 			loc = new Location();
 			world[x][y] = loc;
@@ -475,6 +530,20 @@ public class AntWorld
 		return(loc);
 	}
 
+	private Location getLocationAt(Ant ant, Direction dir) {
+		// this one might be null (empty or offWorld)
+		return(getLocation(ant.X + dir.Dx, ant.Y + dir.Dy, false));
+	}
+	
+	private void shuffle(Direction[] dirs) {
+		for (int i = 0; i < dirs.length; ++i) {
+			int iSwap = rand.nextInt(dirs.length);
+			Direction temp = dirs[iSwap];
+			dirs[iSwap] = dirs[i];
+			dirs[i] = temp;
+		}
+	}
+	
 	// +---------+
 	// | Members |
 	// +---------+
