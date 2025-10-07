@@ -57,18 +57,22 @@ public class AntWorld
 		initializeWorld();
 	}
 
-	// +------------+
-	// | Model: Ant |
-	// +------------+
+	// +-----------------+
+	// | Model: Location |
+	// +-----------------+
 
-	public enum AntMode
+	public static class Location
 	{
-		Waiting,
-		Exploring,
-		ReturningWithFood,
-		ReturningEmpty
+		public int Ants = 0;
+		public int Food = 0;
+		public boolean Colony = false;
+		public int Pheremone = 0;
 	}
 
+	// +------------------+
+	// | Model: Direction |
+	// +------------------+
+	
 	public static enum Direction {
 
 		North(0,-1),
@@ -112,24 +116,24 @@ public class AntWorld
 		public int Dy;
 	}
 	
+	// +------------+
+	// | Model: Ant |
+	// +------------+
+
+	public enum AntMode
+	{
+		Waiting,
+		Exploring,
+		ReturningWithFood,
+		ReturningEmpty
+	}
+
 	public static class Ant
 	{
 		public int X;
 		public int Y;
 		public AntMode Mode;
 		public Direction LastDirection;
-	}
-
-	// +-----------------+
-	// | Model: Location |
-	// +-----------------+
-
-	public static class Location
-	{
-		public int Ants = 0;
-		public int Food = 0;
-		public boolean Colony = false;
-		public int Pheremone = 0;
 	}
 
 	// +-----------------+
@@ -331,7 +335,7 @@ public class AntWorld
 	}
 
 	// +-----------------+
-	// | foodAt           |
+	// | foodAt          |
 	// | directionToFood |
 	// +-----------------+
 
