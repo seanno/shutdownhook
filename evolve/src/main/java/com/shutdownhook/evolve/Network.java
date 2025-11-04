@@ -369,7 +369,13 @@ public class Network
 		public Network Network;
 
 		// see "testVerbose" for format of this table
-		public double[][] TestOutput; 
+		public double[][] TestOutput;
+
+		// timings
+		public long TrainingNanos;
+		public long TrainingIterations;
+		public long TestingNanos;
+		public long TestingIterations;
 	}
 	
 	public static TrainAndTestResults trainAndTest(TrainAndTestConfig cfg)
@@ -410,6 +416,8 @@ public class Network
 		// actually train ...
 		
 		TrainAndTestResults results = new TrainAndTestResults();
+		long startNanos = System.nanoTime();
+			
 		results.Network = new Network(cfg.Network);
 		results.Network.trainMany(trainSet, cfg.TrainingIterations, (iterations) -> {
 				
@@ -424,8 +432,15 @@ public class Network
 			return(true);
 		});
 
+		results.TrainingNanos = System.nanoTime() - startNanos;
+		results.TrainingIterations = cfg.TrainingIterations;
+		startNanos = System.nanoTime();
+
 		// ... and actually test
 		results.TestOutput = results.Network.testVerbose(testSet);
+
+		results.TestingNanos = System.nanoTime() - startNanos;
+		results.TestingIterations = testSet.length;
 		
 		return(results);
 	}
@@ -472,6 +487,14 @@ public class Network
 
 			System.out.println("");
 		}
+
+		System.out.println(String.format("Training: %d nanos, %d iterations, %f nanos/iteration",
+										 results.TrainingNanos, results.TrainingIterations,
+										 (double) results.TrainingNanos / (double) results.TrainingIterations));
+		
+		System.out.println(String.format("Testing: %d nanos, %d iterations, %f nanos/iteration",
+										 results.TestingNanos, results.TestingIterations,
+										 (double) results.TestingNanos / (double) results.TestingIterations));
 
 		if (cfg.FinalNetworkStatePath != null) {
 			Config stateCfg = results.Network.getState();
