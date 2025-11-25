@@ -1,6 +1,8 @@
 /*
 ** Read about this code at http://shutdownhook.com
 ** MIT license details at https://github.com/seanno/shutdownhook/blob/main/LICENSE
+** 
+** Query is build for PostgreSQL (or other systems that use the LIMIT keyword)
 */
 
 package com.shutdownhook.lorawan2;
@@ -88,11 +90,8 @@ public class MetricStore extends SqlStore
 		public Double Value;
 	}
 
-	private final static String QUERY_METRICS_FMT =
-		"select %s epoch_second, value from metrics where name = ? ";
-
-	private final static String MAX_CLAUSE_FMT =
-		"top %d ";
+	private final static String QUERY_METRICS_PREFIX =
+		"select epoch_second, value from metrics where name = ? ";
 
 	private final static String START_CLAUSE =
 		"and epoch_second >= ? ";
@@ -103,18 +102,20 @@ public class MetricStore extends SqlStore
 	private final static String SORT_CLAUSE =
 		"order by epoch_second desc ";
 
+	private final static String MAX_CLAUSE_FMT =
+		" limit %d ";
+
 	public List<Metric> getMetrics(String name, Instant start,
 								   Instant end, Integer maxCount,
 								   ZoneId tz) throws Exception {
 
 		StringBuilder sb = new StringBuilder();
-		
-		sb.append(String.format(QUERY_METRICS_FMT,
-								maxCount == null ? "" : String.format(MAX_CLAUSE_FMT, maxCount)));
+		sb.append(QUERY_METRICS_PREFIX);
 								
 		if (start != null) sb.append(START_CLAUSE);
 		if (end != null) sb.append(END_CLAUSE);
 		sb.append(SORT_CLAUSE);
+		if (maxCount != null) sb.append(String.format(MAX_CLAUSE_FMT, maxCount));
 
 		List<Metric> metrics = new ArrayList<Metric>();
 		
