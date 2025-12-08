@@ -17,8 +17,16 @@ public class Exec implements Closeable
 	// | Setup |
 	// +-------+
 
+	public final static int CACHED_THREADPOOL = -1;
+	
 	public Exec() {
-		this.pool = Executors.newCachedThreadPool();
+		this(CACHED_THREADPOOL);
+	}
+
+	public Exec(int threads) {
+		this.pool = (threads == CACHED_THREADPOOL
+					 ? Executors.newCachedThreadPool()
+					 : Executors.newFixedThreadPool(threads));
 	}
 
 	public void close() {

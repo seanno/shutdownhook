@@ -1,0 +1,33 @@
+[
+  {
+	"Name": "complex-100-multi",
+	"SleepMillis": 100,
+	"Statuses": [
+	  {
+		"Level": "ERROR",
+		"Numeric": 5.5,
+		"Text": "yoyo",
+		"Narrative": "The quick brown fox"
+	  },
+	  {
+		"Level": "OK",
+		"Numeric": -5.5,
+		"Narrative": "alksjflaksdfjklsa"
+	  }
+	]
+  },
+  {
+	"Name": "complex-0-warn",
+	"SleepMillis": 0,
+	"Statuses": [
+	  {
+		"Name": "overridden name",
+		"Level": "WARNING",
+		"Numeric": 200.0,
+		"Text": "warning text",
+		"Narrative": "warning narrative"
+	  }
+	]
+  }
+]
+
