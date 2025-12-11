@@ -150,7 +150,7 @@ public class TestResource implements Checker
 			
 			resourceConfigs[i] = new Resource.Config();
 			resourceConfigs[i].Name = testConfigs[i].Name;
-			resourceConfigs[i].ClassName = "com.shutdownhook.backstop.TestResource";
+			resourceConfigs[i].Class = "com.shutdownhook.backstop.TestResource";
 			resourceConfigs[i].Parameters.put("cfg", testConfigs[i].toJson());
 		}
 

@@ -275,7 +275,7 @@ public class Easy
 		dtfHttp = DateTimeFormatter.ofPattern("EEE, dd MMM yyyy HH:mm:ss O",
 											  Locale.ENGLISH);
 	}
-	
+
 	// +---------------+
 	// | HTML Encoding |
 	// +---------------+

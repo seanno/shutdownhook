@@ -19,7 +19,7 @@ public class Resource
 	public static class Config
 	{
 		public String Name;
-		public String ClassName;
+		public String Class;
 		public Map<String,String> Parameters = new HashMap<String,String>();
 	}
 		
@@ -57,6 +57,11 @@ public class Resource
 			this.Level = StatusLevel.OK;
 		}
 
+		public String getResultText(int decimalPlaces) {
+			if (Text != null) return(Text);
+			return(String.format("%.3f", Numeric));
+		}
+
 		public int compareTo(Status other) {
 			if (other == null) throw new NullPointerException();
 			int cmp = this.Level.ordinal() - other.Level.ordinal();
@@ -86,18 +91,36 @@ public class Resource
 			exStatus.Narrative = e.toString();
 
 			statuses.add(exStatus);
+
+			System.err.println(Easy.exMsg(e, "ex", true));
 		}
 	}
 	
 	private static void checkInternal(Config cfg, List<Status> statuses) throws Exception {
 
-		Class cls = Class.forName(cfg.ClassName);
+		if (Easy.nullOrEmpty(cfg.Name)) throw new Exception("Missing resource Name field");
+		if (Easy.nullOrEmpty(cfg.Class)) throw new Exception("Missing resource Class field");
+		
+		Class cls = Class.forName(cfg.Class);
 
 		if (!Checker.class.isAssignableFrom(cls)) {
-			throw new Exception(cfg.ClassName + " must implement Checker interface");
+			throw new Exception(cfg.Class + " must implement Checker interface");
 		}
 
 		Checker checker = (Checker) cls.getDeclaredConstructor().newInstance();
 		checker.check(cfg, statuses);
 	}
+
+	// +------------------+
+	// | DescartesChecker |
+	// +------------------+
+
+	public static class DescartesChecker implements Checker {
+		public void check(Config cfg, List<Status> statuses) throws Exception {
+			Status status = new Status(cfg);
+			status.Text = "I ran, therefore I am.";
+			statuses.add(status);
+		}
+	}
+
 }
