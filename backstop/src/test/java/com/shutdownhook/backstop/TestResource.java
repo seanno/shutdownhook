@@ -67,12 +67,10 @@ public class TestResource implements Checker
 		for (Resource.Status testStatus : testCfg.Statuses) {
 
 			Resource.Status thisStatus = new Resource.Status(resourceCfg);
-			if (testStatus.Name != null) thisStatus.Name = testStatus.Name;
-				
+
+			thisStatus.Metric = testStatus.Metric;
 			thisStatus.Level = testStatus.Level;
-			thisStatus.Numeric = testStatus.Numeric;
-			thisStatus.Text = testStatus.Text;
-			thisStatus.Narrative = testStatus.Narrative;
+			thisStatus.Result = testStatus.Result;
 
 			statuses.add(thisStatus);
 		}
@@ -92,11 +90,10 @@ public class TestResource implements Checker
 		for (int i = 0; i < expected.size(); ++i) {
 			Resource.Status e = expected.get(i);
 			Resource.Status a = results.get(i);
-			Assert.assertEquals(e.Name, a.Name);
+			Assert.assertEquals(e.Resource, a.Resource);
+			Assert.assertEquals(e.Metric, a.Metric);
 			Assert.assertEquals(e.Level, a.Level);
-			Assert.assertEquals(e.Numeric, a.Numeric, 0.0001);
-			Assert.assertEquals(e.Text, a.Text);
-			Assert.assertEquals(e.Narrative, a.Narrative);
+			Assert.assertEquals(e.Result, a.Result);
 		}
 		
 	}
@@ -111,10 +108,10 @@ public class TestResource implements Checker
 			Config testCfg = new Gson().fromJson(json, Config.class);
 
 			if (testCfg.ExceptionMessage != null) {
-				expected.add(new Resource.Status(resourceCfg.Name,
-												 Resource.StatusLevel.ERROR,
-												 0.0, testCfg.ExceptionMessage,
-												 "java.lang.Exception: " + testCfg.ExceptionMessage));
+				Status s = new Resource.Status(resourceCfg);
+				s.Level = Resource.StatusLevel.ERROR;
+				s.Result = "java.lang.Exception: " + testCfg.ExceptionMessage;
+				expected.add(s);
 			}
 			else if (testCfg.Statuses == null || testCfg.Statuses.length == 0) {
 				expected.add(new Resource.Status(resourceCfg));
@@ -122,11 +119,12 @@ public class TestResource implements Checker
 			else {
 				for (Resource.Status testStatus : testCfg.Statuses) {
 
-					String name = (testStatus.Name == null ? resourceCfg.Name : testStatus.Name);
+					Status s = new Resource.Status(resourceCfg);
+					s.Metric = testStatus.Metric;
+					s.Level = testStatus.Level;
+					s.Result = testStatus.Result;
 
-					expected.add(new Resource.Status(name, testStatus.Level,
-													 testStatus.Numeric, testStatus.Text,
-													 testStatus.Narrative));
+					expected.add(s);
 				}
 			}
 		}

@@ -10,6 +10,8 @@ public class App
 {
 	public static void main(String[] args) {
 
+		Easy.setSimpleLogFormat("INFO");
+
 		Backstop backstop = null;
 		
 		try {
@@ -17,7 +19,6 @@ public class App
 			Backstop.Config cfg = Backstop.Config.fromJson(json);
 			backstop = new Backstop(cfg);
 			backstop.checkAllAndSend();
-			System.out.println("OK");
 		}
 		catch (Exception e) {
 			// Nyi more here?

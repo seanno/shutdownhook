@@ -36,36 +36,21 @@ public class Resource
 	
 	public static class Status implements Comparable<Status>
 	{
-		public String Name;
+		public String Resource;
+		public String Metric;
 		public StatusLevel Level;
-		public double Numeric;
-		public String Text;
-		public String Narrative;
-
-		public Status(String name, StatusLevel level, double numeric,
-					  String text, String narrative) {
-
-			this.Name = name;
-			this.Level = level;
-			this.Numeric = numeric;
-			this.Text = text;
-			this.Narrative = narrative;
-		}
+		public String Result;
 
 		public Status(Config cfg) {
-			this.Name = cfg.Name;
+			this.Resource = cfg.Name;
 			this.Level = StatusLevel.OK;
 		}
-
-		public String getResultText(int decimalPlaces) {
-			if (Text != null) return(Text);
-			return(String.format("%.3f", Numeric));
-		}
-
+		
 		public int compareTo(Status other) {
 			if (other == null) throw new NullPointerException();
-			int cmp = this.Level.ordinal() - other.Level.ordinal();
-			if (cmp == 0) cmp = this.Name.compareTo(other.Name);
+			int cmp = other.Level.ordinal() - this.Level.ordinal();
+			if (cmp == 0) cmp = this.Resource.compareTo(other.Resource);
+			if (cmp == 0) cmp = this.Metric.compareTo(other.Metric);
 			return(cmp);
 		}
 	}
@@ -87,9 +72,7 @@ public class Resource
 			
 			Status exStatus = new Resource.Status(cfg);
 			exStatus.Level = StatusLevel.ERROR;
-			exStatus.Text = e.getMessage();
-			exStatus.Narrative = e.toString();
-
+			exStatus.Result = e.getClass().getName() + ": " + e.getMessage();
 			statuses.add(exStatus);
 
 			System.err.println(Easy.exMsg(e, "ex", true));
@@ -111,14 +94,14 @@ public class Resource
 		checker.check(cfg, statuses);
 	}
 
-	// +------------------+
-	// | DescartesChecker |
-	// +------------------+
+	// +-------------------+
+	// | DescartesResource |
+	// +-------------------+
 
-	public static class DescartesChecker implements Checker {
+	public static class DescartesResource implements Checker {
 		public void check(Config cfg, List<Status> statuses) throws Exception {
 			Status status = new Status(cfg);
-			status.Text = "I ran, therefore I am.";
+			status.Result = "I ran, therefore I am.";
 			statuses.add(status);
 		}
 	}

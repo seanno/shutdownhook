@@ -21,7 +21,7 @@
 	"SleepMillis": 0,
 	"Statuses": [
 	  {
-		"Name": "overridden name",
+		"Metric": "metric",
 		"Level": "WARNING",
 		"Numeric": 200.0,
 		"Text": "warning text",

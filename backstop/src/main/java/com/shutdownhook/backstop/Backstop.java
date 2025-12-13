@@ -39,7 +39,6 @@ public class Backstop implements Closeable
 		
 		public String SubjectTemplate = "BACKSTOP for {{NOW}}";
 		public String BodyTemplatePath = "@backstop.tmpl.html";
-		public int NumericDecimalPlaces = 3;
 		public String ZoneId;
 		
 		public static Config fromJson(String json) throws JsonSyntaxException {
@@ -133,13 +132,10 @@ public class Backstop implements Closeable
 
 	public static class BackstopProcessor extends Template.TemplateProcessor
 	{
-		public BackstopProcessor(List<Status> statuses,
-								 Map<String,String> tokens,
-								 int numericDecimalPlaces) {
+		public BackstopProcessor(List<Status> statuses, Map<String,String> tokens) {
 			
 			this.statuses = statuses;
 			this.tokens = tokens;
-			this.numericDecimalPlaces = numericDecimalPlaces;
 		}
 		
 		public boolean repeat(String[] args, int counter) {
@@ -148,17 +144,17 @@ public class Backstop implements Closeable
 				
 			Status status = statuses.get(counter);
 
-			tokens.put("STAT", status.Level.toString());
-			tokens.put("NAME", status.Name);
-			tokens.put("RESULT", status.getResultText(numericDecimalPlaces));
-			tokens.put("NARRATIVE", status.Narrative == null ? "" : status.Narrative);
-			
+			tokens.put("STATUS", status.Level.toString());
+			tokens.put("RESOURCE", status.Resource);
+			tokens.put("METRIC", status.Metric == null ? "" : status.Metric);
+			tokens.put("RESULT", status.Result == null ? "" : status.Result);
+			tokens.put("EVENODD", (counter % 2 == 0 ? "EVEN" : "ODD"));
+
 			return(true);
 		}
 
 		private List<Status> statuses;
 		private Map<String,String> tokens;
-		private int numericDecimalPlaces;
 	}
 	
 	public EmailContent renderForEmail(List<Status> statuses) throws Exception {
@@ -168,9 +164,7 @@ public class Backstop implements Closeable
 		Map<String,String> tokens = new HashMap<String,String>();
 		tokens.put("NOW", new Timey(null, cfg.ZoneId).asInformalDateTimeString());
 		
-		Template.TemplateProcessor proc =
-			new BackstopProcessor(statuses, tokens, cfg.NumericDecimalPlaces);
-
+		Template.TemplateProcessor proc = new BackstopProcessor(statuses, tokens);
 		response.Subject = subjectTemplate.render(tokens, proc);
 		response.Body = bodyTemplate.render(tokens, proc);
 		
