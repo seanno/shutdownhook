@@ -60,11 +60,11 @@ async function checkBatteries(ringApi, location) {
   }
   
   // log
-  if (warns.length > 0) logWarning("Batteries", "LOW: " + warns.join(", "));
-  if (errs.length > 0) logError("Batteries", "DEAD: " + errs.join(", "));
+  if (warns.length > 0) logWarning("LOW: " + warns.join(", "));
+  if (errs.length > 0) logError("DEAD: " + errs.join(", "));
   
   if ((warns.length == 0 && errs.length == 0) || notes.length > 0) {
-	logOK("Batteries", "Check: " + notes.join(", "));
+	logOK("Check: " + notes.join(", "));
   }
 }
 
@@ -72,17 +72,14 @@ async function checkBatteries(ringApi, location) {
 // | Helpers |
 // +---------+
 
-function logException(label, error) {
-  console.log(`[STATUS]^ERROR^${label}^(${error.name}) ${zapNewlines(error.message)}`);
-}
 
-function logStatus(level, metric, result) {
-  console.log(`[STATUS]^${level}^${metric}^${result}`);
-}
+function logStatus(level, result) { console.log(`[STATUS]^${level}^${result}^Batteries`); }
 
-function logError(metric, result) { logStatus("ERROR", metric, result); }
-function logWarning(metric, result) { logStatus("WARNING", metric, result); }
-function logOK(metric, result) { logStatus("OK", metric, result); }
+function logError(result) { logStatus("ERROR", result); }
+function logWarning(result) { logStatus("WARNING", result); }
+function logOK(result) { logStatus("OK", result); }
+
+function logException(error) { logError(`(${error.name}) ${zapNewlines(error.message)}`); }
 
 function zapNewlines(input) {
   return(input.replace(/\s+/g, ' '));
@@ -94,26 +91,21 @@ function zapNewlines(input) {
 
 async function ringBackstop() {
 
-  const targetLocations = process.env.Locations.split(",");
-  
   const ringApi = new RingApi({
 	refreshToken: process.env.RefreshToken,
 	locationIds: [ process.env.LocationId ]
   });
 
   const locations = await ringApi.getLocations();
-  for (var i = 0; i < locations.length; ++i) {
+  const location = locations[0];
+  const name = location.locationDetails.name;
 
-	const location = locations[0];
-	const name = location.locationDetails.name;
-
-	if (location.disconnected) {
-	  logError("Connection", "Location disconnected");
-	}
-	else {
-	  try { await checkBatteries(ringApi, location); }
-	  catch (error) { logException("checkBatteries", error); }
-	}
+  if (location.disconnected) {
+	logError("Connection", "Location disconnected");
+  }
+  else {
+	try { await checkBatteries(ringApi, location); }
+	catch (error) { logException(error); }
   }
 
 }

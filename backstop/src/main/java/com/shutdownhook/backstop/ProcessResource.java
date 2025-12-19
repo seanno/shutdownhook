@@ -6,12 +6,11 @@
 // failed and is reported as such. Otherwise results are parsed for lines of 
 // the form:
 //
-//    [STATUS]^LEVEL^METRIC^RESULT
+//    [STATUS]LEVEL^RESULT^METRIC^LINK
 //
 // i.e., caret-separated fields; first one is hardcoded to [STATUS] and the
-// rest represent fields in the Status structure. METRIC and RESULT
-// can be blank. If LEVEL is blank, ERROR is assumed. No newlines or carets
-// are allowed!
+// rest represent fields in the Status structure. RESULT, METRIC and
+// LINK can be blank. No newlines or carets are allowed!
 //
 // If the exit code is 0 but no [STATUS] lines are found in the output,
 // simple success will be assumed.
@@ -23,6 +22,8 @@
 package com.shutdownhook.backstop;
 
 import java.util.List;
+import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import com.shutdownhook.toolbox.Easy;
 
@@ -33,29 +34,40 @@ import com.shutdownhook.backstop.Resource.StatusLevel;
 
 public class ProcessResource implements Checker
 {
-	public void check(Config cfg, List<Status> statuses) throws Exception {
+	private final static int DEFAULT_TIMEOUT = (2 * 60); // 2 minutes in seconds
+	
+	public void check(Map<String,String> params,
+					  BackstopHelpers helpers,
+					  List<Status> statuses) throws Exception {
 
-		String cmd = cfg.Parameters.get("Command");
+		String cmd = params.get("Command");
 		if (Easy.nullOrEmpty(cmd)) throw new Exception("ProcessResource requires Command attribute");
-		
+
+		String timeoutStr = params.get("TimeoutSeconds");
+		int timeout = (Easy.nullOrEmpty(timeoutStr) ? DEFAULT_TIMEOUT : Integer.parseInt(timeoutStr));
+						  
 		String[] commands = new String[] { "bash", "-c", cmd};
 		ProcessBuilder pb = new ProcessBuilder(commands);
-		if (cfg.Parameters != null) pb.environment().putAll(cfg.Parameters);
+		pb.environment().putAll(params);
 		
 		Process p = pb.start();
+		if (!p.waitFor(timeout, TimeUnit.SECONDS)) {
+			statuses.add(new Status("", StatusLevel.ERROR,
+									"Process did not finish within timeout"));
+			return;
+		}
+		
+		int exitCode = p.exitValue();
 		String results = Easy.stringFromInputStream(p.getInputStream());
-		int exitCode = p.waitFor();
 
-		String debugProcess = cfg.Parameters.get("Debug");
+		String debugProcess = params.get("Debug");
 		if (!Easy.nullOrEmpty(debugProcess) && debugProcess.equalsIgnoreCase("true")) {
 			System.out.println(String.format("-----\nProcess exit: %d\n%s\n-----", exitCode, results));
 		}
 			
 		if (exitCode != 0) {
-			Status status = new Status(cfg);
-			status.Level = StatusLevel.ERROR;
-			status.Result = "Non-Zero exit from process\n" + results;
-			statuses.add(status);
+			statuses.add(new Status("", StatusLevel.ERROR,
+									"Non-Zero exit from process\n" + results));
 			return;
 		}
 
@@ -66,13 +78,12 @@ public class ProcessResource implements Checker
 			String[] fields = line.trim().split("\\^");
 			if (fields.length < 2) continue;
 
-			Status s = new Status(cfg);
-			s.Level = parseLevel(fields[1].trim());
+			StatusLevel level = parseLevel(fields[1].trim());
+			String result = (fields.length < 3 ? "" : fields[2]);
+			String metric = (fields.length < 4 ? "" : fields[3]);
+			String link = (fields.length < 5 ? "" : fields[4]);
 
-			if (fields.length > 2) s.Metric = fields[2];
-			if (fields.length > 3) s.Result = fields[3];
-
-			statuses.add(s);
+			statuses.add(new Status(metric, level, result, link));
 		}
 	}
 

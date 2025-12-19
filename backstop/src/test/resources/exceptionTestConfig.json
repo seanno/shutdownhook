@@ -1,6 +1,13 @@
-[
-  {
-	"Name": "exception",
-	"ExceptionMessage": "yep we excepted"
-  }
-]
+{
+  "Threads": 1,
+  
+  "Resources": [
+	{
+	  "Name": "Exception",
+	  "Class": "com.shutdownhook.backstop.TestResource",
+	  "Params": {
+		"ExceptionMessage": "yep we excepted"
+	  }
+	}
+  ]
+}

@@ -6,17 +6,16 @@
 package com.shutdownhook.backstop;
 
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
-
-import com.google.gson.Gson;
 
 import com.shutdownhook.toolbox.Easy;
 
-import com.shutdownhook.backstop.Resource.Checker;
+import com.shutdownhook.backstop.Backstop.BackstopStatus;
 import com.shutdownhook.backstop.Resource.Status;
-import com.shutdownhook.backstop.Resource.StatusLevel;
 
 public class BackstopTest
 {
@@ -26,30 +25,48 @@ public class BackstopTest
 
 	@Test
 	public void testBasic() throws Exception {
-		testOne("basicTestConfig", 1);
-		testOne("exceptionTestConfig", 1);
-		testOne("complexTestConfig", 10);
+		testOne("basicTestConfig");
+		testOne("exceptionTestConfig");
+		testOne("complexTestConfig");
 	}
 
-	private void testOne(String name, int threads) throws Exception {
-		Backstop backstop = getBackstop(name, threads);
-		List<Status> results = backstop.checkAll();
-		TestResource.assertResults(results, backstop.getConfig().Resources);
+	private void testOne(String name) throws Exception {
+		
+		String json = Easy.stringFromResource(name + ".json");
+		Backstop.Config cfg = Backstop.Config.fromJson(json);
+
+		List<BackstopStatus> expectedStatuses = new ArrayList<BackstopStatus>();
+		
+		for (Resource.Config resourceConfig : cfg.Resources) {
+			List<Status> expected = TestResource.getExpectedStatuses(resourceConfig);
+			List<Status> actual = Resource.check(resourceConfig, null);
+			TestResource.assertEquals(expected, actual);
+
+			for (Status testStatus : actual) {
+				String link = testStatus.getLink();
+				if (Easy.nullOrEmpty(link)) link = resourceConfig.Link;
+				expectedStatuses.add(new BackstopStatus(resourceConfig.Name, link, testStatus));
+			}
+		}
+
+		Collections.sort(expectedStatuses);
+		
+		Backstop backstop = new Backstop(cfg);
+		List<BackstopStatus> actualStatuses = backstop.checkAll();
+
+		Assert.assertEquals(expectedStatuses.size(), actualStatuses.size());
+		for (int i = 0; i < expectedStatuses.size(); ++i) {
+			BackstopStatus bstatusExpected = expectedStatuses.get(i);
+			BackstopStatus bstatusActual = actualStatuses.get(i);
+			Assert.assertEquals(bstatusExpected.getResource(), bstatusActual.getResource());
+
+			Status statusExpected = bstatusExpected.getStatus();
+			Status statusActual = bstatusActual.getStatus();
+			TestResource.assertStatusesEqual(statusExpected, statusActual);
+		}
+		
+		backstop.close();
 	}
 
-	// +---------+
-	// | Helpers |
-	// +---------+
-
-	public static Backstop getBackstop(String name, int threads) throws Exception {
-
-		Backstop.Config backstopCfg = new Backstop.Config();
-		backstopCfg.Threads = threads;
-
-		String json = Easy.stringFromResource(name + ".json");		
-		backstopCfg.Resources = TestResource.resourceConfigsFromJsonArray(json);
-
-		return(new Backstop(backstopCfg));
-	}
 }
 

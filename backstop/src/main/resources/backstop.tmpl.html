@@ -23,13 +23,13 @@
 		  border-collapse: collapse;
 		  background-color: #fff;
 		  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
-		  min-width: 700px;
+		  min-width: 800px;
 		  font-size: 12px;
       }
 
       .table-header {
 		  background-color: #e0e0e0;
-		  padding: 4px 6px;
+		  padding: 4px 20px 4px 6px;
 		  text-align: left;
 		  border: 1px solid #ccc;
 		  font-weight: bold;
@@ -45,12 +45,12 @@
 	  }
 
       .table-cell {
-		  padding: 4px 6px;
+		  padding: 4px 20px 4px 6px;
 		  border: 1px solid #e0e0e0;
       }
 
       .table-cell-nowrap {
-		  padding: 4px 6px;
+		  padding: 4px 20px 4px 6px;
 		  border: 1px solid #e0e0e0;
 		  white-space: nowrap;
       }
@@ -95,7 +95,6 @@
 		<tr>
 		  <th class="table-header">Status</th>
 		  <th class="table-header">Resource</th>
-		  <th class="table-header">Metric</th>
 		  <th class="table-header">Result</th>
 		</tr>
 		
@@ -107,8 +106,10 @@
 			<span class="status-text">{{STATUS}}</span>
 		  </td>
 		  <td class="table-cell-nowrap">{{RESOURCE}}</td>
-		  <td class="table-cell">{{METRIC}}</td>
-		  <td class="table-cell">{{RESULT}}</td>
+		  <td class="table-cell">
+			{{RESULT}}
+			{{:if ADDLINK}}&nbsp;<a href="{{:raw LINK}}">info</a>{{:end}}
+		  </td>
 		</tr>
 		
 		{{:end}}

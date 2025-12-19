@@ -4,6 +4,7 @@
 
 package com.shutdownhook.backstop;
 
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -20,6 +21,7 @@ public class Resource
 	{
 		public String Name;
 		public String Class;
+		public String Link;
 		public Map<String,String> Parameters = new HashMap<String,String>();
 	}
 		
@@ -34,25 +36,32 @@ public class Resource
 		ERROR;
 	}
 	
-	public static class Status implements Comparable<Status>
+	public static class Status
 	{
-		public String Resource;
-		public String Metric;
-		public StatusLevel Level;
-		public String Result;
+		public Status(String metric, StatusLevel level, String result, String link) {
+			this.metric = metric;
+			this.level = level;
+			this.result = result;
+			this.link = link;
+		}
 
-		public Status(Config cfg) {
-			this.Resource = cfg.Name;
-			this.Level = StatusLevel.OK;
+		public Status(String metric, StatusLevel level, String result) {
+			this(metric, level, result, null);
 		}
-		
-		public int compareTo(Status other) {
-			if (other == null) throw new NullPointerException();
-			int cmp = other.Level.ordinal() - this.Level.ordinal();
-			if (cmp == 0) cmp = this.Resource.compareTo(other.Resource);
-			if (cmp == 0) cmp = this.Metric.compareTo(other.Metric);
-			return(cmp);
+
+		public Status(String metric, StatusLevel level) {
+			this(metric, level, null);
 		}
+
+		public String getMetric() { return(metric); }
+		public StatusLevel getLevel() { return(level); }
+		public String getResult() { return(result == null ? "" : result); }
+		public String getLink() { return(link == null ? "" : link); }
+
+		private String metric;
+		private StatusLevel level;
+		private String result;
+		private String link;
 	}
 
 	// +-------+
@@ -60,30 +69,35 @@ public class Resource
 	// +-------+
 
 	public interface Checker {
-		public void check(Config cfg, List<Status> statuses) throws Exception;
+		public void check(Map<String,String> params,
+						  BackstopHelpers helpers,
+						  List<Status> statuses) throws Exception;
 	}
 
-	public static void check(Config cfg, List<Status> statuses) {
+	public static List<Status> check(Config cfg, BackstopHelpers helpers) {
 
+		List<Status> statuses = new ArrayList<Status>();
+		
 		try {
-			checkInternal(cfg, statuses);
+			checkInternal(cfg, helpers, statuses);
+			if (statuses.size() == 0) statuses.add(new Status("", StatusLevel.OK));
 		}
 		catch (Exception e) {
 			
-			Status exStatus = new Resource.Status(cfg);
-			exStatus.Level = StatusLevel.ERROR;
-			exStatus.Result = e.getClass().getName() + ": " + e.getMessage();
-			statuses.add(exStatus);
+			statuses.add(new Status("Exception", StatusLevel.ERROR,
+									e.getClass().getName() + ": " + e.getMessage()));
 
 			System.err.println(Easy.exMsg(e, "ex", true));
 		}
+
+		return(statuses);
 	}
 	
-	private static void checkInternal(Config cfg, List<Status> statuses) throws Exception {
+	private static void checkInternal(Config cfg,
+									  BackstopHelpers helpers,
+									  List<Status> statuses) throws Exception {
 
-		if (Easy.nullOrEmpty(cfg.Name)) throw new Exception("Missing resource Name field");
 		if (Easy.nullOrEmpty(cfg.Class)) throw new Exception("Missing resource Class field");
-		
 		Class cls = Class.forName(cfg.Class);
 
 		if (!Checker.class.isAssignableFrom(cls)) {
@@ -91,7 +105,7 @@ public class Resource
 		}
 
 		Checker checker = (Checker) cls.getDeclaredConstructor().newInstance();
-		checker.check(cfg, statuses);
+		checker.check(cfg.Parameters, helpers, statuses);
 	}
 
 	// +-------------------+
@@ -99,10 +113,12 @@ public class Resource
 	// +-------------------+
 
 	public static class DescartesResource implements Checker {
-		public void check(Config cfg, List<Status> statuses) throws Exception {
-			Status status = new Status(cfg);
-			status.Result = "I ran, therefore I am.";
-			statuses.add(status);
+		
+		public void check(Map<String,String> parameters,
+						  BackstopHelpers helpers,
+						  List<Status> statuses) throws Exception {
+			
+			statuses.add(new Status("", StatusLevel.OK, "I ran, therefore I am."));
 		}
 	}
 

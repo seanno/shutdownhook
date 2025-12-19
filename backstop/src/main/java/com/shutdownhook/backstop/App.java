@@ -18,7 +18,9 @@ public class App
 			String json = Easy.stringFromFile(args[0]);
 			Backstop.Config cfg = Backstop.Config.fromJson(json);
 			backstop = new Backstop(cfg);
-			backstop.checkAllAndSend();
+
+			if (args.length > 1 && args[1].equals("PRINT")) backstop.checkAllAndPrint();
+			else backstop.checkAllAndSend();
 		}
 		catch (Exception e) {
 			// Nyi more here?

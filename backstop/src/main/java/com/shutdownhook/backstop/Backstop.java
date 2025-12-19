@@ -29,11 +29,12 @@ public class Backstop implements Closeable
 	// +------------------+
 
 	public final static int DEFAULT_THREADS = 10;
-	
+
 	public static class Config
 	{
 		public Resource.Config[] Resources;
-		public Sender.Config Sender;
+		public Sender.Config Sender = new Sender.Config();
+		public BackstopHelpers.Config Helpers = new BackstopHelpers.Config();
 
 		public int Threads = DEFAULT_THREADS;
 		
@@ -50,12 +51,14 @@ public class Backstop implements Closeable
 		this.cfg = cfg;
 		this.exec = new Exec(cfg.Threads);
 		this.sender = new Sender(cfg.Sender);
+		this.helpers = new BackstopHelpers(cfg.Helpers);
 
 		this.subjectTemplate = new Template(cfg.SubjectTemplate);
 		this.bodyTemplate = new Template(Easy.stringFromSmartyPath(cfg.BodyTemplatePath));
 	}
 
 	public void close() {
+		helpers.close();
 		exec.close();
 	}
 
@@ -63,14 +66,25 @@ public class Backstop implements Closeable
 		return(cfg);
 	}
 	
-	// +-----------------+
-	// | checkAllAndSend |
-	// +-----------------+
+	// +------------------+
+	// | checkAllAndSend  |
+	// | checkAllAndPrint |
+	// +------------------+
 
 	public void checkAllAndSend() throws Exception {
-		List<Status> statuses = checkAll();
+		List<BackstopStatus> statuses = checkAll();
 		EmailContent content = renderForEmail(statuses);
 		sender.send(content.Subject, content.Body);
+	}
+
+	public void checkAllAndPrint() throws Exception {
+		for (BackstopStatus status : checkAll()) {
+			System.out.println(String.format("%s,%s,%s,%s",
+											 status.getStatus().getLevel().toString(),
+											 status.getResource(),
+											 status.getStatus().getMetric(),
+											 status.getStatus().getResult()));
+		}
 	}
 	
 	// +----------+
@@ -78,12 +92,11 @@ public class Backstop implements Closeable
 	// | checkOne |
 	// +----------+
 
-	public List<Status> checkAll() throws Exception {
+	public List<BackstopStatus> checkAll() throws Exception {
 
 		// run all resource checkers async
-		
-		List<CompletableFuture<List<Status>>> futures =
-			new ArrayList<CompletableFuture<List<Status>>>();
+		List<CompletableFuture<List<BackstopStatus>>> futures =
+			new ArrayList<CompletableFuture<List<BackstopStatus>>>();
 
 		for (int i = 0; i < cfg.Resources.length; ++i) {
 
@@ -92,32 +105,37 @@ public class Backstop implements Closeable
 			futures.add(exec.runAsync("Resource " + resourceConfig.Name,
 									  new Exec.AsyncOperation() {
 
-			    public List<Status> execute() throws Exception {
+			    public List<BackstopStatus> execute() throws Exception {
 					return(checkOne(resourceConfig));
 			    }
 			}));
 		}
 
 		// collect up statuses
-		
-		List<Status> allStatus = new ArrayList<Status>();
+		List<BackstopStatus> allStatuses = new ArrayList<BackstopStatus>();
 
 		for (int i = 0; i < cfg.Resources.length; ++i) {
-			allStatus.addAll(futures.get(i).get());
+			allStatuses.addAll(futures.get(i).get());
 		}
 
 		// sort and return
-		Collections.sort(allStatus);
+		Collections.sort(allStatuses);
 
-		return(allStatus);
+		return(allStatuses);
 	}
 	
-	public List<Status> checkOne(final Resource.Config resourceConfig) throws Exception {
-		final List<Status> statuses = new ArrayList<Status>();
-		Resource.check(resourceConfig, statuses);
-		if (statuses.size() == 0) statuses.add(new Status(resourceConfig));
-		Collections.sort(statuses);
-		return(statuses);
+	public List<BackstopStatus> checkOne(Resource.Config resourceConfig) throws Exception {
+		
+		List<BackstopStatus> bstatuses = new ArrayList<BackstopStatus>();
+		for (Status status : Resource.check(resourceConfig, helpers)) {
+			String link = status.getLink();
+			if (Easy.nullOrEmpty(link)) link = resourceConfig.Link;
+			bstatuses.add(new BackstopStatus(resourceConfig.Name, link, status));
+		}
+		
+		Collections.sort(bstatuses);
+		
+		return(bstatuses);
 	}
 	
 	// +----------------+
@@ -132,7 +150,7 @@ public class Backstop implements Closeable
 
 	public static class BackstopProcessor extends Template.TemplateProcessor
 	{
-		public BackstopProcessor(List<Status> statuses, Map<String,String> tokens) {
+		public BackstopProcessor(List<BackstopStatus> statuses, Map<String,String> tokens) {
 			
 			this.statuses = statuses;
 			this.tokens = tokens;
@@ -142,22 +160,29 @@ public class Backstop implements Closeable
 
 			if (counter >= statuses.size()) return(false);
 				
-			Status status = statuses.get(counter);
+			BackstopStatus status = statuses.get(counter);
 
-			tokens.put("STATUS", status.Level.toString());
-			tokens.put("RESOURCE", status.Resource);
-			tokens.put("METRIC", status.Metric == null ? "" : status.Metric);
-			tokens.put("RESULT", status.Result == null ? "" : status.Result);
+			String resource = status.getResource();
+			String metric = status.getStatus().getMetric();
+			if (!Easy.nullOrEmpty(metric)) resource += ": " + metric;
+
+			tokens.put("STATUS", status.getStatus().getLevel().toString());
+			tokens.put("RESOURCE", resource);
+			tokens.put("RESULT", status.getStatus().getResult());
 			tokens.put("EVENODD", (counter % 2 == 0 ? "EVEN" : "ODD"));
+
+			boolean haveLink = !Easy.nullOrEmpty(status.getLink());
+			tokens.put("ADDLINK", haveLink ? "TRUE" : "FALSE");
+			tokens.put("LINK", status.getLink());
 
 			return(true);
 		}
 
-		private List<Status> statuses;
+		private List<BackstopStatus> statuses;
 		private Map<String,String> tokens;
 	}
 	
-	public EmailContent renderForEmail(List<Status> statuses) throws Exception {
+	public EmailContent renderForEmail(List<BackstopStatus> statuses) throws Exception {
 
 		EmailContent response = new EmailContent();
 
@@ -171,6 +196,35 @@ public class Backstop implements Closeable
 		return(response);
 	}
 
+	// +----------------+
+	// | BackstopStatus |
+	// +----------------+
+
+	public static class BackstopStatus implements Comparable<BackstopStatus>
+	{
+		public BackstopStatus(String resource, String link, Status status) {
+			this.resource = resource;
+			this.link = link;
+			this.status = status;
+		}
+
+		public String getResource() { return(resource); }
+		public String getLink() { return(link); }
+		public Status getStatus() { return(status); }
+		
+		public int compareTo(BackstopStatus other) {
+			if (other == null) throw new NullPointerException();
+			int cmp = other.status.getLevel().ordinal() - this.status.getLevel().ordinal();
+			if (cmp == 0) cmp = this.resource.compareTo(other.resource);
+			if (cmp == 0) cmp = this.status.getMetric().compareTo(other.status.getMetric());
+			return(cmp);
+		}
+
+		private String resource;
+		private String link;
+		private Status status;
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
@@ -178,6 +232,7 @@ public class Backstop implements Closeable
 	private Config cfg;
 	private Exec exec;
 	private Sender sender;
+	private BackstopHelpers helpers;
 
 	private Template subjectTemplate;
 	private Template bodyTemplate;

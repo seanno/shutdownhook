@@ -1,6 +1,12 @@
-[
-  {
-	"Name": "basic"
-  }
-]
+{
+  "Threads": 1,
+  
+  "Resources": [
+	{
+	  "Name": "Basic",
+	  "Class": "com.shutdownhook.backstop.TestResource",
+	  "Params": { }
+	}
+  ]
+}
 
