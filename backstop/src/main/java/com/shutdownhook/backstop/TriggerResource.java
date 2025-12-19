@@ -10,7 +10,7 @@
 // TSV columns: 1 = Action description
 //              2 = Next occurrence due
 //              3 = Optional days before due date to warn (default 0)
-//              4 = Optional indicator that action is paused (1 for true, default 0)
+//              4 = Optional "snooze until" date to suppress messages
 //            ... = additional columns allowed and ignored    
 //
 
@@ -94,12 +94,14 @@ public class TriggerResource implements Checker
 		
 		if (fields.length < 2) throw new Exception("Malformed row");
 
-		String pauseStr = (fields.length >= 4 ? fields[3] : null);
-		boolean paused = (Easy.nullOrEmpty(pauseStr) ? false : Boolean.parseBoolean(pauseStr));
-		if (paused) return;
-		
-		String action = fields[0];
+		String snoozeStr = (fields.length >= 4 ? fields[3] : null);
+		if (!Easy.nullOrEmpty(snoozeStr)) {
+			LocalDate snoozeUntil = LocalDate.parse(snoozeStr, dtf);
+			if (today.isBefore(snoozeUntil)) return;
+		}
 
+		String action = fields[0];
+			
 		String dueStr = fields[1];
 		LocalDate due = LocalDate.parse(dueStr, dtf);
 
