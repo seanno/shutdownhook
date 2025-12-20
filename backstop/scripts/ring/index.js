@@ -33,10 +33,23 @@ async function checkBatteries(ringApi, location) {
 
 	  const cam = location.cameras[i];
 	  const name = cam.initialData.description;
+	  const connected = cam.initialData.health.connected;
 	  const battPct = cam.initialData.battery_life;
 	  const powerMode = cam.initialData.settings.power_mode;
 
-	  if (powerMode !== "wired" && battPct !== null) {
+	  /*
+	  if (name === "B Dining") {
+		console.log(util.inspect(cam, {
+		  compact: false, // Forces multi-line output
+		  colors: true    // Adds ANSI color codes for better readability
+		}));
+	  }
+	  */
+
+	  if (!connected) {
+		errs.push(name + ":OFFLINE");
+	  }
+	  else if (powerMode !== "wired" && battPct !== null) {
 		if (!battPct) errs.push(name);
 		else if (battPct < battWarnPct) warns.push(name + ":" + battPct);
 		else if (battPct < battNotePct) notes.push(name + ":" + battPct);
