@@ -47,7 +47,7 @@ async function checkBatteries(ringApi, location) {
 	  */
 
 	  if (!connected) {
-		errs.push(name + ":OFFLINE");
+		errs.push(name);
 	  }
 	  else if (powerMode !== "wired" && battPct !== null) {
 		if (!battPct) errs.push(name);
@@ -67,14 +67,14 @@ async function checkBatteries(ringApi, location) {
 
 	if (battPct !== undefined) {
 	  if (battPct == 0) errs.push(name);
-	  else if (battPct < battWarnPct) warns.push(name + ":" + battPct);
-	  else if (battPct < battNotePct) notes.push(name + ":" + battPct);
+	  else if (battPct < battWarnPct) warns.push(name + " " + battPct);
+	  else if (battPct < battNotePct) notes.push(name + " " + battPct);
 	}
   }
   
   // log
-  if (warns.length > 0) logWarning("LOW: " + warns.join(", "));
-  if (errs.length > 0) logError("DEAD: " + errs.join(", "));
+  if (warns.length > 0) logWarning("(LOW) " + warns.join(", "));
+  if (errs.length > 0) logError("(DEAD) " + errs.join(", "));
   
   if ((warns.length == 0 && errs.length == 0) || notes.length > 0) {
 	logOK("Check: " + notes.join(", "));
