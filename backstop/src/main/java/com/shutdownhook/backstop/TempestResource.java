@@ -76,7 +76,7 @@ public class TempestResource implements Checker
 		// AGE
 		Instant when = Instant.ofEpochSecond(obs.get(0).getAsLong());
 		long ageMinutes = Duration.between(when, Instant.now()).toMinutes();
-		String ageStr = String.format("Last reading: %d minutes ago", ageMinutes);
+		String ageStr = String.format("Last reading %d minutes ago", ageMinutes);
 
 		if (ageMinutes > MAX_OBS_AGE_MINUTES) {
 			statuses.add(new Status("Age " + deviceId, StatusLevel.ERROR, ageStr));
@@ -88,9 +88,9 @@ public class TempestResource implements Checker
 
 		// TEMP
 		double tempCelsius = obs.get(7).getAsDouble();
-		String tempStr = String.format("Current temp: %.0fF", Convert.celsiusToFarenheit(tempCelsius));
+		String tempStr = String.format("Current temp %.0fF", Convert.celsiusToFarenheit(tempCelsius));
 		if (tempCelsius <= 0) {
-			statuses.add(new Status("Temperature " + deviceId, StatusLevel.ERROR, tempStr + " FREEZING"));
+			statuses.add(new Status("Temperature " + deviceId, StatusLevel.WARNING, tempStr + " FREEZING"));
 		}
 		else {
 			if (sbNotes.length() > 0) sbNotes.append("; ");
@@ -99,7 +99,7 @@ public class TempestResource implements Checker
 
 		// BATTERY
 		double battVolts = obs.get(16).getAsDouble();
-		String battStr = String.format("Battery: %.2fv", battVolts);
+		String battStr = String.format("Battery %.2fv", battVolts);
 		
 		if (battVolts < MIN_OBS_BATTERY_VOLTS) {
 			statuses.add(new Status("Battery " + deviceId, StatusLevel.ERROR, battStr));

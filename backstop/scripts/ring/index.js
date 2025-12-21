@@ -77,7 +77,7 @@ async function checkBatteries(ringApi, location) {
   if (errs.length > 0) logError("(DEAD) " + errs.join(", "));
   
   if ((warns.length == 0 && errs.length == 0) || notes.length > 0) {
-	logOK("Check: " + notes.join(", "));
+	logOK(notes.length === 0 ? "" : "(Check) " + notes.join(", "));
   }
 }
 

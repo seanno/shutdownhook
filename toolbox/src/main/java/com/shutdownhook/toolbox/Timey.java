@@ -64,7 +64,8 @@ public class Timey
 		return(DateTimeFormatter
 			   .ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.MEDIUM)
 			   .withZone(zoneId)
-			   .format(when));
+			   .format(when)
+			   .replace('\u202F', ' '));
 	}
 
 	// +---------+

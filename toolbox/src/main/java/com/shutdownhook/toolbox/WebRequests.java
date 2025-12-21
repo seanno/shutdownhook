@@ -40,6 +40,7 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
+import java.util.zip.GZIPInputStream;
 import javax.net.ssl.HttpsURLConnection;
 import javax.net.ssl.SSLContext;
 import javax.net.ssl.SSLSocketFactory;
@@ -69,6 +70,7 @@ public class WebRequests implements Closeable
 		public Map<String,String> Headers;
 		public String MethodOverride;
 		public String Body;
+		public Boolean ForceGzip;
 		
 		// if ResponseBodyPath is non-null, it is interpreted as a local file
 		// path and response content is saved to that file rather than being
@@ -262,6 +264,7 @@ public class WebRequests implements Closeable
 				response.Headers = conn.getHeaderFields();
 				
 				InputStream stm = getInputStreamReally(conn);
+				if (params.ForceGzip != null && params.ForceGzip) stm = new GZIPInputStream(stm);
 				// don't need to close stm; conn.disconnect() handles it
 				
 				if (params.ResponseBodyPath != null) {

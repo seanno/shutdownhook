@@ -32,7 +32,7 @@ async function checkWater() {
 	console.log(`[STATUS]^ERROR^${errs.join("; ")}`);
   }
   else {
-	console.log(`[STATUS]^OK^Level: ${actualCM} cm; Age: ${actualAgeMinutes.toFixed(0)} min`);
+	console.log(`[STATUS]^OK^Last Reading ${actualAgeMinutes.toFixed(0)} minutes ago; Level ${actualCM} cm`);
   }
 }
 
