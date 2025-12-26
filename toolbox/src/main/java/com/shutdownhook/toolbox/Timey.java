@@ -32,6 +32,14 @@ public class Timey
 		setZone(zone);
 	}
 
+	// +-------+
+	// | Timer |
+	// +-------+
+
+	public static long startTimer() { return(System.nanoTime()); }
+	public static long stopTimer(long startNanos) { return(System.nanoTime() - startNanos); }
+	public static long stopTimerMillis(long startNanos) { return(stopTimer(startNanos) / 1000000L); }
+
 	// +-----+
 	// | Set |
 	// +-----+
