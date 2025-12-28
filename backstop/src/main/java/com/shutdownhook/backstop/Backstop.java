@@ -11,6 +11,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeUnit;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonSyntaxException;
@@ -29,6 +30,7 @@ public class Backstop implements Closeable
 	// +------------------+
 
 	public final static int DEFAULT_THREADS = 10;
+	public final static int DEFAULT_CHECK_TIMEOUT_SECONDS = 5 * 60; // 5 minutes
 
 	public static class Config
 	{
@@ -37,6 +39,7 @@ public class Backstop implements Closeable
 		public BackstopHelpers.Config Helpers = new BackstopHelpers.Config();
 
 		public int Threads = DEFAULT_THREADS;
+		public int CheckTimeoutSeconds = DEFAULT_CHECK_TIMEOUT_SECONDS;
 		
 		public String SubjectTemplate = "BACKSTOP for {{NOW}}";
 		public String BodyTemplatePath = "@backstop.tmpl.html";
@@ -115,7 +118,17 @@ public class Backstop implements Closeable
 		List<BackstopStatus> allStatuses = new ArrayList<BackstopStatus>();
 
 		for (int i = 0; i < cfg.Resources.length; ++i) {
-			allStatuses.addAll(futures.get(i).get());
+			try {
+				allStatuses.addAll(futures.get(i).get(cfg.CheckTimeoutSeconds, TimeUnit.SECONDS));
+			}
+			catch (Exception e) {
+				Status estat = new Status("Exception", StatusLevel.ERROR,
+										  e.getClass().getName() + ": " + e.getMessage());
+			
+				allStatuses.add(new BackstopStatus(cfg.Resources[i].Name,
+												   cfg.Resources[i].Link,
+												   estat));
+			}
 		}
 
 		// sort and return
