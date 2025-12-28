@@ -1,0 +1,17 @@
+{
+  
+  "Resources": [
+	{
+	  "Name": "Proof of Life",
+	  "Class": "com.shutdownhook.backstop.Resource$DescartesResource"
+	},
+	{
+	  "Name": "Google",
+	  "Class": "com.shutdownhook.backstop.WebResource",
+	  "Parameters": {
+		"url": "https://google.com",
+		"search": "<html"
+	  }
+	}
+  ]
+}
