@@ -6,6 +6,7 @@
 //         clientId
 //         clientSecret
 //         redirectUri (optional; defaults to DEFAULT_REDIRECT_URI)
+//         debug (optional: true sends full JSON for each device)
 //
 // https://docs.smarthq.com/
 //
@@ -92,6 +93,9 @@ public class SmartHqResource implements Checker
 		this.clientSecret = params.get("clientSecret");
 		this.helpers = helpers;
 		this.statuses = statuses;
+
+		String debugStr = params.get("debug");
+		this.debug = ("true".equalsIgnoreCase(debugStr) ? true : false);
 		
 		this.redirectUri = params.get("redirectUri");
 		if (Easy.nullOrEmpty(this.redirectUri)) this.redirectUri = DEFAULT_REDIRECT_URI;
@@ -158,6 +162,8 @@ public class SmartHqResource implements Checker
 		String relativeUrl = String.format("/v2/device/%s", deviceId);
 		String json = apiRequest(relativeUrl, "checkDevice", token);
 		Device device = helpers.getGson().fromJson(json, Device.class);
+
+		if (debug) System.out.println("===== " + name + "\n" + json + "\n=====");
 		
 		StringBuilder sbWarn = new StringBuilder();
 		StringBuilder sbErr = new StringBuilder();
@@ -377,6 +383,7 @@ public class SmartHqResource implements Checker
 	private String clientId;
 	private String clientSecret;
 	private String redirectUri;
+	private boolean debug;
 
 	private BackstopHelpers helpers;
 	private List<Status> statuses;
