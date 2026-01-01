@@ -71,6 +71,7 @@ public class WebRequests implements Closeable
 		public String MethodOverride;
 		public String Body;
 		public Boolean ForceGzip;
+		public Boolean FollowRedirects; // overrides config
 		
 		// if ResponseBodyPath is non-null, it is interpreted as a local file
 		// path and response content is saved to that file rather than being
@@ -252,10 +253,12 @@ public class WebRequests implements Closeable
 				setSocketFactory(conn);
 				
 				conn.setRequestMethod(method);
-				conn.setFollowRedirects(cfg.FollowRedirects);
 				conn.setConnectTimeout(cfg.TimeoutMillis);
 				conn.setReadTimeout(cfg.TimeoutMillis);
 
+				boolean followRedirects = (params.FollowRedirects == null ? cfg.FollowRedirects : params.FollowRedirects);
+				conn.setInstanceFollowRedirects(followRedirects);
+				
 				addHeaders(conn, params);
 				sendBody(conn, params);
 				
