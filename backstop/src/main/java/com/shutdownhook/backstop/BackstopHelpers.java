@@ -5,6 +5,12 @@
 package com.shutdownhook.backstop;
 
 import java.io.Closeable;
+import java.time.Duration;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.format.DateTimeFormatter;
+import java.time.temporal.ChronoUnit;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
@@ -20,6 +26,7 @@ public class BackstopHelpers implements Closeable
 
 	public static class Config
 	{
+		public String ZoneId = null;
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
 
@@ -27,6 +34,7 @@ public class BackstopHelpers implements Closeable
 		this.cfg = cfg;
 		this.requests = new WebRequests(cfg.Requests);
 		this.gson = new GsonBuilder().setPrettyPrinting().create();
+		initDatesAndTimes();
 	}
 
 	public void close() {
@@ -40,6 +48,35 @@ public class BackstopHelpers implements Closeable
 	public Gson getGson() { return(gson); }
 	public WebRequests getRequests() { return(requests); }
 
+	// +--------------+
+	// | Date & Times |
+	// +--------------+
+
+	public ZoneId getZoneId() { return(zoneId); }
+	public LocalDate getDateToday() { return(dateToday); }
+
+	public LocalDate minusDays(LocalDate dateFrom, int days) {
+		return(dateFrom.minus(days, ChronoUnit.DAYS));
+	}
+	
+	public long minutesAgo(long sinceEpochSecond) {
+		return(minutesAgo(Instant.ofEpochSecond(sinceEpochSecond)));
+	}
+	
+	public long minutesAgo(Instant sinceInstant) {
+		return(Duration.between(sinceInstant, Instant.now()).toMinutes());
+	}
+
+	public LocalDate parseUSDate(String str) {
+		return(LocalDate.parse(str, dtfUSDate));
+	}
+
+	private void initDatesAndTimes() {
+		this.zoneId = (Easy.nullOrEmpty(cfg.ZoneId) ? ZoneId.systemDefault() : ZoneId.of(cfg.ZoneId));
+		this.dateToday = LocalDate.now(zoneId);
+		this.dtfUSDate = DateTimeFormatter.ofPattern("M/d/[uuuu][uu]");
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+
@@ -47,4 +84,8 @@ public class BackstopHelpers implements Closeable
 	private Config cfg;
 	private WebRequests requests;
 	private Gson gson;
+	
+	private ZoneId zoneId;
+	private LocalDate dateToday;
+	private DateTimeFormatter dtfUSDate;
 }

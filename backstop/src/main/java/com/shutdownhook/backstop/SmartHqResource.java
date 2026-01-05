@@ -1,7 +1,8 @@
 //
 // SMARTHQRESOURCE.JAVA
 //
-// Params: username
+// Params: tsv (url to spreadsheet; see ServiceCheckInfo section for format)
+//         username
 //         password
 //         clientId
 //         clientSecret
@@ -18,6 +19,8 @@
 
 package com.shutdownhook.backstop;
 
+import java.time.LocalDate;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -37,30 +40,6 @@ import com.shutdownhook.backstop.Resource.StatusLevel;
 
 public class SmartHqResource implements Checker
 {
-	private final static ServiceCheckInfo[] SVC_CHECK_INFOS = {
-		
-		new ServiceCheckInfo("cloud.smarthq.service.dishwasher.rinse.agent",
-							 "cloud.smarthq.domain.rinse.agent",
-							 "rinseAgentStatus",
-							 "cloud.smarthq.type.rinseagentstatus.please.refill",
-							 StatusLevel.WARNING,
-							 "Rinse Agent Low"),
-		
-		new ServiceCheckInfo("cloud.smarthq.service.dishwasher.state",
-							 "cloud.smarthq.domain.dishwasher.smart.assist",
-							 "nonCriticalFaultActive",
-							 "true",
-							 StatusLevel.WARNING,
-							 "Non-Critical Fault"),
-
-		new ServiceCheckInfo("cloud.smarthq.service.dishwasher.state",
-							 "cloud.smarthq.domain.dishwasher.smart.assist",
-							 "criticalFaultActive",
-							 "true",
-							 StatusLevel.ERROR,
-							 "Critical Fault"),
-	};
-	
 	private static String DEFAULT_REDIRECT_URI =
 		"https://localhost/oauth/redirect";
 	
@@ -93,6 +72,9 @@ public class SmartHqResource implements Checker
 		this.clientSecret = params.get("clientSecret");
 		this.helpers = helpers;
 		this.statuses = statuses;
+
+		String tsv = params.get("tsv");
+		this.checkInfos = loadCheckInfos(tsv);
 
 		String debugStr = params.get("debug");
 		this.debug = ("true".equalsIgnoreCase(debugStr) ? true : false);
@@ -136,27 +118,6 @@ public class SmartHqResource implements Checker
 	// | checkDeviceServices |
 	// +---------------------+
 
-	public static class ServiceCheckInfo
-	{
-		public ServiceCheckInfo(String service, String domain,
-								String stateKey, String stateErrorValue,
-								StatusLevel level, String message) {
-			this.Service = service;
-			this.Domain = domain;
-			this.StateKey = stateKey;
-			this.StateErrorValue = stateErrorValue;
-			this.Level = level;
-			this.Message = message;
-		}
-		
-		public String Service;
-		public String Domain;
-		public String StateKey;
-		public String StateErrorValue;
-		public StatusLevel Level;
-		public String Message;
-	}
-
 	private boolean checkDeviceServices(String name, String deviceId, String token) throws Exception {
 
 		String relativeUrl = String.format("/v2/device/%s", deviceId);
@@ -170,24 +131,22 @@ public class SmartHqResource implements Checker
 		
 		if (device.services == null || device.services.length == 0) return(true);
 
+		LocalDate today = helpers.getDateToday();
+		
 		// inefficient N^2 searching but these are small so fine
-		for (ServiceCheckInfo checkInfo : SVC_CHECK_INFOS) {
+		for (ServiceCheckInfo checkInfo : checkInfos) {
 			for (Service service : device.services) {
 
-				if ((checkInfo.Service == null || checkInfo.Service.equals(service.serviceType)) &&
-					(checkInfo.Domain == null || checkInfo.Domain.equals(service.domainType))) {
-
-					String val = service.state.get(checkInfo.StateKey);
-					if (checkInfo.StateErrorValue.equals(val)) {
-						if (checkInfo.Level.equals(StatusLevel.WARNING)) {
-							if (sbWarn.length() > 0) sbWarn.append(", ");
-							sbWarn.append(checkInfo.Message);
-						}
-						else {
-							if (sbErr.length() > 0) sbErr.append(", ");
-							sbErr.append(checkInfo.Message);
-						}
-					}
+				String msg = checkInfo.fault(service, today);
+				if (Easy.nullOrEmpty(msg)) continue;
+				
+				if (checkInfo.Level.equals(StatusLevel.WARNING)) {
+					if (sbWarn.length() > 0) sbWarn.append(", ");
+					sbWarn.append(msg);
+				}
+				else {
+					if (sbErr.length() > 0) sbErr.append(", ");
+					sbErr.append(msg);
 				}
 			}
 		}
@@ -318,6 +277,107 @@ public class SmartHqResource implements Checker
 		return(postForm);
 	}
 
+	// +------------------+
+	// | ServiceCheckInfo |
+	// +------------------+
+
+	public static enum CompareOperator
+	{
+		EQ,
+		NEQ,
+		GT,
+		LT
+	}
+	
+	public static class ServiceCheckInfo
+	{
+		public LocalDate SnoozeUntil;
+		public String Message;
+		public StatusLevel Level;
+		public String Service;
+		public String Domain;
+		public String Device;
+		public String StateKey;
+		public CompareOperator CheckComparison;
+		public String CheckValue;
+
+		public static ServiceCheckInfo fromTsvRow(String line, int irow, BackstopHelpers helpers) throws Exception {
+
+			if (line.isEmpty() || line.startsWith("#")) return(null);
+
+			String[] fields = line.split("\t");
+			if (fields.length < 9) throw new Exception(String.format("Spreadsheet malformed row %d, %d fields (%s)",
+																	 irow + 1, fields.length, line));
+
+			ServiceCheckInfo sci = new ServiceCheckInfo();
+
+			String snoozeStr = fields[0].trim();
+			if (!Easy.nullOrEmpty(snoozeStr)) {
+				sci.SnoozeUntil = helpers.parseUSDate(snoozeStr);
+			}
+
+			sci.Message = fields[1].trim();
+			sci.Level = StatusLevel.valueOf(fields[2].trim());
+			
+			sci.Service = fields[3].trim(); 
+			sci.Domain = fields[4].trim(); 
+			sci.Device = fields[5].trim();
+			
+			sci.StateKey = fields[6].trim(); 
+			sci.CheckComparison = CompareOperator.valueOf(fields[7].trim());
+			sci.CheckValue = fields[8].trim();
+
+			return(sci);
+		}
+
+		public String fault(Service service, LocalDate today) throws Exception {
+
+			if (SnoozeUntil != null && today.isBefore(SnoozeUntil)) {
+				return(null); // snoozed
+			}
+			
+			if ((!Easy.nullOrEmpty(Service) && !Service.equals(service.serviceType)) ||
+				(!Easy.nullOrEmpty(Domain) && !Domain.equals(service.domainType)) ||
+				(!Easy.nullOrEmpty(Device) && !Device.equals(service.serviceDeviceType))) {
+				return(null); // no match
+			}
+
+			String stateValue = service.state.get(StateKey);
+
+			boolean ok;
+			  
+			switch (CheckComparison) {
+				case EQ: ok = CheckValue.equals(stateValue); break;
+				case NEQ: ok = !CheckValue.equals(stateValue); break;
+				case GT: ok = (Integer.parseInt(stateValue) > Integer.parseInt(CheckValue)); break;
+				case LT: ok = (Integer.parseInt(stateValue) < Integer.parseInt(CheckValue)); break;
+				default: throw new Exception("wtf");
+			}
+
+			return(ok ? null : Message.replace("{{STATE}}", stateValue));
+		}
+	}
+
+	private List<ServiceCheckInfo> loadCheckInfos(String tsv) throws Exception {
+		
+		WebRequests.Response response = helpers.getRequests().fetch(tsv);
+		if (!response.successful()) {
+			throw new Exception(String.format("%s failed: (%d) %s", tsv,
+											  response.Status, response.StatusText));
+		}
+
+		List<ServiceCheckInfo> checkInfos = new ArrayList<ServiceCheckInfo>();
+		
+		String[] lines = response.Body.split("\n");
+		
+		for (int i = 1; i < lines.length; ++i) { // note skips header row
+			ServiceCheckInfo sci = ServiceCheckInfo.fromTsvRow(lines[i], i, helpers);
+			if (sci != null) checkInfos.add(sci);
+		}
+
+		return(checkInfos);
+	}
+
 	// +---------+
 	// | Helpers |
 	// +---------+
@@ -388,4 +448,6 @@ public class SmartHqResource implements Checker
 	private BackstopHelpers helpers;
 	private List<Status> statuses;
 	private SessionBrowser browser;
+
+	private List<ServiceCheckInfo> checkInfos;
 }
