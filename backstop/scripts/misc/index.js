@@ -19,8 +19,6 @@ function stringify(obj) {
 // | checkBellevueZWay |
 // +-------------------+
 
-const BV_ZWAY_URL = "https://backstop2.blob.core.windows.net/backstop-transfer/zbattery.json?sp=r&st=2026-01-07T06:54:46Z&se=2050-01-07T15:09:46Z&spr=https&sv=2024-11-04&sr=b&sig=W4IKmIGcVKnY616k7PX8j%2FKX4u7gKMDxSkfhblULdnE%3D";
-
 const BV_ZWAY_LINK = "https://find.z-wave.me/smarthome/#/zwave/batteries";
 
 const BV_ZWAY_METRIC = "B Family Main Switch";
@@ -32,7 +30,8 @@ const BV_ZWAY_WARN_BATTERY_PCT = 20;
 async function checkBellevueZWay() {
 
   try {
-	const response = await fetch(BV_ZWAY_URL);
+	console.log(process.env.BellevueZwayUrl);
+	const response = await fetch(process.env.BellevueZwayUrl);
 	const data = await response.json();
 	if (!data || data.length < 1) throw new Error("Failed fetch");
 
