@@ -27,6 +27,16 @@ WORKDIR /opt/backstop/water
 RUN npm install
 COPY scripts/water/index.js .
 
+# +---------------+
+# | Script (Misc) |
+# +---------------+
+
+RUN mkdir /opt/backstop/misc
+COPY scripts/misc/package.json .
+WORKDIR /opt/backstop/misc
+RUN npm install
+COPY scripts/misc/index.js .
+
 # +----------+
 # | Core App |
 # +----------+

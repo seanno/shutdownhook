@@ -6,7 +6,7 @@
 // failed and is reported as such. Otherwise results are parsed for lines of 
 // the form:
 //
-//    [STATUS]LEVEL^RESULT^METRIC^LINK
+//    [STATUS]^LEVEL^RESULT^METRIC^LINK
 //
 // i.e., caret-separated fields; first one is hardcoded to [STATUS] and the
 // rest represent fields in the Status structure. RESULT, METRIC and
