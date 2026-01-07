@@ -51,6 +51,9 @@ public class App
 				else if (arg.equals("off")) {
 					zway.findDevice(deviceId).turnOff();
 				}
+				else if (arg.equals("details")) {
+					System.out.println(zway.findDevice(deviceId).getDetails());
+				}
 				else {
 					usage();
 				}
@@ -67,6 +70,7 @@ public class App
 		System.out.println("Device off: [deviceId] off");
 		System.out.println("Device get level: [deviceId] level");
 		System.out.println("Device set level: [deviceId] exact [0-100]");
+		System.out.println("Device details: [deviceId] details");
 	}
 
 	private static void listDevices() throws Exception {

@@ -65,6 +65,7 @@ public class ZWay extends Worker implements Closeable
 		public String CommandOff;
 		public String CommandGet;
 		public String CommandSetFormat;
+		public String CommandDetails;
 	}
 
 	public ZWay(Config cfg) throws Exception {
@@ -122,6 +123,8 @@ public class ZWay extends Worker implements Closeable
 		abstract public int getLevel(boolean refresh) throws Exception;
 		abstract public void setLevel(int level) throws Exception;
 		abstract public void update() throws Exception;
+
+		abstract public String getDetails() throws Exception;
 
 		public boolean isBinary() {
 
@@ -237,6 +240,10 @@ public class ZWay extends Worker implements Closeable
 			zway.fetch(String.format("devices/%s/command/update", getId()));
 		}
 
+		public String getDetails() throws Exception {
+			return(json.toString());
+		}
+
 		private boolean isUpdatable() {
 
 			if (!json.has("probeType")) return(true);
@@ -297,6 +304,10 @@ public class ZWay extends Worker implements Closeable
 
 		public void update() throws Exception {
 			getLevel(true);
+		}
+
+		public String getDetails() throws Exception {
+			return(run(cfg.CommandDetails));
 		}
 
 		private String run(String cmd) throws Exception {
