@@ -6,6 +6,8 @@
 //  "BatteryWarningPct" = warn below this pct
 //  "BatteryNotePct" = note below this pct
 //
+//  To generate refresh token: npx -p ring-client-api ring-auth-cli
+//
 
 import util from 'util';
 import { RingApi } from 'ring-client-api';
