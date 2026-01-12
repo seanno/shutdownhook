@@ -45,6 +45,7 @@ public class TempStickResource implements Checker
 
 	public void check(Map<String,String> params,
 					  BackstopHelpers helpers,
+					  String stateId,
 					  List<Status> statuses) throws Exception {
 
 

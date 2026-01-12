@@ -15,6 +15,11 @@
 // If the exit code is 0 but no [STATUS] lines are found in the output,
 // simple success will be assumed.
 //
+// Additionally persistent state can be updated (if the StateId value is present
+// in the resource configuration) with lines of the form:
+//
+//    [STATE]^NAME^VALUE
+//
 // NOTE: Because I'm lazy, this loads the full response into memory. The system
 // allows for non-status lines in the output, but there shouldn't be megs and
 // megs of them.
@@ -38,6 +43,7 @@ public class ProcessResource implements Checker
 	
 	public void check(Map<String,String> params,
 					  BackstopHelpers helpers,
+					  String stateId,
 					  List<Status> statuses) throws Exception {
 
 		String cmd = params.get("Command");
@@ -73,17 +79,25 @@ public class ProcessResource implements Checker
 
 		for (String line : results.split("\n")) {
 			
-			if (!line.startsWith("[STATUS]^")) continue;
-			
-			String[] fields = line.trim().split("\\^");
-			if (fields.length < 2) continue;
+			if (line.startsWith("[STATUS]^")) {
+				// status update
+				String[] fields = line.trim().split("\\^");
+				if (fields.length < 2) continue;
 
-			StatusLevel level = parseLevel(fields[1].trim());
-			String result = (fields.length < 3 ? "" : fields[2]);
-			String metric = (fields.length < 4 ? "" : fields[3]);
-			String link = (fields.length < 5 ? "" : fields[4]);
+				StatusLevel level = parseLevel(fields[1].trim());
+				String result = (fields.length < 3 ? "" : fields[2]);
+				String metric = (fields.length < 4 ? "" : fields[3]);
+				String link = (fields.length < 5 ? "" : fields[4]);
 
-			statuses.add(new Status(metric, level, result, link));
+				statuses.add(new Status(metric, level, result, link));
+			}
+			else if (line.startsWith("[STATE]^")) {
+				// state update
+				String[] fields = line.trim().split("\\^");
+				if (fields.length < 3) continue;
+
+				helpers.setState(stateId, fields[1].trim(), fields[2].trim());
+			}
 		}
 	}
 

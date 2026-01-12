@@ -22,6 +22,7 @@ public class Resource
 		public String Name;
 		public String Class;
 		public String Link;
+		public String StateId;
 		public Map<String,String> Parameters = new HashMap<String,String>();
 	}
 		
@@ -71,6 +72,7 @@ public class Resource
 	public interface Checker {
 		public void check(Map<String,String> params,
 						  BackstopHelpers helpers,
+						  String stateId,
 						  List<Status> statuses) throws Exception;
 	}
 
@@ -105,7 +107,18 @@ public class Resource
 		}
 
 		Checker checker = (Checker) cls.getDeclaredConstructor().newInstance();
-		checker.check(cfg.Parameters, helpers, statuses);
+		checker.check(getParameters(cfg, helpers), helpers, cfg.StateId, statuses);
+	}
+
+	private static Map<String,String> getParameters(Config cfg, BackstopHelpers helpers) throws Exception {
+
+		if (cfg.StateId == null) return(cfg.Parameters);
+
+		Map<String,String> params = new HashMap<String,String>();
+		params.putAll(cfg.Parameters);
+		params.putAll(helpers.getAllState(cfg.StateId));
+
+		return(params);
 	}
 
 	// +-------------------+
@@ -116,6 +129,7 @@ public class Resource
 		
 		public void check(Map<String,String> parameters,
 						  BackstopHelpers helpers,
+						  String stateId,
 						  List<Status> statuses) throws Exception {
 			
 			statuses.add(new Status("", StatusLevel.OK, "I ran, therefore I am."));

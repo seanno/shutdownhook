@@ -64,6 +64,7 @@ public class SmartHqResource implements Checker
 
 	public void check(Map<String,String> params,
 					  BackstopHelpers helpers,
+					  String stateId,
 					  List<Status> statuses) throws Exception {
 
 		this.user = params.get("user");

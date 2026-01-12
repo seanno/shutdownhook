@@ -11,8 +11,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
+import java.util.HashMap;
+import java.util.Map;
 
 import com.shutdownhook.toolbox.Easy;
+import com.shutdownhook.toolbox.SqlStore;
 import com.shutdownhook.toolbox.WebRequests;
 
 import com.google.gson.Gson;
@@ -27,6 +30,7 @@ public class BackstopHelpers implements Closeable
 	public static class Config
 	{
 		public String ZoneId = null;
+		public SqlStore.Config Sql = null;
 		public WebRequests.Config Requests = new WebRequests.Config();
 	}
 
@@ -34,6 +38,7 @@ public class BackstopHelpers implements Closeable
 		this.cfg = cfg;
 		this.requests = new WebRequests(cfg.Requests);
 		this.gson = new GsonBuilder().setPrettyPrinting().create();
+		initState();
 		initDatesAndTimes();
 	}
 
@@ -47,6 +52,29 @@ public class BackstopHelpers implements Closeable
 
 	public Gson getGson() { return(gson); }
 	public WebRequests getRequests() { return(requests); }
+
+	// +-------+
+	// | State |
+	// +-------+
+
+	public Map<String,String> getAllState(String stateId) throws Exception {
+		if (Easy.nullOrEmpty(stateId)) throw new Exception("Can't use state without StateId");
+		return(state.getAll(stateId));
+	}
+	
+	public String getState(String stateId, String name) throws Exception {
+		if (Easy.nullOrEmpty(stateId)) throw new Exception("Can't use state without StateId");
+		return(state.get(stateId, name));
+	}
+
+	public void setState(String stateId, String name, String value) throws Exception {
+		if (Easy.nullOrEmpty(stateId)) throw new Exception("Can't use state without StateId");
+		state.set(stateId, name, value);
+	}
+	
+	private void initState() throws Exception {
+		if (cfg.Sql != null) this.state = new State(cfg.Sql);
+	}
 
 	// +--------------+
 	// | Date & Times |
@@ -84,6 +112,7 @@ public class BackstopHelpers implements Closeable
 	private Config cfg;
 	private WebRequests requests;
 	private Gson gson;
+	private State state;
 	
 	private ZoneId zoneId;
 	private LocalDate dateToday;

@@ -111,6 +111,12 @@ async function ringBackstop() {
 	locationIds: [ process.env.LocationId ]
   });
 
+  ringApi.onRefreshTokenUpdated.subscribe(
+	async ({ newRefreshToken, oldRefreshToken }) => {
+	  console.log(`[STATE]^RefreshToken^${newRefreshToken}`);
+	}
+  );
+  
   const locations = await ringApi.getLocations();
   const location = locations[0];
   const name = location.locationDetails.name;

@@ -35,6 +35,7 @@ public class TempestResource implements Checker
 
 	public void check(Map<String,String> params,
 					  BackstopHelpers helpers,
+					  String stateId,
 					  List<Status> statuses) throws Exception {
 
 		// this use of members is legit only becuase we know

@@ -32,6 +32,7 @@ public class WebResource implements Checker
 	
 	public void check(Map<String,String> params,
 					  BackstopHelpers helpers,
+					  String stateId,
 					  List<Status> statuses) throws Exception {
 
 		String url = params.get("url");
