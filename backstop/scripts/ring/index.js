@@ -52,6 +52,7 @@ async function checkBatteries(ringApi, location) {
 		errs.push(name);
 	  }
 	  else if (powerMode !== "wired" && battPct !== null) {
+		// console.log(`CAMERA BATTERYLEVEL: ${name}: ${battPct}`);
 		if (!battPct) errs.push(name);
 		else if (battPct < battWarnPct) warns.push(name + ":" + battPct);
 		else if (battPct < battNotePct) notes.push(name + ":" + battPct);
@@ -68,6 +69,7 @@ async function checkBatteries(ringApi, location) {
 	const battPct = dev.initialData.batteryLevel;
 
 	if (battPct !== undefined) {
+	  // console.log(`DEVICE BATTERYLEVEL: ${name}: ${battPct}`);
 	  if (battPct == 0) errs.push(name);
 	  else if (battPct < battWarnPct) warns.push(name + " " + battPct);
 	  else if (battPct < battNotePct) notes.push(name + " " + battPct);
