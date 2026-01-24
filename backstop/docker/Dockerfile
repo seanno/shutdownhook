@@ -35,7 +35,7 @@ RUN mkdir /opt/backstop/misc
 COPY scripts/misc/package.json .
 WORKDIR /opt/backstop/misc
 RUN npm install
-COPY scripts/misc/index.js .
+COPY scripts/misc/*.js .
 
 # +----------+
 # | Core App |
