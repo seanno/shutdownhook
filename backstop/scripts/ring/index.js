@@ -17,8 +17,8 @@ import { RingApi } from 'ring-client-api';
 // | checkBatteries |
 // +----------------+
 
-const DEFAULT_BATT_WARN_PCT = 20;
-const DEFAULT_BATT_NOTE_PCT = 33;
+const DEFAULT_BATT_WARN_PCT = 35;
+const DEFAULT_BATT_NOTE_PCT = 80;
 
 async function checkBatteries(ringApi, location) {
 
@@ -28,6 +28,7 @@ async function checkBatteries(ringApi, location) {
   var errs = [];
   var warns = [];
   var notes = [];
+  var oks = [];
   
   // cameras
   if (location.cameras && location.cameras.length > 0) {
@@ -56,6 +57,7 @@ async function checkBatteries(ringApi, location) {
 		if (!battPct) errs.push(name);
 		else if (battPct < battWarnPct) warns.push(name + ":" + battPct);
 		else if (battPct < battNotePct) notes.push(name + ":" + battPct);
+		else oks.push(name);
 	  }
 	}
   }
@@ -73,16 +75,15 @@ async function checkBatteries(ringApi, location) {
 	  if (battPct == 0) errs.push(name);
 	  else if (battPct < battWarnPct) warns.push(name + " " + battPct);
 	  else if (battPct < battNotePct) notes.push(name + " " + battPct);
+	  else oks.push(name);
 	}
   }
   
   // log
   if (warns.length > 0) logWarning("(LOW) " + warns.join(", "));
   if (errs.length > 0) logError("(DEAD) " + errs.join(", "));
-  
-  if ((warns.length == 0 && errs.length == 0) || notes.length > 0) {
-	logOK(notes.length === 0 ? "" : "(Check) " + notes.join(", "));
-  }
+  if (notes.length > 0) logOK("(Note) " + notes.join(", "));
+  if (oks.length > 0) logOK("(OK) " + oks.join(", "));
 }
 
 // +---------+
