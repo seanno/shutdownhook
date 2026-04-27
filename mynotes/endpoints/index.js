@@ -12,25 +12,78 @@ const SMART_TYPE = 'smart';
 // | epic |
 // +------+
 
-const EPIC_URL = 'https://open.epic.com/Endpoints/R4';
+const EPIC_URL = 'https://open.epic.com/Endpoints/Brands';
+//const EPIC_URL = 'https://open.epic.com/Endpoints/R4';
 
 async function addEpicEndpoints(endpoints) {
   
   const response = await fetch(EPIC_URL);
   const bundle = await response.json();
+  //var fs = require('fs');
+  //var bundle = JSON.parse(fs.readFileSync('/tmp/user-access-brands-endpoint-bundle.json', 'utf8'));
   
+  const brands = {};
+  const facilities = {};
+  const epicEndpoints = {};
+
+  // first collect everything by id
   for (var i = 0; i < bundle.entry.length; ++i) {
-	const name = bundle.entry[i].resource.name;
-	const iss = bundle.entry[i].resource.address;
-	if (name && iss) {
-	  endpoints.push({
-		type: EPIC_TYPE,
-		clientId: 'd93b3b15-4eb4-4c80-9bdc-e75fc2311caa',
-		label: name,
-		iss: iss
-	  });
+
+	const r = bundle.entry[i].resource;
+	const id = bundle.entry[i].fullUrl;
+
+	if (r.resourceType === 'Organization' && r.active) {
+	  const o = { name: r.name };
+	  if (r.partOf) {
+		o.brandId = r.partOf.reference;
+		facilities[id] = o;
+	  }
+	  else if (r.endpoint && r.endpoint.length) {
+		o.endpointId = r.endpoint[0].reference;
+		brands[id] = o;
+	  }
+	}
+	else if (r.resourceType === 'Endpoint' && r.status === 'active') {
+	  epicEndpoints[id] = { name: r.name, iss: r.address };
 	}
   }
+
+  // connect each brand up to its endpoint and output
+  Object.keys(brands).forEach((brandId) => {
+
+	const b = brands[brandId];
+	const e = epicEndpoints[b.endpointId];
+	if (!e || !e.iss) return;
+	b.iss = e.iss;
+
+	if (!b.name) b.name = e.name;
+	if (!b.name || b.name.toLowerCase().startsWith('(inactive')) return;
+
+	endpoints.push({
+	  type: EPIC_TYPE,
+	  clientId: 'd93b3b15-4eb4-4c80-9bdc-e75fc2311caa',
+	  label: b.name,
+	  iss: b.iss
+	});
+  });
+
+  // output each facility
+  Object.keys(facilities).forEach((facilityId) => {
+
+	const f = facilities[facilityId];
+	const b = brands[f.brandId];
+	if (!b || !b.iss) return;
+
+	if (!f.name) f.name = b.name;
+	if (!f.name || f.name.toLowerCase().startsWith('(inactive')) return;
+	
+	endpoints.push({
+	  type: EPIC_TYPE,
+	  clientId: 'd93b3b15-4eb4-4c80-9bdc-e75fc2311caa',
+	  label: f.name,
+	  iss: b.iss
+	});
+  });
 }
 
 // +--------+
