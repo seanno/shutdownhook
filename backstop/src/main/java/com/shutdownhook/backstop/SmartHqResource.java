@@ -264,6 +264,12 @@ public class SmartHqResource implements Checker
 	private Map<String,String> getFormElements(String html) throws Exception {
 
 		Document authDoc = Jsoup.parse(html);
+
+		// killme
+		//for (Element dbgElt : authDoc.getElementsByTag("form")) {
+		//	System.out.println(dbgElt.toString());
+		//}
+		
 		Element formElt = authDoc.getElementById("frmsignin");
 
 		Map<String,String> postForm = new HashMap<String,String>();
