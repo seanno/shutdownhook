@@ -1,0 +1,16 @@
+{
+  "type": "function",
+  
+  "function": {
+	"name": "web_search",
+	"description": "Searches the web with the given query string. Returns a JSON array.",
+	"parameters": {
+	  "type": "object",
+	  "properties": {
+		"query": { "type": "string", "description": "The search string" },
+		"max_results": { "type": "integer", "description": "A limiter on the number of results to return" }
+	  },
+	  "required": ["query"]
+	}
+  }
+}
