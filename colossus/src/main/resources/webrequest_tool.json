@@ -1,0 +1,15 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "web_request",
+    "description": "Fetches data from a URL. If the data is text/html, text is extracted. If the data size exceeds a configured max it is truncated, which may result in malformed json for large application/json data.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "url": { "type": "string", "description": "URL to fetch" }
+      },
+      "required": ["url"]
+    }
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "environment",
+    "description": "Use this tool whenever real-time temporal or environmental context is required, e.g., current date, time or location",
+    "parameters": { "type": "object", "properties": { }, "required": [ ] }
+  }
+}

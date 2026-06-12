@@ -1,0 +1,15 @@
+{
+  "type": "function",
+  
+  "function": {
+	"name": "subagent",
+	"description": "Invokes a model using an isolated chat context.",
+	"parameters": {
+	  "type": "object",
+	  "properties": {
+		"prompt": { "type": "string", "description": "The prompt to send to the model." }
+	  },
+	  "required": ["prompt"]
+	}
+  }
+}

@@ -5,6 +5,8 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.lang.reflect.Field;
+import java.lang.reflect.Modifier;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;

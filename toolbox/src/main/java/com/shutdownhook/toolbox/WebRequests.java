@@ -58,6 +58,7 @@ public class WebRequests implements Closeable
 		public boolean FollowRedirects = true;
 		public boolean LogResponse = true;
 		public int CchReadBuffer = 4096;
+		public String UserAgent;
 
 		// If provided, this cert is added to the trust chain for requests.
 		// It is additive, not a replacement for the built-in trusted roots
@@ -329,6 +330,10 @@ public class WebRequests implements Closeable
 
 	private void addHeaders(HttpURLConnection conn, Params params) {
 
+		if (cfg.UserAgent != null && (params.Headers == null || !params.Headers.containsKey("User-Agent"))) {
+			conn.setRequestProperty("User-Agent", cfg.UserAgent);
+		}
+			
 		if (params.Headers == null || params.Headers.size() == 0)
 			return;
 

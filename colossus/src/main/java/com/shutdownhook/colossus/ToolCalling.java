@@ -4,6 +4,10 @@
 
 package com.shutdownhook.colossus;
 
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
+
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -16,6 +20,9 @@ import com.google.gson.JsonArray;;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Exec;
 import com.shutdownhook.toolbox.WebRequests;
@@ -25,11 +32,15 @@ public class ToolCalling
 	public static class ToolClass
 	{
 		public String ClassName; // fully-qualified class names, must implement ToolCalling.Tool
+		public String Name; // if present, overrides default name
+		public String Description; // if present, overrides default description
+		public boolean AutoPrune = false; // if true, past role=tool messages are redacted
 		public JsonObject Config;
 	}
 
-	public ToolCalling(ToolClass[] toolClasses) throws Exception {
+	public ToolCalling(ToolClass[] toolClasses, Conversation conversation) throws Exception {
 		this.toolClasses = toolClasses;
+		this.conversation = conversation;
 		initializeTools();
 	}
 
@@ -48,7 +59,7 @@ public class ToolCalling
 
 			Class<?> c = Class.forName(toolClass.ClassName);
 			Tool tool = (ToolCalling.Tool) c.getDeclaredConstructor().newInstance();
-			JsonObject description = tool.initialize(toolClass.Config);
+			JsonObject description = tool.initialize(toolClass, conversation);
 			toolDescriptions.add(description);
 
 			String name = description.getAsJsonObject("function").get("name").getAsString();
@@ -68,17 +79,20 @@ public class ToolCalling
 	// | call(Async) |
 	// +-------------+
 	
-	public CompletableFuture<String> callAsync(String name, String arguments, Utility utils) {
-		return(utils.getExec().runAsync("ToolCalling.callAsync", new Exec.AsyncOperation() {
+	public CompletableFuture<String> callAsync(String name, String arguments) {
+		return(conversation.getUtils().getExec().runAsync("ToolCalling.callAsync", new Exec.AsyncOperation() {
 			public String execute() throws Exception {
-				return(call(name, arguments, utils));
+				return(call(name, arguments));
+			}
+			public String exceptionResult() {
+				return("An error occurred in this tool call.");
 			}
 		}));
 	}
 
-	public String call(String name, String arguments, Utility utils) throws Exception {
+	public String call(String name, String arguments) throws Exception {
 		JsonObject jsonArgs = JsonParser.parseString(arguments).getAsJsonObject();
-		return(tools.get(name).execute(jsonArgs, utils));
+		return(tools.get(name).execute(jsonArgs, conversation));
 	}
 	
 	// +----------------+
@@ -86,8 +100,8 @@ public class ToolCalling
 	// +----------------+
 
 	interface Tool {
-		public JsonObject initialize(JsonObject jsonConfig); // return tool description
-		public String execute(JsonObject arguments, Utility utils) throws Exception;
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception; // return tool description
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception;
 	}
 
 	// +----------------+
@@ -102,18 +116,12 @@ public class ToolCalling
 			public String UrlPrefix = "http://localhost:3001/search?format=json&q=";
 		}
 
-		public JsonObject initialize(JsonObject jsonConfig) {
-			try {
-				this.cfg = (jsonConfig == null ? new Config() : new Gson().fromJson(jsonConfig.toString(), Config.class));
-				return(JsonParser.parseString(Easy.stringFromResource("websearch_tool.json")).getAsJsonObject());
-			}
-			catch (Exception e) {
-				log.severe("Can't find WebSearch_Tool description resource");
-				return(null);
-			}
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			this.cfg = ToolCalling.loadConfig(toolClass, Config.class);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@websearch_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Utility utils) throws Exception {
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String query = arguments.get("query").getAsString();
 
@@ -122,8 +130,10 @@ public class ToolCalling
 			
 			String url = cfg.UrlPrefix + Easy.urlEncode(query);
 			
-			WebRequests.Response response = utils.getRequests().fetch(url);
-			return(response.successful() ? makeResults(response, max) : makeError(response, utils));
+			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
+			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
+
+			return(makeResults(response, max));
 		}
 
 		private String makeResults(WebRequests.Response response, int max) {
@@ -146,17 +156,169 @@ public class ToolCalling
 			return(transformed.toString());
 		}
 
-		private String makeError(WebRequests.Response response, Utility utils) {
-			JsonObject err = new JsonObject();
-			err.addProperty("result", "ERROR");
-			err.addProperty("http_status", response.Status);
-			err.addProperty("http_status_text", response.StatusText);
-			if (response.Ex != null) err.addProperty("exception", response.Ex.toString());
-			return(utils.getGson().toJson(err));
+		private Config cfg;
+ 	}
+
+	// +-----------------+
+	// | WebRequest_Tool |
+	// +-----------------+
+
+	public static class WebRequest_Tool implements Tool
+	{
+		public static class Config
+		{
+			public Integer MaxLength; // null means no truncation, bad idea
+		}
+
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			this.cfg = ToolCalling.loadConfig(toolClass, Config.class);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@webrequest_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+
+			String url = arguments.get("url").getAsString();
+			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
+			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
+
+			String body = response.Body;
+
+			if (response.Headers.containsKey("Content-Type")) {
+				String contentType = response.Headers.get("Content-Type").get(0).toLowerCase();
+				if (contentType.startsWith("text/html")) body = extractTextFromHtml(body);
+			}
+
+			boolean truncated = false;
+			int originalLength = body.length();
+			
+			if (cfg.MaxLength != null && originalLength > cfg.MaxLength) {
+				body = body.substring(0, cfg.MaxLength);
+				truncated = true;
+			}
+
+			JsonObject json = new JsonObject();
+			json.addProperty("content", body);
+			json.addProperty("truncated", truncated);
+			json.addProperty("original_length", originalLength);
+
+			return(json.toString());
+		}
+
+		private String extractTextFromHtml(String body) {
+			try {
+				Document doc = Jsoup.parse(body);
+				String cleanText = doc.body().text();
+				return(cleanText);
+			}
+			catch (Exception e) {
+				log.warning(Easy.exMsg(e, "jsoup", true));
+				return(body);
+			}
 		}
 
 		private Config cfg;
  	}
+
+	// +------------------+
+	// | Environment_Tool |
+	// +------------------+
+
+	public static class Environment_Tool implements Tool
+	{
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			this.dtf = DateTimeFormatter.ofPattern("EE, LLLL dd, yyyy, HH:mm:ss z");
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@environment_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+			
+			JsonObject json = new JsonObject();
+
+			String loc = conversation.getConfig().LocationString;
+			if (loc != null) json.addProperty("location", loc);
+
+			String tz = conversation.getConfig().TimeZone;
+			if (tz != null) json.addProperty("timezone", tz);
+			
+			ZonedDateTime now = ZonedDateTime.now(ZoneId.of(tz == null ? "UTC" : tz));
+			json.addProperty("time", now.format(dtf));
+
+			return(json.toString());
+		}
+
+		private DateTimeFormatter dtf;
+ 	}
+
+	// +---------------+
+	// | SubAgent_Tool |
+	// +---------------+
+
+	public static class SubAgent_Tool implements Tool
+	{
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			mergeConfigOverrides(toolClass, conversation);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@subagent_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+			Conversation subConvo = null;
+			try {
+				subConvo = new Conversation(cfg);
+				return(subConvo.prompt(arguments.get("prompt").getAsString()));
+			}
+			finally {
+				Easy.safeClose(subConvo);
+			}
+		}
+
+		private void mergeConfigOverrides(ToolClass toolClass, Conversation conversation) {
+			JsonObject base = JsonParser.parseString(conversation.getConfig().toJson()).getAsJsonObject();
+			for (String key : toolClass.Config.keySet()) base.add(key, toolClass.Config.get(key));
+			this.cfg = Conversation.Config.fromJson(base.toString());
+		}
+
+		private Conversation.Config cfg;
+ 	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	public static JsonObject getToolDescriptionFromSmartyPath(ToolClass toolClass, String path) throws Exception {
+
+		String json = Easy.stringFromSmartyPath(path);
+		JsonObject jsonObj = JsonParser.parseString(json).getAsJsonObject();
+
+		if (toolClass.Name != null) {
+			jsonObj.get("function").getAsJsonObject().addProperty("name", toolClass.Name);
+		}
+		else {
+			toolClass.Name = jsonObj.get("function").getAsJsonObject().get("name").getAsString();
+		}
+		
+		if (toolClass.Description != null) {
+			jsonObj.get("function").getAsJsonObject().addProperty("description", toolClass.Description);
+		}
+		else {
+			toolClass.Description = jsonObj.get("function").getAsJsonObject().get("description").getAsString();
+		}
+
+		return(jsonObj);
+	}
+
+	public static <T> T loadConfig(ToolClass toolClass, Class<T> type) throws Exception {
+		return(toolClass.Config == null ? type.getDeclaredConstructor().newInstance()
+			   : new Gson().fromJson(toolClass.Config.toString(), type));
+	}
+	
+	public static String makeWebErrorJson(WebRequests.Response response) {
+		JsonObject err = new JsonObject();
+		err.addProperty("result", "ERROR");
+		err.addProperty("http_status", response.Status);
+		err.addProperty("http_status_text", response.StatusText);
+		if (response.Ex != null) err.addProperty("exception", response.Ex.toString());
+		return(new Gson().toJson(err));
+	}
 
 	// +---------+
 	// | Members |
@@ -165,6 +327,7 @@ public class ToolCalling
 	public ToolClass[] toolClasses;
 	public List<JsonObject> toolDescriptions;
 	public Map<String,Tool> tools;
+	public Conversation conversation;
 	
 	private final static Logger log = Logger.getLogger(ToolCalling.class.getName());
 }

@@ -39,28 +39,38 @@ public class Conversation implements Closeable
 		public Utility.Config Utility = new Utility.Config();
 
 		public String SystemPrompt;
+		public String LocationString;
+		public String TimeZone;
 		
 		public double Temperature = 0.0d;
 		public int MaxTokens = 0;
 
 		public String CompletionPath = "/v1/chat/completions";
 		public String PropsPathPrefix = "/props?model=";
+		public String TokenizePath = "/tokenize";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
+		}
+
+		public String toJson() {
+			return(new Gson().toJson(this));
 		}
 	}
 
 	public Conversation(Config cfg) throws Exception {
 		this.cfg = cfg;
 		this.utils = new Utility(cfg.Utility);
-		this.toolCalling = new ToolCalling(cfg.ToolClasses);
+		this.toolCalling = new ToolCalling(cfg.ToolClasses, this);
 		this.reset();
 	}
 
 	public void close() {
 		utils.close();
 	}
+
+	public Config getConfig() { return(cfg); }
+	public Utility getUtils() { return(utils); }
 
 	// +--------+
 	// | prompt |
@@ -69,8 +79,16 @@ public class Conversation implements Closeable
 	// note tihs will loop on tool_calls
 	
 	public String prompt(String input) throws Exception {
+
+		String request = makeRequestBody(input);
+
+		long cchRequest = request.length();
+		long tokens = getTokenCount(request);
+
+		log.info(String.format("}}}} TOKEN COUNT: %d tokens for %d characters (%f tpc)",
+							   tokens, cchRequest, ((double)tokens)/((double)cchRequest)));
 		
-		String body = sendRequest(cfg.CompletionPath, makeRequestBody(input));
+		String body = sendRequest(cfg.CompletionPath, request);
 		Response response = utils.getGson().fromJson(body, Response.class);
 
 		if (response.choices == null || response.choices.length != 1) {
@@ -80,7 +98,7 @@ public class Conversation implements Closeable
 		Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
-		System.out.println(String.format("Stats: prompt: %d, completion: %d, total: %d, PPS: %f",
+		log.info(String.format("Stats: prompt: %d, completion: %d, total: %d, PPS: %f",
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
@@ -91,6 +109,7 @@ public class Conversation implements Closeable
 		switch (choice.finish_reason) {
 
 			case FINISH_REASON_TOOLS:
+				Thread.sleep(2000);
 				callTools(choice.message.tool_calls);
 				return(prompt(null));
 				
@@ -122,6 +141,7 @@ public class Conversation implements Closeable
 	// +------------------+
 	// | getModelProps    |
 	// | getContextLength |
+	// | getTokenCount    |
 	// +------------------+
 
 	// LLAMA.CPP-Specific!
@@ -138,6 +158,27 @@ public class Conversation implements Closeable
 			   .get("n_ctx").getAsLong());
 	}
 
+	public long getTokenCount(String input) {
+		
+		String post = null;
+		
+		try {
+			JsonObject jsonPost = new JsonObject();
+			jsonPost.addProperty("model", cfg.Model);
+			jsonPost.addProperty("content", input);
+
+			post = jsonPost.toString();
+			String body = sendRequest(cfg.TokenizePath, post);
+			JsonObject jsonResponse = JsonParser.parseString(body).getAsJsonObject();
+
+			return(jsonResponse.get("tokens").getAsJsonArray().size());
+		}
+		catch (Exception e) {
+			log.warning(Easy.exMsg(e, "getTokenCount", true));
+			return(0L);
+		}
+	}
+
 	// +-----------+
 	// | callTools |
 	// +-----------+
@@ -148,7 +189,7 @@ public class Conversation implements Closeable
 		List<CompletableFuture<String>> futures = new ArrayList<CompletableFuture<String>>();
 		for (int i = 0; i < toolCalls.size(); ++i) {
 			ToolCall call = toolCalls.get(i);
-			futures.add(toolCalling.callAsync(call.function.name, call.function.arguments, utils));
+			futures.add(toolCalling.callAsync(call.function.name, call.function.arguments));
 		}
 
 		// add the results to message history --- walking in order so the results are presented
@@ -208,6 +249,8 @@ public class Conversation implements Closeable
 		req.messages = messageHistory;
 		req.tools = toolCalling.getDescriptions();
 
+		pruneRequest(req);
+		
 		return(utils.getGson().toJson(req));
 	}
 
@@ -231,6 +274,56 @@ public class Conversation implements Closeable
 		msg.role = role;
 		msg.content = input;
 		return(msg);
+	}
+
+	// +--------------+
+	// | pruneRequest |
+	// +--------------+
+
+	// this is a kind of ugly side-effect-y set of methods. We need the
+	// full request to make judgments about token budget, but by changing
+	// req.messages we change messageHistory as well. We'll just live with
+	// this for now, and then forget we ever did it, and then get screwed
+	// sometime in the future. Fun!
+	
+	private void pruneRequest(Request req) {
+		autoPruneToolResponse(req);
+		// more nyi
+	}
+
+	// if we are sending a tool response here and the tool is "auto prune"
+	// be sure to redact any old responses from the same tool. original
+	// motiviation for this: subagent_tool that fetches big web pages and
+	// sometimes "chains" requests to get to good data --- only the last
+	// one is truly important to the context. 
+
+	private final static String AUTOPRUNED_CONTENT = "[pruned for size]";
+	
+	private void autoPruneToolResponse(Request req) {
+
+		if (req.messages.size() == 0) return;
+
+		Message lastMsg = req.messages.get(req.messages.size() - 1);
+		if (!lastMsg.role.equals(ROLE_TOOL)) return;
+
+		boolean autoPrune = false;
+		for (ToolCalling.ToolClass toolClass : cfg.ToolClasses) {
+			if (toolClass.Name.equals(lastMsg.name)) {
+				if (toolClass.AutoPrune) autoPrune = true;
+				break;
+			}
+		}
+
+		if (!autoPrune) return;
+
+		for (int i = req.messages.size() - 2; i >= 0; --i) {
+			Message thisMsg = req.messages.get(i);
+			if (thisMsg.role.equals(ROLE_TOOL) && thisMsg.name.equals(lastMsg.name)) {
+				log.info("Autopruned past tool response for " + lastMsg.name);
+				thisMsg.content = AUTOPRUNED_CONTENT;
+				break;
+			}
+		}
 	}
 
 	// +------------------------+
