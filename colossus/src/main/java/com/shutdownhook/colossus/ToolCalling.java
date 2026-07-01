@@ -226,24 +226,11 @@ public class ToolCalling
 	public static class Environment_Tool implements Tool
 	{
 		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
-			this.dtf = DateTimeFormatter.ofPattern("EE, LLLL dd, yyyy, HH:mm:ss z");
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@environment_tool.json"));
 		}
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			
-			JsonObject json = new JsonObject();
-
-			String loc = conversation.getConfig().LocationString;
-			if (loc != null) json.addProperty("location", loc);
-
-			String tz = conversation.getConfig().TimeZone;
-			if (tz != null) json.addProperty("timezone", tz);
-			
-			ZonedDateTime now = ZonedDateTime.now(ZoneId.of(tz == null ? "UTC" : tz));
-			json.addProperty("time", now.format(dtf));
-
-			return(json.toString());
+			return(conversation.getEnv().getJson().toString());
 		}
 
 		private DateTimeFormatter dtf;

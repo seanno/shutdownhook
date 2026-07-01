@@ -37,10 +37,9 @@ public class Conversation implements Closeable
 		public String ApiKey;
 		
 		public Utility.Config Utility = new Utility.Config();
+		public Environment.Config Environment = new Environment.Config();
 
 		public String SystemPrompt;
-		public String LocationString;
-		public String TimeZone;
 		
 		public double Temperature = 0.0d;
 		public int MaxTokens = 0;
@@ -60,6 +59,7 @@ public class Conversation implements Closeable
 
 	public Conversation(Config cfg) throws Exception {
 		this.cfg = cfg;
+		this.environment = new Environment(cfg.Environment);
 		this.utils = new Utility(cfg.Utility);
 		this.toolCalling = new ToolCalling(cfg.ToolClasses, this);
 		this.reset();
@@ -71,6 +71,7 @@ public class Conversation implements Closeable
 
 	public Config getConfig() { return(cfg); }
 	public Utility getUtils() { return(utils); }
+	public Environment getEnv() { return(environment); }
 
 	// +--------+
 	// | prompt |
@@ -240,8 +241,14 @@ public class Conversation implements Closeable
 		if (cfg.Temperature > 0.0) req.temperature = cfg.Temperature;
 		if (cfg.MaxTokens > 0) req.max_tokens = cfg.MaxTokens;
 
-		if (messageHistory.size() == 0 && cfg.SystemPrompt != null) {
-			messageHistory.add(makeSystemMessage(cfg.SystemPrompt));
+		if (messageHistory.size() == 0) {
+			StringBuilder sb = new StringBuilder();
+
+			if (cfg.SystemPrompt != null) sb.append(cfg.SystemPrompt);
+			sb.append(environment.getLocation());
+			sb.append(environment.getTimeZone());
+
+			messageHistory.add(makeSystemMessage(sb.toString()));
 		}
 		
 		if (input != null) messageHistory.add(makeUserMessage(input));
@@ -255,7 +262,7 @@ public class Conversation implements Closeable
 	}
 
 	private Message makeUserMessage(String input) {
-		return(makeMessage(ROLE_USER, input));
+		return(makeMessage(ROLE_USER, environment.getTimestamp() + input));
 	}
 
 	private Message makeSystemMessage(String input) {
@@ -501,6 +508,7 @@ public class Conversation implements Closeable
 	// +---------+
 
 	private Config cfg;
+	private Environment environment;
 	private Utility utils;
 	private ToolCalling toolCalling;
 	private List<Message> messageHistory;
