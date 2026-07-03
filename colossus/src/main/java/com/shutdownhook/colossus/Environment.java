@@ -21,7 +21,8 @@ public class Environment
 	{
 		public String LocationString;
 		public String TimeZone = "UTC";
-		public String TimeFormat = "'[It is now 'EE, LLLL dd, yyyy, HH:mm:ss z'] '";
+		public String TimeStampFormat = "'[It is now 'EE, LLLL dd, yyyy, HH:mm:ss z'] '";
+		public String FileStampFormat = "YYYY-MM-dd-HHMMSS";
 
 		public String LocationFormat = " Your physical location is %s.";
 		public String TimeZoneFormat = " Your local time zone is %s.";
@@ -29,16 +30,22 @@ public class Environment
 	
 	public Environment(Config cfg) throws Exception {
 		this.cfg = cfg;
-		this.dtf = DateTimeFormatter.ofPattern(cfg.TimeFormat);
+		this.dtfTime = DateTimeFormatter.ofPattern(cfg.TimeStampFormat);
+		this.dtfFile = DateTimeFormatter.ofPattern(cfg.FileStampFormat);
 		this.zoneId = ZoneId.of(cfg.TimeZone);
 	}
 
 	// +--------------+
-	// | getTimestamp |
+	// | getTimeStamp |
+	// | getFileStamp |
 	// +--------------+
 
-	public String getTimestamp() {
-		return(ZonedDateTime.now(zoneId).format(dtf));
+	public String getTimeStamp() {
+		return(ZonedDateTime.now(zoneId).format(dtfTime));
+	}
+
+	public String getFileStamp() {
+		return(ZonedDateTime.now(zoneId).format(dtfFile));
 	}
 
 	// +-------------+
@@ -64,7 +71,7 @@ public class Environment
 
 		if (cfg.LocationString != null) json.addProperty("location", cfg.LocationString);
 		if (cfg.TimeZone != null) json.addProperty("timezone", cfg.TimeZone);
-		json.addProperty("time", getTimestamp());
+		json.addProperty("time", getTimeStamp());
 
 		return(json);
 	}
@@ -74,7 +81,8 @@ public class Environment
 	// +---------+
 
 	private Config cfg;
-	private DateTimeFormatter dtf;
+	private DateTimeFormatter dtfTime;
+	private DateTimeFormatter dtfFile;
 	private ZoneId zoneId;
 
 	private final static Logger log = Logger.getLogger(Environment.class.getName());

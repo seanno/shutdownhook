@@ -675,16 +675,20 @@ public class Easy
 	// +-------+
 
 	public static void recursiveDelete(File file) throws Exception {
+		recursiveDelete(file, true);
+	}
+
+	public static void recursiveDelete(File file, boolean suicide) throws Exception {
 		
 		if (!file.exists()) return;
 
 		if (file.isDirectory()) {
 			for (File child : file.listFiles()) {
-				recursiveDelete(child);
+				recursiveDelete(child, true);
 			}
 		}
 
-		file.delete();
+		if (suicide) file.delete();
 	}
 
 	public static void unzipToPath(String zipPath, String destPath) throws Exception {

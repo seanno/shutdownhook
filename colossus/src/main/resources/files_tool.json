@@ -1,0 +1,31 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "textfile_access",
+    "description": "Performs local file system operations on text files: list, read, write, append. All operations restricted to the scope of an opaque configured base path.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+		  "type": "string",
+		  "enum": [ "list", "read", "write", "append" ],
+		  "description": "File operation to perform. 'list' returns files in 'path' sorted with most recently modified at the top. All other cmds work on a single file."
+		},
+		"path": {
+		  "type": "string",
+		  "description": "The relative path on which to perform cmd."
+		},
+		"max": {
+		  "type": "integer",
+		  "description": "For 'list' only, optional max number of files to return. Not present or 0 implies all."
+		},
+		"contents": {
+		  "type": "string",
+		  "description": "For 'write' and 'append' only, text content to write."
+		}
+      },
+      "required": [ "cmd", "path" ]
+    }
+  }
+}

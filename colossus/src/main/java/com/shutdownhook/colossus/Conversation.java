@@ -38,6 +38,7 @@ public class Conversation implements Closeable
 		
 		public Utility.Config Utility = new Utility.Config();
 		public Environment.Config Environment = new Environment.Config();
+		public TextFiles.Config TextFiles = new TextFiles.Config();
 
 		public String SystemPrompt;
 		
@@ -54,6 +55,10 @@ public class Conversation implements Closeable
 
 		public String toJson() {
 			return(new Gson().toJson(this));
+		}
+
+		public Config clone() {
+			return(fromJson(toJson())); // round trip for clean clone
 		}
 	}
 
@@ -129,6 +134,14 @@ public class Conversation implements Closeable
 		}
 
 		return(String.format("%s%s", tag, choice.message.content));
+	}
+
+	// +------------+
+	// | getHistory |
+	// +------------+
+
+	public String history() {
+		return(utils.getGson().toJson(messageHistory));
 	}
 
 	// +-------+
@@ -262,7 +275,7 @@ public class Conversation implements Closeable
 	}
 
 	private Message makeUserMessage(String input) {
-		return(makeMessage(ROLE_USER, environment.getTimestamp() + input));
+		return(makeMessage(ROLE_USER, environment.getTimeStamp() + input));
 	}
 
 	private Message makeSystemMessage(String input) {

@@ -36,6 +36,10 @@ public class ToolCalling
 		public String Description; // if present, overrides default description
 		public boolean AutoPrune = false; // if true, past role=tool messages are redacted
 		public JsonObject Config;
+
+		public static ToolClass fromJson(String json) {
+			return(new Gson().fromJson(json, ToolClass.class));
+		}
 	}
 
 	public ToolCalling(ToolClass[] toolClasses, Conversation conversation) throws Exception {
@@ -234,6 +238,50 @@ public class ToolCalling
 		}
 
 		private DateTimeFormatter dtf;
+ 	}
+
+	// +------------+
+	// | Files_Tool |
+	// +------------+
+
+	public static class Files_Tool implements Tool
+	{
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			this.cfg = ToolCalling.loadConfig(toolClass, TextFiles.Config.class);
+			this.txt = new TextFiles(this.cfg);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@files_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+			
+			String cmd = arguments.get("cmd").getAsString().toLowerCase();
+			String path = arguments.get("path").getAsString();
+			int max = (arguments.has("max") ? arguments.get("max").getAsInt() : 0);
+			String contents = (arguments.has("contents") ? arguments.get("contents").getAsString() : null);
+
+			switch (cmd) {
+				case "list":
+					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
+					return(conversation.getUtils().getGson().toJson(infos));
+
+				case "read":
+					return(txt.read(path));
+
+				case "write":
+					txt.put(path, contents);
+					return("written ok");
+
+				case "append":
+					txt.append(path, contents);
+					return("appended ok");
+
+				default:
+					throw new Exception("unknown file_tool cmd: " + cmd);
+			}
+		}
+
+		private TextFiles.Config cfg;
+		private TextFiles txt;
  	}
 
 	// +---------------+

@@ -5,10 +5,17 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
-import java.lang.reflect.Field;
-import java.lang.reflect.Modifier;
+import java.time.Instant;
+import java.lang.reflect.Type;
 import java.util.logging.Logger;
 
+import com.google.gson.JsonDeserializationContext;
+import com.google.gson.JsonDeserializer;
+import com.google.gson.JsonElement;
+import com.google.gson.JsonParseException;
+import com.google.gson.JsonPrimitive;
+import com.google.gson.JsonSerializationContext;
+import com.google.gson.JsonSerializer;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 
@@ -30,7 +37,7 @@ public class Utility implements Closeable
 
 	public Utility(Config cfg) throws Exception {
 		this.cfg = cfg;
-		this.gson = new GsonBuilder().setPrettyPrinting().create();
+		this.gson = createGson();
 		this.requests = new WebRequests(cfg.Requests);
 		this.exec = new Exec(cfg.ExecThreads);
 	}
@@ -47,6 +54,38 @@ public class Utility implements Closeable
 	public Gson getGson() { return(gson); }
 	public WebRequests getRequests() { return(requests); }
 	public Exec getExec() { return(exec); }
+
+	// +------------------+
+	// | escapeJsonString |
+	// +------------------+
+
+	public static String escapeJsonString(String input) {
+		String json = new JsonPrimitive(input).toString();
+		return(json.substring(1, json.length() - 1));
+	}
+
+	// +---------+
+	// | Helpers |
+	// +---------+
+
+	private static Gson createGson() {
+
+		Gson gson = new GsonBuilder()
+			.registerTypeAdapter(Instant.class, new JsonSerializer<Instant>() {
+				public JsonElement serialize(Instant src, Type typeOfSrc, JsonSerializationContext ctx) {
+					return(new JsonPrimitive(src.toString()));
+				}
+			})
+			.registerTypeAdapter(Instant.class, new JsonDeserializer<Instant>() {
+				public Instant deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext ctx) throws JsonParseException {
+					return(Instant.parse(json.getAsString()));
+				}
+			})
+			.setPrettyPrinting()
+			.create();
+
+		return(gson);
+	}
 
 	// +---------+
 	// | Members |
