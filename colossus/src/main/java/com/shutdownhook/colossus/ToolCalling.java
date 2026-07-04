@@ -34,7 +34,6 @@ public class ToolCalling
 		public String ClassName; // fully-qualified class names, must implement ToolCalling.Tool
 		public String Name; // if present, overrides default name
 		public String Description; // if present, overrides default description
-		public boolean AutoPrune = false; // if true, past role=tool messages are redacted
 		public JsonObject Config;
 
 		public static ToolClass fromJson(String json) {
@@ -84,12 +83,12 @@ public class ToolCalling
 	// +-------------+
 	
 	public CompletableFuture<String> callAsync(String name, String arguments) {
-		return(conversation.getUtils().getExec().runAsync("ToolCalling.callAsync", new Exec.AsyncOperation() {
+		return(conversation.getUtils().getExec().runAsyncEx("ToolCalling.callAsync", new Exec.AsyncOperationEx() {
 			public String execute() throws Exception {
 				return(call(name, arguments));
 			}
-			public String exceptionResult() {
-				return("An error occurred in this tool call.");
+			public String exceptionResult(Exception e) {
+				return("An error occurred: " + e.getClass().getName());
 			}
 		}));
 	}
@@ -253,7 +252,7 @@ public class ToolCalling
 		}
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			
+
 			String cmd = arguments.get("cmd").getAsString().toLowerCase();
 			String path = arguments.get("path").getAsString();
 			int max = (arguments.has("max") ? arguments.get("max").getAsInt() : 0);

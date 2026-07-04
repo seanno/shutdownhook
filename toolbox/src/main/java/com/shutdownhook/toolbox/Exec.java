@@ -47,6 +47,11 @@ public class Exec implements Closeable
 		public T execute() throws Exception;
 		default public T exceptionResult() { return(null); }
 	}
+
+	public interface AsyncOperationEx<T> {
+		public T execute() throws Exception;
+		default public T exceptionResult(Exception e) { return(null); }
+	}
 	
 	public <T> CompletableFuture<T> runAsync(String label, AsyncOperation<T> op) {
 		
@@ -62,6 +67,28 @@ public class Exec implements Closeable
 			catch (Exception e) {
 				log.warning(Easy.exMsg(e, "runAsync (" + label + ")", true));
 				result = op.exceptionResult();
+			}
+			
+			future.complete(result);
+		});
+
+		return(future);
+	}
+
+	public <T> CompletableFuture<T> runAsyncEx(String label, AsyncOperationEx<T> op) {
+		
+		CompletableFuture<T> future = new CompletableFuture<T>();
+
+		getPool().submit(() -> {
+
+			T result = null;
+				
+			try {
+				result = op.execute();
+			}
+			catch (Exception e) {
+				log.warning(Easy.exMsg(e, "runAsync (" + label + ")", true));
+				result = op.exceptionResult(e);
 			}
 			
 			future.complete(result);

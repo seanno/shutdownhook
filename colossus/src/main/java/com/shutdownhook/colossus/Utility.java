@@ -37,7 +37,8 @@ public class Utility implements Closeable
 
 	public Utility(Config cfg) throws Exception {
 		this.cfg = cfg;
-		this.gson = createGson();
+		this.gson = createGson(true);
+		this.gsonCompact = createGson(false);
 		this.requests = new WebRequests(cfg.Requests);
 		this.exec = new Exec(cfg.ExecThreads);
 	}
@@ -52,6 +53,7 @@ public class Utility implements Closeable
 	// +-----------+
 
 	public Gson getGson() { return(gson); }
+	public Gson getCompactGson() { return(gsonCompact); }
 	public WebRequests getRequests() { return(requests); }
 	public Exec getExec() { return(exec); }
 
@@ -68,31 +70,33 @@ public class Utility implements Closeable
 	// | Helpers |
 	// +---------+
 
-	private static Gson createGson() {
+	private static Gson createGson(boolean pretty) {
 
-		Gson gson = new GsonBuilder()
+		GsonBuilder builder = new GsonBuilder()
 			.registerTypeAdapter(Instant.class, new JsonSerializer<Instant>() {
 				public JsonElement serialize(Instant src, Type typeOfSrc, JsonSerializationContext ctx) {
 					return(new JsonPrimitive(src.toString()));
 				}
 			})
 			.registerTypeAdapter(Instant.class, new JsonDeserializer<Instant>() {
-				public Instant deserialize(JsonElement json, Type typeOfT, JsonDeserializationContext ctx) throws JsonParseException {
+				public Instant deserialize(JsonElement json, Type typeOfT,
+										   JsonDeserializationContext ctx) throws JsonParseException {
 					return(Instant.parse(json.getAsString()));
 				}
-			})
-			.setPrettyPrinting()
-			.create();
+			});
 
-		return(gson);
+		if (pretty) builder.setPrettyPrinting();
+
+		return(builder.create());
 	}
-
+	
 	// +---------+
 	// | Members |
 	// +---------+
 
 	private Config cfg;
 	private Gson gson;
+	private Gson gsonCompact;
 	private WebRequests requests;
 	private Exec exec;
 	

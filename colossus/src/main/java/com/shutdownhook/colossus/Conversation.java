@@ -6,9 +6,16 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.OutputStream;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Scanner;
+import java.util.Set;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
@@ -43,8 +50,12 @@ public class Conversation implements Closeable
 		public String SystemPrompt;
 		
 		public double Temperature = 0.0d;
-		public int MaxTokens = 0;
+		public int MaxTokens = 4096; // default max to prevent infinite generation loops
 
+		public int PruneTruncationLength = 100;
+
+		public String MinjaRenderPath = "~/.local/bin/minja_render";
+		
 		public String CompletionPath = "/v1/chat/completions";
 		public String PropsPathPrefix = "/props?model=";
 		public String TokenizePath = "/tokenize";
@@ -68,6 +79,7 @@ public class Conversation implements Closeable
 		this.utils = new Utility(cfg.Utility);
 		this.toolCalling = new ToolCalling(cfg.ToolClasses, this);
 		this.reset();
+		this.setupModelProps();
 	}
 
 	public void close() {
@@ -87,18 +99,11 @@ public class Conversation implements Closeable
 	public String prompt(String input) throws Exception {
 
 		String request = makeRequestBody(input);
-
-		long cchRequest = request.length();
-		long tokens = getTokenCount(request);
-
-		log.info(String.format("}}}} TOKEN COUNT: %d tokens for %d characters (%f tpc)",
-							   tokens, cchRequest, ((double)tokens)/((double)cchRequest)));
-		
 		String body = sendRequest(cfg.CompletionPath, request);
 		Response response = utils.getGson().fromJson(body, Response.class);
 
 		if (response.choices == null || response.choices.length != 1) {
-			throw new Exception(String.format("No unqiue choice in response: %s", body));
+			throw new Exception(String.format("No unique choice in response: %s", body));
 		}
 
 		Choice choice = response.choices[0];
@@ -115,7 +120,6 @@ public class Conversation implements Closeable
 		switch (choice.finish_reason) {
 
 			case FINISH_REASON_TOOLS:
-				Thread.sleep(2000);
 				callTools(choice.message.tool_calls);
 				return(prompt(null));
 				
@@ -152,27 +156,50 @@ public class Conversation implements Closeable
 		this.messageHistory = new ArrayList<Message>();
 	}
 
-	// +------------------+
-	// | getModelProps    |
-	// | getContextLength |
-	// | getTokenCount    |
-	// +------------------+
+	// +-----------------+
+	// | setupModelProps |
+	// +-----------------+
+
+	// LLAMA.CPP-Specific! Note the ModelProps structure is in no way exhaustive; I've just
+	// picked out the pieces I care about ... easy to add others as needed
+
+	public static class GenerationSettings
+	{
+		public long n_ctx;
+	}
+	
+	public static class ModelProps
+	{
+		public GenerationSettings default_generation_settings;
+		public String model_alias;
+		public String chat_template;
+		public String bos_token;
+		public String eos_token;
+	}
+
+	private void setupModelProps() throws Exception {
+		String body = sendRequest(cfg.PropsPathPrefix + Easy.urlEncode(cfg.Model), null);
+		this.modelProps = utils.getGson().fromJson(body, ModelProps.class);
+		this.modelPropsRaw = JsonParser.parseString(body).getAsJsonObject();
+	}
+
+	public long getContextLength() { return(modelProps.default_generation_settings.n_ctx); }
+	public ModelProps getModelProps() { return(modelProps); }
+	public JsonObject getModelPropsRaw() { return(modelPropsRaw); }
+
+	// +---------------+
+	// | getTokenCount |
+	// +---------------+
 
 	// LLAMA.CPP-Specific!
 
-	public JsonObject getModelProps() throws Exception {
-		String body = sendRequest(cfg.PropsPathPrefix + Easy.urlEncode(cfg.Model), null);
-		return(JsonParser.parseString(body).getAsJsonObject());
+	private long getTokenCount(Request req) {
+		String templated = applyModelTemplate(req);
+		if (templated == null) return(0L); // degenerate case
+		return(getTokenCount(templated));
 	}
 
-	public long getContextLength() throws Exception {
-		
-		JsonObject props = getModelProps();
-		return(props.getAsJsonObject("default_generation_settings")
-			   .get("n_ctx").getAsLong());
-	}
-
-	public long getTokenCount(String input) {
+	private long getTokenCount(String input) {
 		
 		String post = null;
 		
@@ -190,6 +217,59 @@ public class Conversation implements Closeable
 		catch (Exception e) {
 			log.warning(Easy.exMsg(e, "getTokenCount", true));
 			return(0L);
+		}
+	}
+	
+	// +--------------------+
+	// | applyModelTemplate |
+	// +--------------------+
+
+	// uses a callout to minja-render (cfg.MiniJinjaPath) to render a request into
+	// a chat template so we can accurately measure its token count via getTokenCount().
+	// note minja-render is buildable from shutdownhook/colossus/minja-render, you'll
+	// need C++ and CMake.
+	
+	private String applyModelTemplate(Request req) {
+
+		Path modelContextTemp = null;
+		OutputStream os = null;
+
+		try {
+			// write out req as context object
+			JsonObject context = JsonParser.parseString(utils.getCompactGson().toJson(req)).getAsJsonObject();
+			context.addProperty("add_generation_prompt", true);
+			context.addProperty("bos_token", modelProps.bos_token);
+			context.addProperty("eos_token", modelProps.eos_token);
+
+			modelContextTemp = Files.createTempFile("colossus", null);
+			Easy.stringToFile(modelContextTemp.toString(), utils.getCompactGson().toJson(context));
+
+			// start the process
+			String home = System.getProperty("user.home");
+			Path minja = Paths.get(cfg.MinjaRenderPath.replaceAll("~", home));
+
+			String[] commands = new String[] { minja.toString(), "-", modelContextTemp.toString()};
+			ProcessBuilder pb = new ProcessBuilder(commands).redirectErrorStream(false);
+			Process p = pb.start();
+
+			// write the template to STDIN
+			os = p.getOutputStream();
+			os.write(modelProps.chat_template.getBytes(StandardCharsets.UTF_8));
+			os.flush(); os.close(); os = null;
+			
+			// and read the result
+			return(Easy.stringFromInputStream(p.getInputStream()));
+		}
+		catch (Exception e) {
+			log.warning(Easy.exMsg(e, "applyModelTemplate", true));
+			return(null);
+		}
+		finally {
+			Easy.safeClose(os);
+			if (modelContextTemp != null) {
+				try { /*Files.delete(modelContextTemp);*/ }
+				catch (Exception eFinal) { /* eat it */ }
+			}
 		}
 	}
 
@@ -305,45 +385,100 @@ public class Conversation implements Closeable
 	// req.messages we change messageHistory as well. We'll just live with
 	// this for now, and then forget we ever did it, and then get screwed
 	// sometime in the future. Fun!
-	
+
 	private void pruneRequest(Request req) {
-		autoPruneToolResponse(req);
-		// more nyi
+
+		long tokenBudget = getContextLength() - cfg.MaxTokens;
+		if (tokenBudget < 0) return; // degenerate case, just bail
+		
+		long requestTokens = getTokenCount(req);
+		if (requestTokens <= tokenBudget) return;
+
+		// 1. try to remove old tool calls --- this may not do much, but
+		//    will help if e.g., we've been writing large files
+		
+		log.info(String.format("Request too large 1: %d,%d)", requestTokens, tokenBudget));
+		boolean prunedSome = pruneToolRequests(req);
+
+		if (prunedSome) requestTokens = getTokenCount(req);
+		if (requestTokens <= tokenBudget) return;
+
+		// 2. try to prune old tool responses, leaving the last instance of every tool
+		
+		log.info(String.format("Request too large 2: %d,%d)", requestTokens, tokenBudget));
+		prunedSome = pruneToolResponses(req);
+
+		if (prunedSome) requestTokens = getTokenCount(req);
+		if (requestTokens <= tokenBudget) return;
+
+		// Sad, nothing more to do.....
+		
+		log.warning(String.format("Unable to prune history below context limit: %d,%d",
+								  requestTokens, tokenBudget));
 	}
 
-	// if we are sending a tool response here and the tool is "auto prune"
-	// be sure to redact any old responses from the same tool. original
-	// motiviation for this: subagent_tool that fetches big web pages and
-	// sometimes "chains" requests to get to good data --- only the last
-	// one is truly important to the context. 
+	// for all past tool requests in messages history, truncate the argument
+	// string down to max cfg.PruneTruncationLength characters + a prune marker.
 
-	private final static String AUTOPRUNED_CONTENT = "[pruned for size]";
+	private final static String PRUNE_MARKER = "...PRUNED";
 	
-	private void autoPruneToolResponse(Request req) {
+	private boolean pruneToolRequests(Request req) {
 
-		if (req.messages.size() == 0) return;
-
-		Message lastMsg = req.messages.get(req.messages.size() - 1);
-		if (!lastMsg.role.equals(ROLE_TOOL)) return;
-
-		boolean autoPrune = false;
-		for (ToolCalling.ToolClass toolClass : cfg.ToolClasses) {
-			if (toolClass.Name.equals(lastMsg.name)) {
-				if (toolClass.AutoPrune) autoPrune = true;
-				break;
-			}
-		}
-
-		if (!autoPrune) return;
-
-		for (int i = req.messages.size() - 2; i >= 0; --i) {
+		boolean prunedSome = false;
+		int realMaxLength = cfg.PruneTruncationLength + PRUNE_MARKER.length();
+		
+		for (int i = 0; i < req.messages.size(); ++i) {
+			
 			Message thisMsg = req.messages.get(i);
-			if (thisMsg.role.equals(ROLE_TOOL) && thisMsg.name.equals(lastMsg.name)) {
-				log.info("Autopruned past tool response for " + lastMsg.name);
-				thisMsg.content = AUTOPRUNED_CONTENT;
-				break;
+			if (!thisMsg.role.equals(ROLE_ASST)) continue;
+			if (thisMsg.tool_calls == null || thisMsg.tool_calls.size() == 0) continue;
+			
+			for (ToolCall toolCall : thisMsg.tool_calls) {
+				
+				String args = toolCall.function.arguments;
+				
+				if (args != null && !args.endsWith(PRUNE_MARKER) &&	args.length() > realMaxLength) {
+
+					toolCall.function.arguments = args.substring(0, cfg.PruneTruncationLength) + PRUNE_MARKER;
+					prunedSome = true;
+				}
 			}
 		}
+
+		return(prunedSome);
+	}
+
+	// try to prune all but the last response for every tool
+	
+	private boolean pruneToolResponses(Request req) {
+
+		boolean prunedSome = false;
+		int realMaxLength = cfg.PruneTruncationLength + PRUNE_MARKER.length();
+		Set<String> seen = new HashSet<String>();
+		
+		for (int i = req.messages.size() - 1; i >= 0; --i) {
+			
+			Message thisMsg = req.messages.get(i);
+			if (!thisMsg.role.equals(ROLE_TOOL)) continue;
+
+			if (seen.contains(thisMsg.name)) {
+				// seen it before ... maybe prune
+				String content = thisMsg.content;
+
+				if (content != null && !content.endsWith(PRUNE_MARKER) && content.length() > realMaxLength) {
+
+					thisMsg.content = content.substring(0, cfg.PruneTruncationLength) + PRUNE_MARKER;
+					prunedSome = true;
+				}
+			}
+			else {
+				// first time, just remember it
+				seen.add(thisMsg.name);
+			}
+		}
+
+		return(prunedSome);
+		
 	}
 
 	// +------------------------+
@@ -394,6 +529,10 @@ public class Conversation implements Closeable
 		public Boolean stream;
 		public Double temperature;
 		public Integer max_tokens;
+
+		// This lives here so we ensure we're using the same serialization
+		// when computing token counts and actually submitting the request.
+		public String toString() { return(new Gson().toJson(this)); }
 	}
 
 	public static class Choice
@@ -476,7 +615,7 @@ public class Conversation implements Closeable
 						break;
 
 					case "props":
-						response = conversation.getModelProps().toString();
+						response = conversation.getModelPropsRaw().toString();
 						break;
 
 					default:
@@ -525,6 +664,9 @@ public class Conversation implements Closeable
 	private Utility utils;
 	private ToolCalling toolCalling;
 	private List<Message> messageHistory;
+
+	private ModelProps modelProps;
+	private JsonObject modelPropsRaw;
 	
 	private final static Logger log = Logger.getLogger(Conversation.class.getName());
 }
