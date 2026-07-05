@@ -3,26 +3,38 @@
 
   "function": {
     "name": "textfile_access",
-    "description": "Performs local file system operations on text files: list, read, write, append. All operations restricted to the scope of an opaque configured base path.",
+    "description": "Performs local file system operations on text files: list, read, write, append, download. All operations restricted to the scope of an opaque configured base path. Read operations may be capped to a maximum length as described in the 'read' return value; if truncation occurs, use start_index and read_length to read incrementally. Similarly, write/append operations may be limited by size. If the return value shows WrittenLength smaller than requested, use additional append operations to complete the intended operation.",
     "parameters": {
       "type": "object",
       "properties": {
         "cmd": {
 		  "type": "string",
-		  "enum": [ "list", "read", "write", "append" ],
-		  "description": "File operation to perform. 'list' returns files in 'path' sorted with most recently modified at the top. All other cmds work on a single file."
+		  "enum": [ "list", "read", "write", "append", "download" ],
+		  "description": "File operation to perform: 'list' returns files in 'path' sorted most recently modified at the top. All other cmds work on a single file. 'read' returns file contents. 'read' returns file contents. 'write' writes a file. 'append' adds content to the end of a file. 'download' saves the contents of a URL to a file."
 		},
 		"path": {
 		  "type": "string",
 		  "description": "The relative path on which to perform cmd."
 		},
-		"max": {
-		  "type": "integer",
-		  "description": "For 'list' only, optional max number of files to return. Not present or 0 implies all."
-		},
 		"contents": {
 		  "type": "string",
 		  "description": "For 'write' and 'append' only, text content to write."
+		},
+		"max_files": {
+		  "type": "integer",
+		  "description": "For 'list' only, optional max number of files to return. Not present or 0 implies all."
+		},
+		"start_index": {
+		  "type": "integer",
+		  "description": "For 'read' only, the character position to start reading from. Not present implies 0."
+		},
+		"read_length": {
+		  "type": "ineteger",
+		  "description": "For 'read' only, the maximum characters to read. Not present or 0 implies all (subject to configured max)."
+		},
+		"extract_text": {
+		  "type": "boolean",
+		  "description": "For 'download' only, false returns original content (usually html). true extracts only readable text. Not present implies true."
 		}
       },
       "required": [ "cmd", "path" ]

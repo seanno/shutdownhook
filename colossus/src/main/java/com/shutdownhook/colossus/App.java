@@ -10,6 +10,7 @@ import com.shutdownhook.toolbox.Easy;
 public class App 
 {
 	public static void main(String[] args) throws Exception {
+		Easy.configureLoggingProperties("@logging.properties");
 		Project project = new Project(args[0], null);
 		project.run();
 	}

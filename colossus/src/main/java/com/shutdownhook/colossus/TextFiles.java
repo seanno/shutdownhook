@@ -15,7 +15,11 @@ import java.util.logging.Logger;
 
 import com.google.gson.JsonObject;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
 import com.shutdownhook.toolbox.Easy;
+import com.shutdownhook.toolbox.WebRequests;
 
 public class TextFiles
 {
@@ -27,6 +31,8 @@ public class TextFiles
 	{
 		public String BasePath = "/tmp";
 		public boolean ReadOnly = false;
+		public int MaxReadLength = 0; // unlimited
+		public int MaxWriteLength = 0; // unlimited
 	}
 	
 	public TextFiles(Config cfg) throws Exception {
@@ -38,8 +44,38 @@ public class TextFiles
 	// | read |
 	// +------+
 
-	public String read(String inputPath) throws Exception {
-		return(Easy.stringFromFile(verifyPathString(inputPath)));
+	public static class ReadInfo
+	{
+		public String Contents;
+		public long StartIndex;
+		public long ContentsLength;
+		public long FileLength;
+	}
+	
+	public ReadInfo read(String inputPath) throws Exception {
+		return(read(inputPath, 0, 0));
+	}
+
+	public ReadInfo read(String inputPath, int ichStart, int cch) throws Exception {
+
+		String contents = Easy.stringFromFile(verifyPathString(inputPath));
+
+		if (ichStart > contents.length()) throw new Exception("Can't read beyond end of file");
+							
+		int ichMac = ichStart + (cch == 0 ? contents.length() : ichStart + cch);
+		if (ichMac > contents.length()) ichMac = contents.length();
+
+		if (cfg.MaxReadLength != 0 && (ichMac - ichStart) > cfg.MaxReadLength) {
+			ichMac = ichStart + cfg.MaxReadLength;
+		}
+
+		ReadInfo info = new ReadInfo();
+		info.Contents = contents.substring(ichStart,ichMac); // java is smart if this is a nop
+		info.StartIndex = ichStart;
+		info.ContentsLength = (ichMac - ichStart);
+		info.FileLength = contents.length();
+
+		return(info);
 	}
 
 	// +--------+
@@ -47,14 +83,60 @@ public class TextFiles
 	// | append |
 	// +--------+
 
-	public void put(String inputPath, String contents) throws Exception {
+	public static class WriteInfo
+	{
+		public long WrittenLength;
+		public long RequestedLength;
+	}
+	
+	public WriteInfo put(String inputPath, String contents) throws Exception {
 		if (cfg.ReadOnly) throw new Exception("can't write to read only TextFiles");
-		Easy.stringToFile(verifyPathString(inputPath), contents);
+		String output = getWritableString(contents);
+		Easy.stringToFile(verifyPathString(inputPath), output);
+		return(makeWriteInfo(output.length(), contents.length()));
 	}
 
-	public void append(String inputPath, String contents) throws Exception {
+	public WriteInfo append(String inputPath, String contents) throws Exception {
 		if (cfg.ReadOnly) throw new Exception("can't write to read only TextFiles");
-		Easy.appendStringToFile(verifyPathString(inputPath), contents);
+		String output = getWritableString(contents);
+		Easy.appendStringToFile(verifyPathString(inputPath), output);
+		return(makeWriteInfo(output.length(), contents.length()));
+	}
+
+	private WriteInfo makeWriteInfo(long cchWritten, long cchRequested) {
+		WriteInfo info = new WriteInfo();
+		info.WrittenLength = cchWritten;
+		info.RequestedLength = cchRequested;
+		return(info);
+	}
+
+	// +----------+
+	// | download |
+	// +----------+
+
+	public long download(String inputPath, String url, boolean extractText, WebRequests webRequests) throws Exception {
+
+		if (cfg.ReadOnly) throw new Exception("can't write to read only TextFiles");
+		WebRequests.Response response = webRequests.fetch(url);
+		if (!response.successful()) response.throwException("TextFiles.download");
+
+		String contents = response.Body;
+		if (extractText) contents = extractTextFromHtml(contents);
+		
+		Easy.stringToFile(verifyPathString(inputPath), contents);
+		return(contents.length());
+	}
+
+	private static String extractTextFromHtml(String body) {
+		try {
+			Document doc = Jsoup.parse(body);
+			String cleanText = doc.body().text();
+			return(cleanText);
+		}
+		catch (Exception e) {
+			log.warning(Easy.exMsg(e, "jsoup", true));
+			return(body);
+		}
 	}
 
 	// +------+
@@ -119,6 +201,11 @@ public class TextFiles
 
 	private String verifyPathString(String input) throws Exception {
 		return(verifyPath(input).toString());
+	}
+
+	private String getWritableString(String input) {
+		if (cfg.MaxWriteLength == 0 || input.length() <= cfg.MaxWriteLength) return(input);
+		return(input.substring(0, cfg.MaxWriteLength));
 	}
 
 	// +---------+

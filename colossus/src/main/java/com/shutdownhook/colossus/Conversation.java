@@ -45,7 +45,6 @@ public class Conversation implements Closeable
 		
 		public Utility.Config Utility = new Utility.Config();
 		public Environment.Config Environment = new Environment.Config();
-		public TextFiles.Config TextFiles = new TextFiles.Config();
 
 		public String SystemPrompt;
 		
@@ -267,7 +266,7 @@ public class Conversation implements Closeable
 		finally {
 			Easy.safeClose(os);
 			if (modelContextTemp != null) {
-				try { /*Files.delete(modelContextTemp);*/ }
+				try { Files.delete(modelContextTemp); }
 				catch (Exception eFinal) { /* eat it */ }
 			}
 		}

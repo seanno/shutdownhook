@@ -22,7 +22,7 @@ public class Environment
 		public String LocationString;
 		public String TimeZone = "UTC";
 		public String TimeStampFormat = "'[It is now 'EE, LLLL dd, yyyy, HH:mm:ss z'] '";
-		public String FileStampFormat = "YYYY-MM-dd-HHMMSS";
+		public String FileStampFormat = "YYYY-MM-dd-HHmmss";
 
 		public String LocationFormat = " Your physical location is %s.";
 		public String TimeZoneFormat = " Your local time zone is %s.";

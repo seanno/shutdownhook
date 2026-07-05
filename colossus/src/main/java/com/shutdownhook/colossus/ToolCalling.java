@@ -255,24 +255,34 @@ public class ToolCalling
 
 			String cmd = arguments.get("cmd").getAsString().toLowerCase();
 			String path = arguments.get("path").getAsString();
-			int max = (arguments.has("max") ? arguments.get("max").getAsInt() : 0);
-			String contents = (arguments.has("contents") ? arguments.get("contents").getAsString() : null);
 
 			switch (cmd) {
 				case "list":
+					int max = (arguments.has("max_files") ? arguments.get("max_files").getAsInt() : 0);
 					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
-					return(conversation.getUtils().getGson().toJson(infos));
+					return(conversation.getUtils().getCompactGson().toJson(infos));
 
 				case "read":
-					return(txt.read(path));
+					int ichStart = (arguments.has("start_index") ? arguments.get("start_index").getAsInt() : 0);
+					int cch = (arguments.has("read_length") ? arguments.get("read_length").getAsInt() : 0);
+					TextFiles.ReadInfo info = txt.read(path, ichStart, cch);
+					return(conversation.getUtils().getCompactGson().toJson(info));
 
 				case "write":
-					txt.put(path, contents);
-					return("written ok");
+					String contentsWrite = arguments.get("contents").getAsString();
+					TextFiles.WriteInfo infoWrite = txt.put(path, contentsWrite);
+					return(conversation.getUtils().getCompactGson().toJson(infoWrite));
 
 				case "append":
-					txt.append(path, contents);
-					return("appended ok");
+					String contentsAppend = arguments.get("contents").getAsString();
+					TextFiles.WriteInfo infoAppend = txt.append(path, contentsAppend);
+					return(conversation.getUtils().getCompactGson().toJson(infoAppend));
+
+				case "download":
+					String url = arguments.get("url").getAsString();
+					boolean extractText = (arguments.has("extract_text") ? arguments.get("extract_text").getAsBoolean() : true);
+					long cchDownloaded = txt.download(path, url, extractText, conversation.getUtils().getRequests());
+					return(String.format("{ \"Length\": %d }", cchDownloaded));
 
 				default:
 					throw new Exception("unknown file_tool cmd: " + cmd);
