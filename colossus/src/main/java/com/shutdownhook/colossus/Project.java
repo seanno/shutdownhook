@@ -40,8 +40,34 @@ public class Project
 	// | run |
 	// +-----+
 
-	public boolean run() {
+	public static class ProjectResult
+	{
+		public String Name;
+		public String Response;
+		public Exception Ex;
+		public String Started;
+		public String Finished;
 
+		public String toString() {
+			StringBuilder sb = new StringBuilder();
+			sb.append("# ").append(Name).append("\n");
+			sb.append("Started:\t").append(Started).append("\n");
+			sb.append("Finished:\t").append(Finished).append("\n");
+			sb.append(Response == null ? "[No Response]" : Response).append("\n");
+			if (Ex != null) sb.append(Ex).append("\n");
+			sb.append("\n");
+			return(sb.toString());
+		}
+	}
+
+	public boolean run(List<ProjectResult> results, String parentName) {
+
+		ProjectResult result = new ProjectResult();
+		results.add(result);
+		
+		result.Name = (parentName == null ? "" : parentName + " : ") + projectPath.getFileName();
+		result.Started = Instant.now().toString();
+		
 		log.info(">>>>> STARTED project: " + projectPath.toString());
 		Instant started = Instant.now();
 		
@@ -60,7 +86,7 @@ public class Project
 				getProjectDirectory(TEMP_DIR);
 
 				conversation = new Conversation(thisCfg);
-				conversation.prompt(Easy.stringFromFile(prompt.toString()));
+				result.Response = conversation.prompt(Easy.stringFromFile(prompt.toString()));
 
 				archiveConversation(conversation);
 			}
@@ -70,7 +96,7 @@ public class Project
 			if (Files.exists(children)) {
 				for (Path childPath : Files.list(children).toList()) {
 					Project childProject = new Project(childPath.toString(), thisCfg);
-					childProject.run();
+					childProject.run(results, result.Name);
 				}
 			}
 
@@ -78,9 +104,12 @@ public class Project
 			runScript(POST_SCRIPT_FILE);
 			ensureAndClearTemp();
 
+			if (result.Response == null) result.Response = "OK";
+			
 			log.info(String.format("<<<<< :) FINISHED project in %s: %s",
 								   Duration.between(started, Instant.now()),
 								   projectPath));
+
 			return(true);
 		}
 		catch (Exception e) {
@@ -90,15 +119,19 @@ public class Project
 								   Duration.between(started, Instant.now()),
 								   projectPath));
 			
+			result.Ex = e;
 			return(false);
 		}
 		finally {
+			result.Finished = Instant.now().toString();
+			archiveRun(result);;
 			Easy.safeClose(conversation);
 		}
 	}
 	
 	// +---------------------+
 	// | archiveConversation |
+	// | archiveRun          |
 	// +---------------------+
 
 	private void archiveConversation(Conversation conversation) throws Exception {
@@ -117,6 +150,16 @@ public class Project
 		while (Files.exists(archiveFile));
 
 		Easy.stringToFile(archiveFile.toString(), conversation.history());
+	}
+	
+	private void archiveRun(ProjectResult result) {
+		try {
+			Path runFile = getProjectDirectory(DATA_DIR).resolve(RUNS_FILE);
+			Easy.appendStringToFile(runFile.toString(), result.toString());
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "archiveRun", true));
+		}
 	}
 
 	// +-------------------------+
@@ -234,6 +277,7 @@ public class Project
 	private final static String SYSTEMPROMPT_FILE = "systemprompt.md";
 	private final static String PROMPT_FILE = "prompt.md";
 	private final static String LEARNINGS_FILE = "learnings.json";
+	private final static String RUNS_FILE = "runs.md";
 
 	private final static String DATA_DIR = "data";
 	private final static String TEMP_DIR = "temp";

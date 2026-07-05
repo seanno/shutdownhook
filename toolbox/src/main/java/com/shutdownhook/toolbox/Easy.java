@@ -141,7 +141,7 @@ public class Easy
 	}
 
 	public static void appendStringToFile(String path, String data) throws IOException {
-		Files.write(Paths.get(path), data.getBytes("UTF-8"), StandardOpenOption.APPEND);
+		Files.write(Paths.get(path), data.getBytes("UTF-8"), StandardOpenOption.APPEND, StandardOpenOption.CREATE);
 	}
 
 	public static void setFileOwnerOnly(String path) throws IOException {

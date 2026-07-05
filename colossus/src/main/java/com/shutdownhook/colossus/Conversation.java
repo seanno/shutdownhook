@@ -123,10 +123,12 @@ public class Conversation implements Closeable
 				return(prompt(null));
 				
 			case FINISH_REASON_TRUNC:
+				log.warning("OOPS: Hit generation max");
 				tag = CONTENT_TRUNCATED;
 				break;
 				
 			case FINISH_REASON_FILTER:
+				log.warning("OOPS: Hit filter");
 				tag = CONTENT_FILTERED;
 				break;
 
