@@ -59,6 +59,13 @@ public class Conversation implements Closeable
 		public String PropsPathPrefix = "/props?model=";
 		public String TokenizePath = "/tokenize";
 
+		public String TruncatedMsgFmt =
+			"Your response was lost because it exceeded the maximum of %d tokens; " +
+			"please be more concise or, if possible, save longer content to a file " +
+			"and reference it in your direct response. Be sure that reformulated content " +
+			"is still well-formatted.";
+		
+
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
@@ -93,9 +100,13 @@ public class Conversation implements Closeable
 	// | prompt |
 	// +--------+
 
-	// note tihs will loop on tool_calls
-	
 	public String prompt(String input) throws Exception {
+		String response = promptOne(input);
+		while (response == null) response = promptOne(null);
+		return(response);
+	}
+	
+	private String promptOne(String input) throws Exception {
 
 		String request = makeRequestBody(input);
 		String body = sendRequest(cfg.CompletionPath, request);
@@ -120,12 +131,12 @@ public class Conversation implements Closeable
 
 			case FINISH_REASON_TOOLS:
 				callTools(choice.message.tool_calls);
-				return(prompt(null));
+				return(null);
 				
 			case FINISH_REASON_TRUNC:
-				log.warning("OOPS: Hit generation max");
-				tag = CONTENT_TRUNCATED;
-				break;
+				log.warning("OOPS: Hit generation max!");
+				messageHistory.add(makeTruncatedMessage());
+				return(null);
 				
 			case FINISH_REASON_FILTER:
 				log.warning("OOPS: Hit filter");
@@ -357,6 +368,11 @@ public class Conversation implements Closeable
 
 	private Message makeUserMessage(String input) {
 		return(makeMessage(ROLE_USER, environment.getTimeStamp() + input));
+	}
+
+	private Message makeTruncatedMessage() {
+		String msg = String.format(cfg.TruncatedMsgFmt, cfg.MaxTokens);
+		return(makeMessage(ROLE_USER, environment.getTimeStamp() + msg));
 	}
 
 	private Message makeSystemMessage(String input) {
