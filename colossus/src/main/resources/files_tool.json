@@ -9,8 +9,8 @@
       "properties": {
         "cmd": {
 		  "type": "string",
-		  "enum": [ "list", "read", "write", "append", "download" ],
-		  "description": "File operation to perform: 'list' returns files in 'path' sorted most recently modified at the top. All other cmds work on a single file. 'read' returns file contents. 'read' returns file contents. 'write' writes a file. 'append' adds content to the end of a file. 'download' saves the contents of a URL to a file."
+		  "enum": [ "list", "read", "grep", "write", "append", "download" ],
+		  "description": "File operation to perform: 'list' returns files in 'path' sorted most recently modified at the top. All other cmds work on a single file. 'read' returns file contents. 'grep' runs grep -E to search for a regular expression. 'write' writes a file. 'append' adds content to the end of a file. 'download' saves the contents of a URL to a file."
 		},
 		"path": {
 		  "type": "string",
@@ -29,12 +29,20 @@
 		  "description": "For 'read' only, the character position to start reading from. Not present implies 0."
 		},
 		"read_length": {
-		  "type": "ineteger",
+		  "type": "integer",
 		  "description": "For 'read' only, the maximum characters to read. Not present or 0 implies all (subject to configured max)."
 		},
 		"extract_text": {
 		  "type": "boolean",
 		  "description": "For 'download' only, false returns original content (usually html). true extracts only readable text. Not present implies true."
+		},
+		"regex": {
+		  "type": "string",
+		  "description": "For 'grep' only, the extended regular expression."
+		},
+		"case_insensitive": {
+		  "type": "boolean",
+		  "description": "For 'grep' only, true uses a case-insensitive search. Not present implies false."
 		}
       },
       "required": [ "cmd", "path" ]

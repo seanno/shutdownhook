@@ -49,7 +49,7 @@ public class Conversation implements Closeable
 		public String SystemPrompt;
 		
 		public double Temperature = 0.0d;
-		public int MaxTokens = 4096; // default max to prevent infinite generation loops
+		public int MaxTokens = 4096; 
 
 		public int PruneTruncationLength = 100;
 
@@ -64,7 +64,17 @@ public class Conversation implements Closeable
 			"please be more concise or, if possible, save longer content to a file " +
 			"and reference it in your direct response. Be sure that reformulated content " +
 			"is still well-formatted.";
-		
+
+		public String ConversationTooLargeMsg =
+			"This conversation has grown too large to fit into model context, even after " +
+			"attempts to prune old content. Please start a new conversation to continue.";
+
+		public String SummarizePrompt =
+			"Summarize the provided text. Your summary should be as short as possible " +
+			"while maintaining enough fidelity to be useful as a substitute for the text " +
+			"in a chat history. The target audience is you, not a human reader, so use " +
+			"shorthand and eliminate grammatical constructions that inflate reponse size " +
+			"without adding content value.";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -109,6 +119,8 @@ public class Conversation implements Closeable
 	private String promptOne(String input) throws Exception {
 
 		String request = makeRequestBody(input);
+		if (request == null) return(cfg.ConversationTooLargeMsg);
+		
 		String body = sendRequest(cfg.CompletionPath, request);
 		Response response = utils.getGson().fromJson(body, Response.class);
 
@@ -166,6 +178,29 @@ public class Conversation implements Closeable
 
 	public void reset() {
 		this.messageHistory = new ArrayList<Message>();
+	}
+
+	// +-----------+
+	// | summarize |
+	// +-----------+
+
+	public String summarize(String input) {
+
+		Conversation.Config summaryCfg = cfg.clone();
+		summaryCfg.SystemPrompt = cfg.SummarizePrompt;
+		Conversation summaryConversation = null;
+		
+		try {
+			summaryConversation = new Conversation(summaryCfg);
+			return(summaryConversation.prompt(input));
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "summarize", true));
+			return(input);
+		}
+		finally {
+			Easy.safeClose(summaryConversation);
+		}
 	}
 
 	// +-----------------+
@@ -361,8 +396,7 @@ public class Conversation implements Closeable
 		req.messages = messageHistory;
 		req.tools = toolCalling.getDescriptions();
 
-		pruneRequest(req);
-		
+		if (!pruneRequest(req)) return(null);
 		return(utils.getGson().toJson(req));
 	}
 
@@ -402,47 +436,50 @@ public class Conversation implements Closeable
 	// req.messages we change messageHistory as well. We'll just live with
 	// this for now, and then forget we ever did it, and then get screwed
 	// sometime in the future. Fun!
+	//
+	// TRUE return means all is well. FALSE means we couldn't gret small
+	// enough to fit into our budget.
 
-	private void pruneRequest(Request req) {
+	private boolean pruneRequest(Request req) {
 
 		long tokenBudget = getContextLength() - cfg.MaxTokens;
-		if (tokenBudget < 0) return; // degenerate case, just bail
+		if (tokenBudget < 0) return(true); // degenerate case, just bail
 		
 		long requestTokens = getTokenCount(req);
-		if (requestTokens <= tokenBudget) return;
+		if (requestTokens <= tokenBudget) return(true);
 
 		// 1. try to remove old tool calls --- this may not do much, but
 		//    will help if e.g., we've been writing large files
 		
-		log.info(String.format("Request too large 1: %d,%d)", requestTokens, tokenBudget));
+		log.info(String.format("Request too large 1: %d, limit %d)", requestTokens, tokenBudget));
 		boolean prunedSome = pruneToolRequests(req);
 
 		if (prunedSome) requestTokens = getTokenCount(req);
-		if (requestTokens <= tokenBudget) return;
+		if (requestTokens <= tokenBudget) return(true);
 
 		// 2. try to prune old tool responses, leaving the last instance of every tool
 		
-		log.info(String.format("Request too large 2: %d,%d)", requestTokens, tokenBudget));
+		log.info(String.format("Request too large 2: %d, limit %d)", requestTokens, tokenBudget));
 		prunedSome = pruneToolResponses(req);
 
 		if (prunedSome) requestTokens = getTokenCount(req);
-		if (requestTokens <= tokenBudget) return;
+		if (requestTokens <= tokenBudget) return(true);
 
 		// Sad, nothing more to do.....
 		
 		log.warning(String.format("Unable to prune history below context limit: %d,%d",
 								  requestTokens, tokenBudget));
+
+		return(false);
 	}
 
-	// for all past tool requests in messages history, truncate the argument
-	// string down to max cfg.PruneTruncationLength characters + a prune marker.
+	// for all past tool requests in messages history with arguments larger than a given size,
+	// replace with an empty object. Harder to "prune" this leaving some trace because it has
+	// to remain json; this is a good easy approach.
 
-	private final static String PRUNE_MARKER = "...PRUNED";
-	
 	private boolean pruneToolRequests(Request req) {
 
 		boolean prunedSome = false;
-		int realMaxLength = cfg.PruneTruncationLength + PRUNE_MARKER.length();
 		
 		for (int i = 0; i < req.messages.size(); ++i) {
 			
@@ -453,10 +490,8 @@ public class Conversation implements Closeable
 			for (ToolCall toolCall : thisMsg.tool_calls) {
 				
 				String args = toolCall.function.arguments;
-				
-				if (args != null && !args.endsWith(PRUNE_MARKER) &&	args.length() > realMaxLength) {
-
-					toolCall.function.arguments = args.substring(0, cfg.PruneTruncationLength) + PRUNE_MARKER;
+				if (args != null && args.length() > cfg.PruneTruncationLength) {
+					args = "{}";
 					prunedSome = true;
 				}
 			}
@@ -466,6 +501,8 @@ public class Conversation implements Closeable
 	}
 
 	// try to prune all but the last response for every tool
+
+	private final static String PRUNE_MARKER = "...PRUNED";
 	
 	private boolean pruneToolResponses(Request req) {
 

@@ -41,6 +41,19 @@ public class TextFiles
 	}
 
 	// +------+
+	// | grep |
+	// +------+
+
+	public String grep(String inputPath, String regex, boolean caseInsensitive) throws Exception {
+
+		String cmd = String.format("grep -E %s '%s' '%s'",
+								   (caseInsensitive ? "-i" : ""),
+								   regex, verifyPathString(inputPath));
+
+		return(Easy.stringFromProcess(cmd));
+	}
+
+	// +------+
 	// | read |
 	// +------+
 

@@ -268,6 +268,12 @@ public class ToolCalling
 					TextFiles.ReadInfo info = txt.read(path, ichStart, cch);
 					return(conversation.getUtils().getCompactGson().toJson(info));
 
+				case "grep":
+					String regex = arguments.get("regex").getAsString();
+					boolean caseInsensitive = (arguments.has("case_insensitive") ?
+											   arguments.get("case_insensitive").getAsBoolean() : false);
+					return(txt.grep(path, regex, caseInsensitive));
+
 				case "write":
 					String contentsWrite = arguments.get("contents").getAsString();
 					TextFiles.WriteInfo infoWrite = txt.put(path, contentsWrite);
