@@ -17,6 +17,8 @@ import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Template;
@@ -31,7 +33,6 @@ public class Project
 	public Project(String path, Conversation.Config parentCfg) throws Exception {
 		this.projectPath = Paths.get(path);
 		this.parentCfg = parentCfg;
-		this.fileToolCfgTemplate = new Template(Easy.stringFromResource("project_file_tool_config.json.tmpl"));
 		
 		setupConversationConfig();
 	}
@@ -75,34 +76,29 @@ public class Project
 		
 		try {
 			// prework
-			ensureAndClearTemp();
+			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
 			// project conversation
 			Path prompt = getProjectFile(PROMPT_FILE);
 			if (Files.exists(prompt)) {
 				
-				getProjectDirectory(DATA_DIR);
-				getProjectDirectory(TEMP_DIR);
-
 				conversation = new Conversation(thisCfg);
-				result.Response = conversation.prompt(Easy.stringFromFile(prompt.toString()));
+				result.Response = conversation.safePrompt(Easy.stringFromFile(prompt.toString()));
 
 				archiveConversation(conversation);
 			}
 
 			// child projects
-			Path children = getProjectDirectory(CHILDREN_DIR, false);
-			if (Files.exists(children)) {
-				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), thisCfg);
-					childProject.run(results, result.Name);
-				}
+			Path children = getProjectDirectory(CHILDREN_DIR);
+			for (Path childPath : Files.list(children).toList()) {
+				Project childProject = new Project(childPath.toString(), thisCfg);
+				childProject.run(results, result.Name);
 			}
 
 			// postwork
 			runScript(POST_SCRIPT_FILE);
-			ensureAndClearTemp();
+			ensureDataAndClearTemp();
 
 			if (result.Response == null) result.Response = "OK";
 			
@@ -185,34 +181,30 @@ public class Project
 				Easy.stringFromFile(projectSys.toString());
 		}
 
-		// 3. remove any existing data/temp tools and add new ones for this project
+		// 3. force the working directory for file and code tools if present
 
 		List<ToolClass> thisTools = new ArrayList<ToolClass>();
 
+		String fileToolClass = ToolCalling.Files_Tool.class.getName();
+		String codeToolClass = ToolCalling.Code_Tool.class.getName();
+		String dataDir = getProjectDirectory(DATA_DIR).toString();
+
 		if (thisCfg.ToolClasses != null) {
+			
 			for (ToolClass toolClass : thisCfg.ToolClasses) {
+				
 				if (toolClass == null) continue; // defense against stray trailing commas in config
-				if (!DATA_TOOL_NAME.equals(toolClass.Name) && !TEMP_TOOL_NAME.equals(toolClass.Name)) {
-					thisTools.add(toolClass);
+				
+				if (fileToolClass.equals(toolClass.ClassName) || codeToolClass.equals(toolClass.ClassName)) {
+					if (toolClass.Config == null) toolClass.Config = new JsonObject();
+					toolClass.Config.addProperty("BasePath", dataDir);
 				}
+
+				thisTools.add(toolClass);
 			}
 		}
 
-		thisTools.add(setupFileTool(DATA_TOOL_NAME, DATA_TOOL_TYPE, getProjectDirectory(DATA_DIR, false)));
-		thisTools.add(setupFileTool(TEMP_TOOL_NAME, TEMP_TOOL_TYPE, getProjectDirectory(TEMP_DIR, false)));
-
 		thisCfg.ToolClasses = thisTools.toArray(new ToolClass[thisTools.size()]);
-	}
-
-	private ToolClass setupFileTool(String name, String type, Path basePath) throws Exception {
-
-		Map<String,String> params = new HashMap<String,String>();
-		params.put("TOOL_NAME", Utility.escapeJsonString(name));
-		params.put("TOOL_TYPE", Utility.escapeJsonString(type));
-		params.put("TOOL_BASE", Utility.escapeJsonString(basePath.toString()));
-
-		String json = fileToolCfgTemplate.render(params);
-		return(ToolClass.fromJson(json));
 	}
 
 	// +-----------+
@@ -221,16 +213,14 @@ public class Project
 
 	private boolean runScript(String script) throws Exception {
 		
-		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR, false);
-		if (!Files.exists(scriptsDir)) return(true);
+		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR);
 		Path scriptFile = scriptsDir.resolve(script);
 		if (!Files.exists(scriptFile)) return(true);
 
 		String[] commands = new String[] { "bash", "-c", scriptFile.toString() };
 		ProcessBuilder pb = new ProcessBuilder(commands);
 		pb.directory(scriptsDir.toFile());
-		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR, true).toString());
-		pb.environment().put(TEMP_DIR_ENV, getProjectDirectory(TEMP_DIR, true).toString());
+		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR).toString());
 		
 		Process p = pb.start();
 		p.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -238,12 +228,14 @@ public class Project
 		return(p.exitValue() == 0);
 	}
 							  
-	// +--------------------+
-	// | ensureAndClearTemp |
-	// +--------------------+
+	// +------------------------+
+	// | ensureDataAndClearTemp |
+	// +------------------------+
 
-	private void ensureAndClearTemp() throws Exception {
-		Path tempPath = getProjectDirectory(TEMP_DIR, false);
+	private void ensureDataAndClearTemp() throws Exception {
+
+		// this by side-effect creates DATA_DIR if needed
+		Path tempPath = getProjectSubDirectory(DATA_DIR, TEMP_SUBDIR);
 		
 		if (Files.exists(tempPath)) { Easy.recursiveDelete(tempPath.toFile(), false); }
 		else { Files.createDirectory(tempPath); }
@@ -258,12 +250,14 @@ public class Project
 	}
 
 	private Path getProjectDirectory(String dir) throws Exception {
-		return(getProjectDirectory(dir, true));
-	}
-	
-	private Path getProjectDirectory(String dir, boolean createIfNeeded) throws Exception {
 		Path path = projectPath.resolve(dir);
-		if (!Files.exists(path) && createIfNeeded) Files.createDirectory(path);
+		if (!Files.exists(path)) Files.createDirectory(path);
+		return(path);
+	}
+
+	private Path getProjectSubDirectory(String dir, String subdir) throws Exception {
+		Path path = getProjectDirectory(dir).resolve(subdir);
+		if (!Files.exists(path)) Files.createDirectory(path);
 		return(path);
 	}
 
@@ -280,22 +274,16 @@ public class Project
 	private final static String RUNS_FILE = "runs.md";
 
 	private final static String DATA_DIR = "data";
-	private final static String TEMP_DIR = "temp";
+	private final static String TEMP_SUBDIR = "temp";
+	
 	private final static String CHILDREN_DIR = "children";
 	private final static String CONVERSATIONS_DIR = "conversations";
 	private final static String SCRIPTS_DIR = "scripts";
 
 	private final static String DATA_DIR_ENV = "DATA_DIR";
-	private final static String TEMP_DIR_ENV = "TEMP_DIR";
 
 	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 10; // 10 minutes
 		
-	private final static String DATA_TOOL_NAME = "persistent_textfile_access";
-	private final static String DATA_TOOL_TYPE = "PERSISTENT";
-	
-	private final static String TEMP_TOOL_NAME = "temporary_textfile_access";
-	private final static String TEMP_TOOL_TYPE = "TEMPORARY";
-
 	// +---------+
 	// | Members |
 	// +---------+
@@ -303,7 +291,6 @@ public class Project
 	private Path projectPath;
 	private Conversation.Config parentCfg;
 	private Conversation.Config thisCfg;
-	private Template fileToolCfgTemplate;
 	
 	private final static Logger log = Logger.getLogger(Project.class.getName());
 }

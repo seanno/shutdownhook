@@ -130,9 +130,15 @@ public class Easy
 	}
 
 	public static String stringFromProcess(String cmdLine) throws Exception {
+		return(stringFromProcess(cmdLine, false));
+	}
+	
+	public static String stringFromProcess(String cmdLine, boolean includeStderr) throws Exception {
 		String[] commands = new String[] { "bash", "-c", cmdLine};
 		ProcessBuilder pb = new ProcessBuilder(commands);
+		if (includeStderr) pb.redirectErrorStream(true);
 		Process p = pb.start();
+
 		return(stringFromInputStream(p.getInputStream()));
 	}
 

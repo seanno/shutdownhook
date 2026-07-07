@@ -110,6 +110,16 @@ public class Conversation implements Closeable
 	// | prompt |
 	// +--------+
 
+	public String safePrompt(String input) {
+		try { 
+			return(prompt(input));
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "safePrompt", true));
+			return(null);
+		}
+	}
+	
 	public String prompt(String input) throws Exception {
 		String response = promptOne(input);
 		while (response == null) response = promptOne(null);
@@ -666,6 +676,7 @@ public class Conversation implements Closeable
 
 					case "dump":
 						response = conversation.toString();
+						Easy.stringToFile("/tmp/conversation.dump", response);
 						break;
 
 					case "props":

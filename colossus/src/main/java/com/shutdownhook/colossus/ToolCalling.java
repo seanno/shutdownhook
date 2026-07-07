@@ -33,11 +33,19 @@ public class ToolCalling
 	{
 		public String ClassName; // fully-qualified class names, must implement ToolCalling.Tool
 		public String Name; // if present, overrides default name
-		public String Description; // if present, overrides default description
+		public String Description; // if present, APPENDED to default description
 		public JsonObject Config;
 
 		public static ToolClass fromJson(String json) {
 			return(new Gson().fromJson(json, ToolClass.class));
+		}
+
+		public String toJson() {
+			return(new Gson().toJson(this));
+		}
+
+		public ToolClass clone() {
+			return(fromJson(toJson())); // round trip for clean clone
 		}
 	}
 
@@ -299,6 +307,27 @@ public class ToolCalling
 		private TextFiles txt;
  	}
 
+	// +-----------+
+	// | Code_Tool |
+	// +-----------+
+
+	public static class Code_Tool implements Tool
+	{
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			this.cfg = ToolCalling.loadConfig(toolClass, CodeSandbox.Config.class);
+			this.code = new CodeSandbox(this.cfg);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@code_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+			String cmd = arguments.get("cmd").getAsString();
+			return(code.run(cmd));
+		}
+
+		private CodeSandbox.Config cfg;
+		private CodeSandbox code;
+ 	}
+
 	// +---------------+
 	// | SubAgent_Tool |
 	// +---------------+
@@ -338,19 +367,13 @@ public class ToolCalling
 
 		String json = Easy.stringFromSmartyPath(path);
 		JsonObject jsonObj = JsonParser.parseString(json).getAsJsonObject();
+		JsonObject jsonFunc = jsonObj.get("function").getAsJsonObject();
 
-		if (toolClass.Name != null) {
-			jsonObj.get("function").getAsJsonObject().addProperty("name", toolClass.Name);
-		}
-		else {
-			toolClass.Name = jsonObj.get("function").getAsJsonObject().get("name").getAsString();
-		}
+		if (toolClass.Name != null) jsonFunc.addProperty("name", toolClass.Name);
 		
 		if (toolClass.Description != null) {
-			jsonObj.get("function").getAsJsonObject().addProperty("description", toolClass.Description);
-		}
-		else {
-			toolClass.Description = jsonObj.get("function").getAsJsonObject().get("description").getAsString();
+			String baseDescription = jsonObj.get("function").getAsJsonObject().get("description").getAsString();
+			jsonFunc.addProperty("description", baseDescription + "\n" + toolClass.Description);
 		}
 
 		return(jsonObj);

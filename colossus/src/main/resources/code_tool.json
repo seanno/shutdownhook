@@ -1,0 +1,18 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "code_sandbox",
+    "description": "Run a python3 or bash script in a sandboxed environment without network access. Both standard output and error streams are returned. Installed python3 packages are: annotated-types,attrs,beautifulsoup4,certifi,charset-normalizer,click,contourpy,cycler,et_xmlfile,fonttools,idna,joblib,jsonschema,jsonschema-specifications,kiwisolver,lightgbm,lxml,matplotlib,more-itertools,mpmath,narwhals,nltk,numpy,nvidia-nccl-cu12,openpyxl,packaging,pandas,patsy,pillow,plotly,pyarrow,pydantic,pydantic_core,pyparsing,python-dateutil,pytz,PyYAML,RapidFuzz,referencing,regex,requests,rpds-py,scikit-learn,scipy,seaborn,six,soupsieve,statsmodels,sympy,tabulate,threadpoolctl,toml,tqdm,typing-inspection,typing_extensions,urllib3,xgboost,xlrd. Unix tools available are: grep,sed,awk,sort,uniq,cut,tr,wc,head,tail,find,diff,cat,jq,sqlite3.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "cmd": {
+		  "type": "string",
+		  "description": "The command to be executed, which should not be escaped in any way; write exactly as you would at a terminal."
+		}
+      },
+      "required": [ "cmd" ]
+    }
+  }
+}
