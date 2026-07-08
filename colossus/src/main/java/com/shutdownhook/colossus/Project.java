@@ -216,19 +216,24 @@ public class Project
 
 	private boolean runScript(String script) throws Exception {
 		
-		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR);
-		Path scriptFile = scriptsDir.resolve(script);
+		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR).toAbsolutePath();
+		Path scriptFile = scriptsDir.resolve(script).toAbsolutePath();
 		if (!Files.exists(scriptFile)) return(true);
 
 		String[] commands = new String[] { "bash", "-c", scriptFile.toString() };
 		ProcessBuilder pb = new ProcessBuilder(commands);
 		pb.directory(scriptsDir.toFile());
 		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR).toString());
+
+		log.info("Running script " + scriptFile.toString());
 		
 		Process p = pb.start();
 		p.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-		return(p.exitValue() == 0);
+		int exit = p.exitValue();
+		if (exit != 0) log.warning(String.format("Error %d running script %s", exit, scriptFile.toString()));
+		
+		return(exit == 0);
 	}
 							  
 	// +------------------------+
