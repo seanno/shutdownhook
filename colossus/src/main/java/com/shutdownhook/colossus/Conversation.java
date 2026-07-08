@@ -49,8 +49,9 @@ public class Conversation implements Closeable
 		public String SystemPrompt;
 		
 		public double Temperature = 0.0d;
-		public int MaxTokens = 4096; 
-
+		public long MaxTokens = 4096; 
+		public long MaxTokensCeilingDivisor = 4; // context length / divisor == ceiling
+		
 		public int PruneTruncationLength = 100;
 
 		public String MinjaRenderPath = "~/.local/bin/minja_render";
@@ -58,12 +59,6 @@ public class Conversation implements Closeable
 		public String CompletionPath = "/v1/chat/completions";
 		public String PropsPathPrefix = "/props?model=";
 		public String TokenizePath = "/tokenize";
-
-		public String TruncatedMsgFmt =
-			"Your response was lost because it exceeded the maximum of %d tokens; " +
-			"please be more concise or, if possible, save longer content to a file " +
-			"and reference it in your direct response. Be sure that reformulated content " +
-			"is still well-formatted.";
 
 		public String ConversationTooLargeMsg =
 			"This conversation has grown too large to fit into model context, even after " +
@@ -121,6 +116,7 @@ public class Conversation implements Closeable
 	}
 	
 	public String prompt(String input) throws Exception {
+		maxTokensEffective = cfg.MaxTokens;
 		String response = promptOne(input);
 		while (response == null) response = promptOne(null);
 		return(response);
@@ -156,10 +152,12 @@ public class Conversation implements Closeable
 				return(null);
 				
 			case FINISH_REASON_TRUNC:
-				log.warning("OOPS: Hit generation max!");
-				messageHistory.add(makeTruncatedMessage());
-				return(null);
-				
+				log.info(String.format("Hit generation max: %d", maxTokensEffective));
+				if (tryIncreaseMaxTokens()) return(null);
+				log.warning("Unable to increase max tokens; terminating prompt.");
+				tag = CONTENT_TRUNCATED;
+				break;
+
 			case FINISH_REASON_FILTER:
 				log.warning("OOPS: Hit filter");
 				tag = CONTENT_FILTERED;
@@ -389,7 +387,7 @@ public class Conversation implements Closeable
 		req.stream = false;
 		
 		if (cfg.Temperature > 0.0) req.temperature = cfg.Temperature;
-		if (cfg.MaxTokens > 0) req.max_tokens = cfg.MaxTokens;
+		if (maxTokensEffective > 0) req.max_tokens = maxTokensEffective;
 
 		if (messageHistory.size() == 0) {
 			StringBuilder sb = new StringBuilder();
@@ -412,11 +410,6 @@ public class Conversation implements Closeable
 
 	private Message makeUserMessage(String input) {
 		return(makeMessage(ROLE_USER, environment.getTimeStamp() + input));
-	}
-
-	private Message makeTruncatedMessage() {
-		String msg = String.format(cfg.TruncatedMsgFmt, cfg.MaxTokens);
-		return(makeMessage(ROLE_USER, environment.getTimeStamp() + msg));
 	}
 
 	private Message makeSystemMessage(String input) {
@@ -452,8 +445,8 @@ public class Conversation implements Closeable
 
 	private boolean pruneRequest(Request req) {
 
-		long tokenBudget = getContextLength() - cfg.MaxTokens;
-		if (tokenBudget < 0) return(true); // degenerate case, just bail
+		long tokenBudget = getContextLength() - maxTokensEffective;
+		if (tokenBudget <= 0) return(true); // degenerate case, just bail
 		
 		long requestTokens = getTokenCount(req);
 		if (requestTokens <= tokenBudget) return(true);
@@ -545,6 +538,23 @@ public class Conversation implements Closeable
 		
 	}
 
+	// +----------------------+
+	// | tryIncreaseMaxTokens |
+	// +----------------------+
+
+	private boolean tryIncreaseMaxTokens() {
+		
+		if (maxTokensEffective == 0) return(false);
+
+		long ceiling = getContextLength() / cfg.MaxTokensCeilingDivisor;
+		if (maxTokensEffective >= ceiling) return(false);
+		
+		long newMaxTokens = maxTokensEffective + cfg.MaxTokens;
+
+		maxTokensEffective = (newMaxTokens > ceiling ? ceiling : newMaxTokens);
+		return(true);
+	}
+
 	// +------------------------+
 	// | OpenAI JSON Structures |
 	// +------------------------+
@@ -592,7 +602,7 @@ public class Conversation implements Closeable
 		public List<JsonObject> tools;
 		public Boolean stream;
 		public Double temperature;
-		public Integer max_tokens;
+		public Long max_tokens;
 
 		// This lives here so we ensure we're using the same serialization
 		// when computing token counts and actually submitting the request.
@@ -729,6 +739,7 @@ public class Conversation implements Closeable
 	private Utility utils;
 	private ToolCalling toolCalling;
 	private List<Message> messageHistory;
+	private long maxTokensEffective;
 
 	private ModelProps modelProps;
 	private JsonObject modelPropsRaw;
