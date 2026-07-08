@@ -209,6 +209,10 @@ public class TextFiles
 	private Path verifyPath(String input) throws Exception {
 		Path target = base.resolve(input).normalize();
 		if (!target.startsWith(base)) throw new Exception("Invalid Path: " + input);
+
+		Path parent = target.getParent();
+		if (parent != null) Files.createDirectories(parent);
+		
 		return(target);
 	}
 

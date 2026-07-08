@@ -167,9 +167,12 @@ public class Project
 		// 1. start from convo config located here or at parent
 		
 		Path projectCfg = getProjectFile(CONVERSATION_CONFIG_FILE);
-		
-		thisCfg = (!Files.exists(projectCfg) ? parentCfg.clone()
-				   : Conversation.Config.fromJson(Easy.stringFromFile(projectCfg.toString())));
+
+		thisCfg = (Files.exists(projectCfg)
+				   ? Conversation.Config.fromJson(Easy.stringFromFile(projectCfg.toString()))
+				   : (parentCfg != null
+					  ? parentCfg.clone()
+					  : new Conversation.Config()));
 
 		// 2. inherit the system prompt
 
