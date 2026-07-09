@@ -90,10 +90,12 @@ public class Project
 			}
 
 			// child projects
-			Path children = getProjectDirectory(CHILDREN_DIR);
-			for (Path childPath : Files.list(children).toList()) {
-				Project childProject = new Project(childPath.toString(), thisCfg);
-				childProject.run(results, result.Name);
+			Path children = getProjectDirectory(CHILDREN_DIR, false);
+			if (Files.exists(children)) {
+				for (Path childPath : Files.list(children).toList()) {
+					Project childProject = new Project(childPath.toString(), thisCfg);
+					childProject.run(results, result.Name);
+				}
 			}
 
 			// postwork
@@ -216,7 +218,8 @@ public class Project
 
 	private boolean runScript(String script) throws Exception {
 		
-		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR).toAbsolutePath();
+		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR, false).toAbsolutePath();
+		if (!Files.exists(scriptsDir)) return(true);
 		Path scriptFile = scriptsDir.resolve(script).toAbsolutePath();
 		if (!Files.exists(scriptFile)) return(true);
 
@@ -257,10 +260,14 @@ public class Project
 		return(projectPath.resolve(file));
 	}
 
-	private Path getProjectDirectory(String dir) throws Exception {
+	private Path getProjectDirectory(String dir, boolean createIfNeeded) throws Exception {
 		Path path = projectPath.resolve(dir);
-		if (!Files.exists(path)) Files.createDirectory(path);
+		if (!Files.exists(path) && createIfNeeded) Files.createDirectory(path);
 		return(path);
+	}
+
+	private Path getProjectDirectory(String dir) throws Exception {
+		return(getProjectDirectory(dir, true));
 	}
 
 	private Path getProjectSubDirectory(String dir, String subdir) throws Exception {

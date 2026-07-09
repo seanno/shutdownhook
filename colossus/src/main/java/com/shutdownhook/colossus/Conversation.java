@@ -82,6 +82,20 @@ public class Conversation implements Closeable
 		public Config clone() {
 			return(fromJson(toJson())); // round trip for clean clone
 		}
+
+		public Config override(Path overridePath) throws Exception {
+			
+			if (!Files.exists(overridePath)) return(clone());
+			
+			JsonObject thisCfg = JsonParser.parseString(toJson()).getAsJsonObject();
+
+			String overrideJson = Easy.stringFromFile(overridePath.toString());
+			JsonObject overrideCfg = JsonParser.parseString(overrideJson).getAsJsonObject();
+
+			for (String key : overrideCfg.keySet()) thisCfg.put(key, overrideCfg.get(key));
+
+			return(fromJson(thisCfg.toString()));
+		}
 	}
 
 	public Conversation(Config cfg) throws Exception {

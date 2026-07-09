@@ -21,15 +21,15 @@ public class CodeSandbox
 
 	public static class Config
 	{
-		public static String BasePath = null;
+		public String BasePath = null;
 		
-		public static String Memory = "1g";
-		public static String TempSize = "64m";
-		public static String Timeout = "30s";
+		public String Memory = "1g";
+		public String TempSize = "64m";
+		public String Timeout = "30s";
 
-		public static String ImageName = "code-sandbox";
+		public String ImageName = "code-sandbox";
 
-		public static String DockerCommandTemplate =
+		public String DockerCommandTemplate =
 			"timeout {{TIMEOUT}} docker run --rm " +
 			"--network none --read-only " +
 			"--memory {{MEM}} --memory-swap {{MEM}} " +
