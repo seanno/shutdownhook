@@ -18,7 +18,7 @@ public class App
 		List<Project.ProjectResult> results = new ArrayList<Project.ProjectResult>();
 		
 		try {
-			Project project = new Project(args[0], null);
+			Project project = new Project(args[0], null, null);
 			project.run(results, null);
 		}
 		finally {

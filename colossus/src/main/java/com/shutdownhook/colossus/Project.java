@@ -30,11 +30,13 @@ public class Project
 	// | Setup & Teardown |
 	// +------------------+
 
-	public Project(String path, Conversation.Config parentCfg) throws Exception {
+	public Project(String path, Conversation.Config parentCfg, String parentPrompt) throws Exception {
 		this.projectPath = Paths.get(path);
 		this.parentCfg = parentCfg;
+		this.parentPrompt = parentPrompt;
 		
 		setupConversationConfig();
+		setupConversationPrompt();
 	}
 
 	// +-----+
@@ -79,23 +81,18 @@ public class Project
 			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
-			// project conversation
-			Path prompt = getProjectFile(PROMPT_FILE);
-			if (Files.exists(prompt)) {
-				
-				conversation = new Conversation(thisCfg);
-				result.Response = conversation.safePrompt(Easy.stringFromFile(prompt.toString()));
-
-				archiveConversation(conversation);
-			}
-
-			// child projects
 			Path children = getProjectDirectory(CHILDREN_DIR, false);
 			if (Files.exists(children)) {
+				// child projects
 				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), thisCfg);
+					Project childProject = new Project(childPath.toString(), thisCfg, thisPrompt);
 					childProject.run(results, result.Name);
 				}
+			}
+			else if (thisPrompt != null) {
+				// project conversation
+				conversation = new Conversation(thisCfg);
+				result.Response = conversation.safePrompt(thisPrompt);
 			}
 
 			// postwork
@@ -122,6 +119,7 @@ public class Project
 		}
 		finally {
 			result.Finished = Instant.now().toString();
+			archiveConversation(conversation);
 			archiveRun(result);;
 			Easy.safeClose(conversation);
 		}
@@ -132,22 +130,29 @@ public class Project
 	// | archiveRun          |
 	// +---------------------+
 
-	private void archiveConversation(Conversation conversation) throws Exception {
-				
-		String fileNameFormat = conversation.getEnv().getFileStamp() + "-Conversation%s.json";
-		
-		Path archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
-		Path archiveFile;
-		int counter = 0;
-		
-		do {
-			String tag = (counter == 0 ? "" : "-" + Integer.toString(counter));
-			archiveFile = archiveDir.resolve(String.format(fileNameFormat, tag));
-			counter++;
-		}
-		while (Files.exists(archiveFile));
+	private void archiveConversation(Conversation conversation) {
 
-		Easy.stringToFile(archiveFile.toString(), conversation.history());
+		if (conversation == null) return;
+		
+		try {
+			String fileNameFormat = conversation.getEnv().getFileStamp() + "-Conversation%s.json";
+		
+			Path archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
+			Path archiveFile;
+			int counter = 0;
+		
+			do {
+				String tag = (counter == 0 ? "" : "-" + Integer.toString(counter));
+				archiveFile = archiveDir.resolve(String.format(fileNameFormat, tag));
+				counter++;
+			}
+			while (Files.exists(archiveFile));
+
+			Easy.stringToFile(archiveFile.toString(), conversation.history());
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "archiveConversation", true));
+		}
 	}
 	
 	private void archiveRun(ProjectResult result) {
@@ -162,19 +167,26 @@ public class Project
 
 	// +-------------------------+
 	// | setupConversationConfig |
+	// | setupConversationPrompt |
 	// +-------------------------+
 
 	private void setupConversationConfig() throws Exception {
 
-		// 1. start from convo config located here or at parent
+		// 1. start from convo config from here, or from parent with optional overrides
 		
-		Path projectCfg = getProjectFile(CONVERSATION_CONFIG_FILE);
+		Path projectCfgPath = getProjectFile(CONVERSATION_CONFIG_FILE);
 
-		thisCfg = (Files.exists(projectCfg)
-				   ? Conversation.Config.fromJson(Easy.stringFromFile(projectCfg.toString()))
-				   : (parentCfg != null
-					  ? parentCfg.clone()
-					  : new Conversation.Config()));
+		if (Files.exists(projectCfgPath)) {
+			if (parentCfg == null) {
+				thisCfg = Conversation.Config.fromJson(Easy.stringFromFile(projectCfgPath.toString()));
+			}
+			else {
+				thisCfg = parentCfg.override(projectCfgPath);
+			}
+		}
+		else {
+			thisCfg = ((parentCfg == null ? new Conversation.Config() : parentCfg.clone()));
+		}
 
 		// 2. inherit the system prompt
 
@@ -210,6 +222,17 @@ public class Project
 		}
 
 		thisCfg.ToolClasses = thisTools.toArray(new ToolClass[thisTools.size()]);
+	}
+
+	private void setupConversationPrompt() throws Exception {
+
+		thisPrompt = parentPrompt;
+		
+		Path prompt = getProjectFile(PROMPT_FILE);
+		if (Files.exists(prompt)) {
+			String newPrompt = Easy.stringFromFile(prompt.toString());
+			thisPrompt = (thisPrompt == null ? newPrompt : thisPrompt + "\n" + newPrompt);
+		}
 	}
 
 	// +-----------+
@@ -306,6 +329,8 @@ public class Project
 	private Path projectPath;
 	private Conversation.Config parentCfg;
 	private Conversation.Config thisCfg;
+	private String parentPrompt;
+	private String thisPrompt;
 	
 	private final static Logger log = Logger.getLogger(Project.class.getName());
 }

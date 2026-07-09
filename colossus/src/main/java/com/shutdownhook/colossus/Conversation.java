@@ -92,7 +92,7 @@ public class Conversation implements Closeable
 			String overrideJson = Easy.stringFromFile(overridePath.toString());
 			JsonObject overrideCfg = JsonParser.parseString(overrideJson).getAsJsonObject();
 
-			for (String key : overrideCfg.keySet()) thisCfg.put(key, overrideCfg.get(key));
+			for (String key : overrideCfg.keySet()) thisCfg.add(key, overrideCfg.get(key));
 
 			return(fromJson(thisCfg.toString()));
 		}
@@ -104,11 +104,18 @@ public class Conversation implements Closeable
 		this.utils = new Utility(cfg.Utility);
 		this.toolCalling = new ToolCalling(cfg.ToolClasses, this);
 		this.reset();
-		this.setupModelProps();
+
+		try {
+			this.setupModelProps();
+		}
+		catch (Exception e) {
+			this.close();
+			throw e;
+		}
 	}
 
 	public void close() {
-		utils.close();
+		Easy.safeClose(utils);
 	}
 
 	public Config getConfig() { return(cfg); }
