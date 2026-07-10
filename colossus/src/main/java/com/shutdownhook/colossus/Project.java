@@ -93,6 +93,10 @@ public class Project
 				// project conversation
 				conversation = new Conversation(thisCfg);
 				result.Response = conversation.safePrompt(thisPrompt);
+				if (result.Response.isEmpty()) {
+					String wrapUpPrompt = getWrapUpPrompt();
+					if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+				}
 			}
 
 			// postwork
@@ -297,6 +301,11 @@ public class Project
 		Path path = getProjectDirectory(dir).resolve(subdir);
 		if (!Files.exists(path)) Files.createDirectory(path);
 		return(path);
+	}
+
+	private String getWrapUpPrompt() {
+		try { return(Easy.stringFromResource("wrapUpPrompt.md")); }
+		catch (Exception e) { log.warning(Easy.exMsg(e, "wrapup", true)); return(null); }
 	}
 
 	// +-----------+
