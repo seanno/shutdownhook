@@ -47,6 +47,8 @@ public class Conversation implements Closeable
 		public Environment.Config Environment = new Environment.Config();
 
 		public String SystemPrompt;
+
+		public int MaxTurns = 50;
 		
 		public double Temperature = 0.0d;
 		public long MaxTokens = 4096; 
@@ -60,9 +62,17 @@ public class Conversation implements Closeable
 		public String PropsPathPrefix = "/props?model=";
 		public String TokenizePath = "/tokenize";
 
-		public String ConversationTooLargeMsg =
+		public String ConversationTooLargeMessage =
 			"This conversation has grown too large to fit into model context, even after " +
 			"attempts to prune old content. Please start a new conversation to continue.";
+
+		public String GenMaxMessage =
+			"Your response was too long for the system to process and was lost. " +
+			"I've tried to increase the space available, but please try to be more concise.";
+
+		public String TurnLimitMessage =
+			"You've hit the configured turn limit for this conversation; this will be the " +
+			"last message before returning to the original caller.";
 
 		public String SummarizePrompt =
 			"Summarize the provided text. Your summary should be as short as possible " +
@@ -132,21 +142,33 @@ public class Conversation implements Closeable
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "safePrompt", true));
-			return(null);
+			return(e.toString());
 		}
 	}
-	
+
 	public String prompt(String input) throws Exception {
 		maxTokensEffective = cfg.MaxTokens;
+		int turns = 0;
 		String response = promptOne(input);
-		while (response == null) response = promptOne(null);
+		while (response == null && !turnLimit(turns++)) {
+			if (turnLimit(turns)) {
+				log.warning("turn limit reached");
+				messageHistory.add(makeUserMessage(cfg.TurnLimitMessage));
+			}
+			response = promptOne(null);
+		}
 		return(response);
+	}
+
+	private boolean turnLimit(int turns) {
+		if (cfg.MaxTurns == 0) return(false);
+		return(turns >= cfg.MaxTurns);
 	}
 	
 	private String promptOne(String input) throws Exception {
 
 		String request = makeRequestBody(input);
-		if (request == null) return(cfg.ConversationTooLargeMsg);
+		if (request == null) return(cfg.ConversationTooLargeMessage);
 		
 		String body = sendRequest(cfg.CompletionPath, request);
 		Response response = utils.getGson().fromJson(body, Response.class);
@@ -158,11 +180,13 @@ public class Conversation implements Closeable
 		Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
-		log.info(String.format("Stats: prompt: %d, completion: %d, total: %d, PPS: %f",
+		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d]",
+							   choice.finish_reason,
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
-							   response.timings.predicted_per_second));
+							   response.timings.predicted_per_second,
+							   choice.message.content == null ? "-1" : choice.message.content.length()));
 
 		String tag = "";
 		
@@ -174,23 +198,22 @@ public class Conversation implements Closeable
 				
 			case FINISH_REASON_TRUNC:
 				log.info(String.format("Hit generation max: %d", maxTokensEffective));
-				if (tryIncreaseMaxTokens()) return(null);
+				if (tryIncreaseMaxTokens()) {
+					messageHistory.add(makeUserMessage(cfg.GenMaxMessage));
+					log.info(String.format("increased max effective tokens to %d", maxTokensEffective));
+					return(null);
+				}
 				log.warning("Unable to increase max tokens; terminating prompt.");
-				tag = CONTENT_TRUNCATED;
-				break;
+				return(CONTENT_TRUNCATED);
 
 			case FINISH_REASON_FILTER:
 				log.warning("OOPS: Hit filter");
-				tag = CONTENT_FILTERED;
-				break;
+				return(CONTENT_FILTERED);
 
 			default:
 			case FINISH_REASON_OK:
-				if (Easy.nullOrEmpty(choice.message.content)) tag = CONTENT_EMPTY;
-				break;
+				return(Easy.nullOrEmpty(choice.message.content) ? CONTENT_EMPTY : choice.message.content);
 		}
-
-		return(String.format("%s%s", tag, choice.message.content));
 	}
 
 	// +------------+

@@ -17,6 +17,7 @@ import java.util.logging.Logger;
 
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;;
+import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
@@ -134,10 +135,8 @@ public class ToolCalling
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
-			String query = arguments.get("query").getAsString();
-
-			int max = cfg.MaxResults;
-			if (arguments.has("max_results")) max = arguments.get("max_results").getAsInt();
+			String query = getStringField(arguments, "query");
+			int max = getIntegerField(arguments, "max_results", cfg.MaxResults);
 			
 			String url = cfg.UrlPrefix + Easy.urlEncode(query);
 			
@@ -188,7 +187,7 @@ public class ToolCalling
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
-			String url = arguments.get("url").getAsString();
+			String url = getStringField(arguments, "url");
 			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
 			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
 
@@ -261,40 +260,45 @@ public class ToolCalling
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
-			String cmd = arguments.get("cmd").getAsString().toLowerCase();
-			String path = arguments.get("path").getAsString();
+			String cmd = getStringField(arguments, "cmd", "").toLowerCase();
+			String path = getStringField(arguments, "path");
+
+			if (Easy.nullOrEmpty(cmd) || Easy.nullOrEmpty(path)) {
+				return("Error: cmd and path must be present");
+			}
 
 			switch (cmd) {
 				case "list":
-					int max = (arguments.has("max_files") ? arguments.get("max_files").getAsInt() : 0);
+					int max = getIntegerField(arguments, "max_files", 0);
 					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
 					return(conversation.getUtils().getCompactGson().toJson(infos));
 
 				case "read":
-					int ichStart = (arguments.has("start_index") ? arguments.get("start_index").getAsInt() : 0);
-					int cch = (arguments.has("read_length") ? arguments.get("read_length").getAsInt() : 0);
+					int ichStart = getIntegerField(arguments, "start_index", 0);
+					int cch = getIntegerField(arguments, "read_length", 0);
 					TextFiles.ReadInfo info = txt.read(path, ichStart, cch);
 					return(conversation.getUtils().getCompactGson().toJson(info));
 
 				case "grep":
-					String regex = arguments.get("regex").getAsString();
-					boolean caseInsensitive = (arguments.has("case_insensitive") ?
-											   arguments.get("case_insensitive").getAsBoolean() : false);
+					String regex = getStringField(arguments, "regex");
+					boolean caseInsensitive = getBooleanField(arguments, "case_insensitive", false);
 					return(txt.grep(path, regex, caseInsensitive));
 
 				case "write":
-					String contentsWrite = arguments.get("contents").getAsString();
+					String contentsWrite = getStringField(arguments, "contents");
 					TextFiles.WriteInfo infoWrite = txt.put(path, contentsWrite);
 					return(conversation.getUtils().getCompactGson().toJson(infoWrite));
 
 				case "append":
-					String contentsAppend = arguments.get("contents").getAsString();
+					String contentsAppend = getStringField(arguments, "contents");
 					TextFiles.WriteInfo infoAppend = txt.append(path, contentsAppend);
 					return(conversation.getUtils().getCompactGson().toJson(infoAppend));
 
 				case "download":
-					String url = arguments.get("url").getAsString();
-					boolean extractText = (arguments.has("extract_text") ? arguments.get("extract_text").getAsBoolean() : true);
+					String url = getStringField(arguments, "url");
+					if (Easy.nullOrEmpty(url)) return("Error: url must be present");
+
+					boolean extractText = getBooleanField(arguments, "extract_text", true);
 					long cchDownloaded = txt.download(path, url, extractText, conversation.getUtils().getRequests());
 					return(String.format("{ \"Length\": %d }", cchDownloaded));
 
@@ -320,7 +324,7 @@ public class ToolCalling
 		}
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			String cmd = arguments.get("cmd").getAsString();
+			String cmd = getStringField(arguments, "cmd");
 			return(code.run(cmd));
 		}
 
@@ -343,7 +347,7 @@ public class ToolCalling
 			Conversation subConvo = null;
 			try {
 				subConvo = new Conversation(cfg);
-				return(subConvo.prompt(arguments.get("prompt").getAsString()));
+				return(subConvo.prompt(getStringField(arguments, "prompt")));
 			}
 			finally {
 				Easy.safeClose(subConvo);
@@ -391,6 +395,36 @@ public class ToolCalling
 		err.addProperty("http_status_text", response.StatusText);
 		if (response.Ex != null) err.addProperty("exception", response.Ex.toString());
 		return(new Gson().toJson(err));
+	}
+
+	public static String getStringField(JsonObject json, String field) {
+		return(getStringField(json, field, null));
+	}
+	
+	public static String getStringField(JsonObject json, String field, String defaultVal) {
+		JsonElement child = json.get(field);
+		if (child == null) return(defaultVal);
+		return(child.getAsString());
+	}
+
+	public static int getIntegerField(JsonObject json, String field) {
+		return(getIntegerField(json, field ,0));
+	}
+	
+	public static int getIntegerField(JsonObject json, String field, int defaultVal) {
+		JsonElement child = json.get(field);
+		if (child == null) return(defaultVal);
+		return(child.getAsInt());
+	}
+
+	public static boolean getBooleanField(JsonObject json, String field) {
+		return(getBooleanField(json, field, false));
+	}
+	
+	public static boolean getBooleanField(JsonObject json, String field, boolean defaultVal) {
+		JsonElement child = json.get(field);
+		if (child == null) return(defaultVal);
+		return(child.getAsBoolean());
 	}
 
 	// +---------+

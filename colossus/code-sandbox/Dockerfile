@@ -10,6 +10,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sqlite3 \
   && rm -rf /var/lib/apt/lists/*
 
+# environment variables to help scripts be less whiny
+ENV MPLCONFIGDIR=/tmp/matplotlib
+
 # Install curated Python packages
 RUN pip install --no-cache-dir \
     numpy pandas scipy statsmodels sympy \

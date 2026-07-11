@@ -93,7 +93,7 @@ public class Project
 				// project conversation
 				conversation = new Conversation(thisCfg);
 				result.Response = conversation.safePrompt(thisPrompt);
-				if (result.Response.isEmpty()) {
+				if (Easy.nullOrEmpty(result.Response)) {
 					String wrapUpPrompt = getWrapUpPrompt();
 					if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
 				}
