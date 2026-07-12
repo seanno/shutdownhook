@@ -75,9 +75,11 @@ public class Project
 		Instant started = Instant.now();
 		
 		Conversation conversation = null;
+		Path archiveDir = null; 
 		
 		try {
 			// prework
+			archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
 			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
@@ -123,42 +125,16 @@ public class Project
 		}
 		finally {
 			result.Finished = Instant.now().toString();
-			archiveConversation(conversation);
+			if (conversation != null) conversation.archive(archiveDir);
 			archiveRun(result);;
 			Easy.safeClose(conversation);
 		}
 	}
 	
-	// +---------------------+
-	// | archiveConversation |
-	// | archiveRun          |
-	// +---------------------+
+	// +------------+
+	// | archiveRun |
+	// +------------+
 
-	private void archiveConversation(Conversation conversation) {
-
-		if (conversation == null) return;
-		
-		try {
-			String fileNameFormat = conversation.getEnv().getFileStamp() + "-Conversation%s.json";
-		
-			Path archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
-			Path archiveFile;
-			int counter = 0;
-		
-			do {
-				String tag = (counter == 0 ? "" : "-" + Integer.toString(counter));
-				archiveFile = archiveDir.resolve(String.format(fileNameFormat, tag));
-				counter++;
-			}
-			while (Files.exists(archiveFile));
-
-			Easy.stringToFile(archiveFile.toString(), conversation.history());
-		}
-		catch (Exception e) {
-			log.severe(Easy.exMsg(e, "archiveConversation", true));
-		}
-	}
-	
 	private void archiveRun(ProjectResult result) {
 		try {
 			Path runFile = getProjectDirectory(DATA_DIR).resolve(RUNS_FILE);

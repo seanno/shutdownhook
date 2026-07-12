@@ -142,6 +142,7 @@ public class Conversation implements Closeable
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "safePrompt", true));
+			archiveToTemp();
 			return(e.toString());
 		}
 	}
@@ -198,6 +199,7 @@ public class Conversation implements Closeable
 				
 			case FINISH_REASON_TRUNC:
 				log.info(String.format("Hit generation max: %d", maxTokensEffective));
+				choice.message.tool_calls = null; // this prevents truncated/invalid json in arguments
 				if (tryIncreaseMaxTokens()) {
 					messageHistory.add(makeUserMessage(cfg.GenMaxMessage));
 					log.info(String.format("increased max effective tokens to %d", maxTokensEffective));
@@ -255,6 +257,43 @@ public class Conversation implements Closeable
 		}
 	}
 
+	// +---------------+
+	// | archive       |
+	// | archiveToTemp |
+	// +---------------+
+
+	public void archiveToTemp() {
+		try { archive(Files.createTempDirectory("colossus")); }
+		catch (Exception e) { log.severe(Easy.exMsg(e, "archiveToTemp", false)); }
+	}
+	
+	public void archive(Path path) {
+		archive(path, "conversation");
+	}
+
+	public void archive(Path path, String label) {
+
+		try {
+			String fileNameFormat = label + "-" + getEnv().getFileStamp() + "%s.json";
+		
+			Path archiveFile;
+			int counter = 0;
+		
+			do {
+				String tag = (counter == 0 ? "" : "-" + Integer.toString(counter));
+				archiveFile = path.resolve(String.format(fileNameFormat, tag));
+				counter++;
+			}
+			while (Files.exists(archiveFile));
+
+			Easy.stringToFile(archiveFile.toString(), history());
+			log.info("archived conversation to: " + archiveFile.toString());
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "archiveConversation", true));
+		}
+	}
+	
 	// +-----------------+
 	// | setupModelProps |
 	// +-----------------+
