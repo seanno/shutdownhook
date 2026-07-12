@@ -38,6 +38,10 @@
 		  "type": "boolean",
 		  "description": "For 'download' only, false returns original content (usually html). true extracts only readable text. Not present implies true."
 		},
+		"url": {
+		  "type": "string",
+		  "description": "For 'download' only, the URL to download to path."
+		},
 		"regex": {
 		  "type": "string",
 		  "description": "For 'grep' only, the extended regular expression."
