@@ -206,8 +206,7 @@ public class Project
 
 		List<ToolClass> thisTools = new ArrayList<ToolClass>();
 
-		String fileToolClass = ToolCalling.Files_Tool.class.getName();
-		String codeToolClass = ToolCalling.Code_Tool.class.getName();
+		String superToolClass = ToolCalling.Super_Tool.class.getName();
 		String dataDir = getProjectDirectory(DATA_DIR).toString();
 
 		if (thisCfg.ToolClasses != null) {
@@ -216,7 +215,7 @@ public class Project
 				
 				if (toolClass == null) continue; // defense against stray trailing commas in config
 				
-				if (fileToolClass.equals(toolClass.ClassName) || codeToolClass.equals(toolClass.ClassName)) {
+				if (superToolClass.equals(toolClass.ClassName)) {
 					if (toolClass.Config == null) toolClass.Config = new JsonObject();
 					toolClass.Config.addProperty("BasePath", dataDir);
 				}

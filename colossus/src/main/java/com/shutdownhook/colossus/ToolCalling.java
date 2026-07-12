@@ -247,27 +247,39 @@ public class ToolCalling
  	}
 
 	// +------------+
-	// | Files_Tool |
+	// | Super_Tool |
 	// +------------+
 
-	public static class Files_Tool implements Tool
+	public static class Super_Tool implements Tool
 	{
+		public static class Config
+		{
+			public String BasePath;
+			public TextFiles.Config TextFiles = new TextFiles.Config();
+			public CodeSandbox.Config CodeSandbox = new CodeSandbox.Config();
+		}
+		
 		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
-			this.cfg = ToolCalling.loadConfig(toolClass, TextFiles.Config.class);
-			this.txt = new TextFiles(this.cfg);
-			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@files_tool.json"));
+			
+			this.cfg = ToolCalling.loadConfig(toolClass, Config.class);
+			this.cfg.TextFiles.BasePath = cfg.BasePath;
+			this.cfg.CodeSandbox.BasePath = cfg.BasePath;
+				
+			this.txt = new TextFiles(this.cfg.TextFiles);
+			this.code = new CodeSandbox(this.cfg.CodeSandbox);
+			
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@super_tool.json"));
 		}
 		
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
-			String cmd = getStringField(arguments, "cmd", "").toLowerCase();
+			String op = getStringField(arguments, "operation", "").toLowerCase();
 			String path = getStringField(arguments, "path");
 
-			if (Easy.nullOrEmpty(cmd) || Easy.nullOrEmpty(path)) {
-				return("Error: cmd and path must be present");
-			}
+			if (Easy.nullOrEmpty(op)) return("Error: cmd must be present");
+			if (!"run".equals(op) && Easy.nullOrEmpty(path)) return("Error: path must be present");
 
-			switch (cmd) {
+			switch (op) {
 				case "list":
 					int max = getIntegerField(arguments, "max_files", 0);
 					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
@@ -302,33 +314,18 @@ public class ToolCalling
 					long cchDownloaded = txt.download(path, url, extractText, conversation.getUtils().getRequests());
 					return(String.format("{ \"Length\": %d }", cchDownloaded));
 
+				case "run":
+					String cmd = getStringField(arguments, "cmd");
+					if (Easy.nullOrEmpty(cmd)) return("Error: cmd must be present");
+					return(code.run(cmd));
+
 				default:
-					throw new Exception("unknown file_tool cmd: " + cmd);
+					return("Error: Unknown super_tool operation " + op);
 			}
 		}
 
-		private TextFiles.Config cfg;
+		private Config cfg;
 		private TextFiles txt;
- 	}
-
-	// +-----------+
-	// | Code_Tool |
-	// +-----------+
-
-	public static class Code_Tool implements Tool
-	{
-		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
-			this.cfg = ToolCalling.loadConfig(toolClass, CodeSandbox.Config.class);
-			this.code = new CodeSandbox(this.cfg);
-			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@code_tool.json"));
-		}
-		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			String cmd = getStringField(arguments, "cmd");
-			return(code.run(cmd));
-		}
-
-		private CodeSandbox.Config cfg;
 		private CodeSandbox code;
  	}
 
