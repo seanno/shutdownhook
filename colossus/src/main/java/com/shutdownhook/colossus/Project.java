@@ -304,7 +304,7 @@ public class Project
 
 	private final static String DATA_DIR_ENV = "DATA_DIR";
 
-	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 10; // 10 minutes
+	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 20; // 20 minutes
 		
 	// +---------+
 	// | Members |
