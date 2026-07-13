@@ -79,7 +79,6 @@ public class Project
 		
 		try {
 			// prework
-			archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
 			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
@@ -93,6 +92,7 @@ public class Project
 			}
 			else if (thisPrompt != null) {
 				// project conversation
+				archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
 				conversation = new Conversation(thisCfg);
 				result.Response = conversation.safePrompt(thisPrompt);
 				if (Easy.nullOrEmpty(result.Response)) {
@@ -125,7 +125,7 @@ public class Project
 		}
 		finally {
 			result.Finished = Instant.now().toString();
-			if (conversation != null) conversation.archive(archiveDir);
+			if (archiveDir != null && conversation != null) conversation.archive(archiveDir);
 			archiveRun(result);;
 			Easy.safeClose(conversation);
 		}
