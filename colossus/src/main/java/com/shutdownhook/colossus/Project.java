@@ -63,12 +63,20 @@ public class Project
 		}
 	}
 
-	public boolean run(List<ProjectResult> results, String parentName) {
+	public boolean run(List<ProjectResult> results) {
+		return(run(results, null, null, null));
+	}
+
+	public boolean run(List<ProjectResult> results, String parentName, String
+					   targetProject, String promptOverride) {
+
+		String projectName = (parentName == null ? "" : parentName + " : ") + projectPath.getFileName();
+		if (targetProject != null && !targetProject.startsWith(projectName)) return(true);
 
 		ProjectResult result = new ProjectResult();
 		results.add(result);
 		
-		result.Name = (parentName == null ? "" : parentName + " : ") + projectPath.getFileName();
+		result.Name = projectName;
 		result.Started = Instant.now().toString();
 		
 		log.info(">>>>> STARTED project: " + projectPath.toString());
@@ -87,17 +95,26 @@ public class Project
 				// child projects
 				for (Path childPath : Files.list(children).toList()) {
 					Project childProject = new Project(childPath.toString(), thisCfg, thisPrompt);
-					childProject.run(results, result.Name);
+					childProject.run(results, result.Name, targetProject, promptOverride);
 				}
 			}
-			else if (thisPrompt != null) {
-				// project conversation
-				archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
-				conversation = new Conversation(thisCfg);
-				result.Response = conversation.safePrompt(thisPrompt);
-				if (Easy.nullOrEmpty(result.Response)) {
-					String wrapUpPrompt = getWrapUpPrompt();
-					if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+			else {
+				String effectivePrompt = thisPrompt;
+				boolean override = false;
+				if (projectName.equals(targetProject) && promptOverride != null) {
+					effectivePrompt = promptOverride;
+					override = true;
+				}
+
+				if (effectivePrompt != null) {
+					// project conversation
+					archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
+					conversation = new Conversation(thisCfg);
+					result.Response = conversation.safePrompt(effectivePrompt);
+					if (!override && Easy.nullOrEmpty(result.Response)) {
+						String wrapUpPrompt = getWrapUpPrompt();
+						if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+					}
 				}
 			}
 

@@ -31,6 +31,7 @@ public class CodeSandbox
 
 		public String DockerCommandTemplate =
 			"timeout {{TIMEOUT}} docker run --rm " +
+			"--user $(id -u):$(id -g) " +
 			"--network none --read-only " +
 			"--memory {{MEM}} --memory-swap {{MEM}} " +
 			"--cpus 1 --tmpfs /tmp:size={{TEMP}} " +
@@ -69,6 +70,7 @@ public class CodeSandbox
 		params.put("BASE_PATH", cfg.BasePath);
 
 		String dockerCommand = tmpl.render(params);
+		//log.info("!!! DOCKER COMMAND IS: " + dockerCommand);
 		return(Easy.stringFromProcess(dockerCommand, true));
 	}
 	
