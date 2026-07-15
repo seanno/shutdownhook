@@ -8,6 +8,7 @@ RUN useradd -r -s /usr/sbin/nologin -m sandbox
 RUN apt-get update && apt-get install -y --no-install-recommends \
     jq \
     sqlite3 \
+	openscad \
   && rm -rf /var/lib/apt/lists/*
 
 # environment variables to help scripts be less whiny
