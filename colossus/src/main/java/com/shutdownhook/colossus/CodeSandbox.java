@@ -6,6 +6,7 @@ package com.shutdownhook.colossus;
 
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -30,7 +31,7 @@ public class CodeSandbox
 		public String ImageName = "code-sandbox";
 
 		public String DockerCommandTemplate =
-			"timeout {{TIMEOUT}} docker run --rm " +
+			"timeout {{TIMEOUT}} docker run --rm --name {{NAME}} " +
 			"--user $(id -u):$(id -g) " +
 			"--network none --read-only " +
 			"--memory {{MEM}} --memory-swap {{MEM}} " +
@@ -59,11 +60,14 @@ public class CodeSandbox
 
 	public String run(String command) throws Exception {
 
+		String containerName = "sandbox-" + UUID.randomUUID().toString();
+
 		Map<String,String> params = new HashMap<String,String>();
 		params.put("TIMEOUT", cfg.Timeout);
 		params.put("MEM", cfg.Memory);
 		params.put("TEMP", cfg.TempSize);
 		params.put("IMAGE", cfg.ImageName);
+		params.put("NAME", containerName);
 		params.put("CMD", Easy.base64Encode(command)); // NOTE this avoids escaping issues!
 
 		params.put("HAVE_BASE_PATH", cfg.BasePath == null ? "false" : "true");
@@ -71,7 +75,15 @@ public class CodeSandbox
 
 		String dockerCommand = tmpl.render(params);
 		//log.info("!!! DOCKER COMMAND IS: " + dockerCommand);
-		return(Easy.stringFromProcess(dockerCommand, true));
+		try {
+			return(Easy.stringFromProcess(dockerCommand, true));
+		}
+		finally {
+			// If the shell-level timeout killed the docker client, the container may
+			// still be running on the daemon. Kill it explicitly to prevent orphans.
+			try { Easy.stringFromProcess("docker kill " + containerName); }
+			catch (Exception e) { /* container already exited, ignore */ }
+		}
 	}
 	
 	// +---------+

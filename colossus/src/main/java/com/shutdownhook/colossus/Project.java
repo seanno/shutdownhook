@@ -73,6 +73,12 @@ public class Project
 		String projectName = (parentName == null ? "" : parentName + " : ") + projectPath.getFileName();
 		if (targetProject != null && !targetProject.startsWith(projectName)) return(true);
 
+		// two ways to pause ... the rename causes havoc with my onedrive sync so
+		// added the file method as well.
+		if (projectName.toLowerCase().endsWith(PAUSED_SUFFIX)) return(true);
+		try { if (Files.exists(getProjectFile(PAUSED_FILE))) return(true); }
+		catch (Exception ePause) { /* eat it I guess, things will fail in a second anyways */ }
+			
 		ProjectResult result = new ProjectResult();
 		results.add(result);
 		
@@ -311,6 +317,7 @@ public class Project
 	private final static String PROMPT_FILE = "prompt.md";
 	private final static String LEARNINGS_FILE = "learnings.json";
 	private final static String RUNS_FILE = "runs.md";
+	private final static String PAUSED_FILE = "paused.txt";
 
 	private final static String DATA_DIR = "data";
 	private final static String TEMP_SUBDIR = "temp";
@@ -322,7 +329,9 @@ public class Project
 	private final static String DATA_DIR_ENV = "DATA_DIR";
 
 	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 20; // 20 minutes
-		
+
+	private final static String PAUSED_SUFFIX = ".paused";
+	
 	// +---------+
 	// | Members |
 	// +---------+
