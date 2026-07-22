@@ -1,0 +1,19 @@
+[Unit]
+Description=cereal-proxy serializing HTTP proxy
+After=network.target
+
+[Service]
+Type=simple
+User=sean
+WorkingDirectory=/home/sean/src/shutdownhook/colossus/cereal-proxy
+ExecStart=/usr/bin/python3 /home/sean/src/shutdownhook/colossus/cereal-proxy/cereal-proxy.py \
+    --listen 8000 \
+    --downstream 8080 \
+    --timeout 30
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

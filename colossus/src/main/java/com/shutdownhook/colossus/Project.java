@@ -71,7 +71,7 @@ public class Project
 					   targetProject, String promptOverride) {
 
 		String projectName = (parentName == null ? "" : parentName + " : ") + projectPath.getFileName();
-		if (targetProject != null && !targetProject.startsWith(projectName)) return(true);
+		if (shouldSkip(projectName, targetProject)) return(true);
 
 		// two ways to pause ... the rename causes havoc with my onedrive sync so
 		// added the file method as well.
@@ -152,6 +152,13 @@ public class Project
 			archiveRun(result);;
 			Easy.safeClose(conversation);
 		}
+	}
+
+	private boolean shouldSkip(String thisProject, String targetProject) {
+		if (targetProject == null) return(false);
+		if (thisProject.startsWith(targetProject)) return(false); // descendant
+		if (targetProject.startsWith(thisProject)) return(false); // ancestor
+		return(true);
 	}
 	
 	// +------------+

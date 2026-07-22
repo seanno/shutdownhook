@@ -1,0 +1,5 @@
+Edit the --listen, --downstream, and --timeout values in ExecStart before installing.
+
+* sudo cp cereal-proxy.service /etc/systemd/system/
+* sudo systemctl daemon-reload
+* sudo systemctl enable --now cereal-proxy

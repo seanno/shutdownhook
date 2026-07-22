@@ -315,7 +315,35 @@ public class Conversation implements Closeable
 		public String eos_token;
 	}
 
+	private final static int MODEL_PROPS_DELAY_MS = 2000;
+	private final static int MODEL_PROPS_RETRY_LIMIT = 3;
+	
 	private void setupModelProps() throws Exception {
+
+		int tries = 0;
+		
+		while (true) {
+			
+			try {
+				++tries;
+				trySetupModelProps();
+				return;
+			}
+			catch (Exception e) {
+				
+				if (tries < MODEL_PROPS_RETRY_LIMIT) {
+					log.info("(Hopefully) transient ex getting model props; will retry: " + e.toString());
+					Thread.sleep(MODEL_PROPS_DELAY_MS);
+				}
+				else {
+					log.severe("FATAL ex getting model props; will retry: " + e.toString());
+					return;
+				}
+			}
+		}
+	}
+
+	private void trySetupModelProps() throws Exception {
 		String body = sendRequest(cfg.PropsPathPrefix + Easy.urlEncode(cfg.Model), null);
 		this.modelProps = utils.getGson().fromJson(body, ModelProps.class);
 		this.modelPropsRaw = JsonParser.parseString(body).getAsJsonObject();
