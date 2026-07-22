@@ -36,6 +36,11 @@ class CerealProxy(http.server.BaseHTTPRequestHandler):
         )
 
     def handle_any(self):
+        # Always close after each response: without Content-Length or chunked
+        # encoding on the client side (both stripped as hop-by-hop), the client
+        # can only detect end-of-body via connection close.
+        self.close_connection = True
+
         start = time.monotonic()
 
         # Read request body before acquiring the lock so we don't hold it
@@ -84,6 +89,7 @@ class CerealProxy(http.server.BaseHTTPRequestHandler):
                 for key, value in resp.getheaders():
                     if key.lower() not in HOP_BY_HOP:
                         self.send_header(key, value)
+                self.send_header('Connection', 'close')
                 self.end_headers()
 
                 # Stream the body chunk by chunk with immediate flushing.
