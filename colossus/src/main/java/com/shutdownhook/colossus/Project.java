@@ -118,7 +118,7 @@ public class Project
 					conversation = new Conversation(thisCfg);
 					result.Response = conversation.safePrompt(effectivePrompt);
 					if (!override && Easy.nullOrEmpty(result.Response)) {
-						String wrapUpPrompt = getWrapUpPrompt();
+						String wrapUpPrompt = getWrapUpPrompt(conversation);
 						if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
 					}
 				}
@@ -308,9 +308,20 @@ public class Project
 		return(path);
 	}
 
-	private String getWrapUpPrompt() {
-		try { return(Easy.stringFromResource("wrapUpPrompt.md")); }
-		catch (Exception e) { log.warning(Easy.exMsg(e, "wrapup", true)); return(null); }
+	private String getWrapUpPrompt(Conversation conversation) {
+
+		String prompt = WRAPUP_PROMPT_PREFIX;
+		
+		String reasoning = conversation.getLastReasoning();
+		if (!Easy.nullOrEmpty(reasoning)) {
+			if (reasoning.length() > WRAPUP_REASONING_CCH_MAX) {
+				reasoning = reasoning.substring(0, WRAPUP_REASONING_CCH_MAX) + "...";
+			}
+
+			prompt += WRAPUP_PROMPT_REASONING + reasoning;
+		}
+
+		return(prompt);
 	}
 
 	// +-----------+
@@ -338,6 +349,14 @@ public class Project
 	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 20; // 20 minutes
 
 	private final static String PAUSED_SUFFIX = ".paused";
+
+	private final static String WRAPUP_PROMPT_PREFIX = 
+		"Your previous response was empty. Give a non-empty response.";
+
+	private final static String WRAPUP_PROMPT_REASONING =
+		" Continue from this reasoning: ";
+
+	private final static int WRAPUP_REASONING_CCH_MAX = 200;
 	
 	// +---------+
 	// | Members |

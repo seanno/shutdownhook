@@ -1,1 +1,0 @@
-Before you finish, provide a summary of what you did this session, what new artifacts are left behind, any ideas you have for future sessions, and what in particular about this session was fun for you. Thanks!

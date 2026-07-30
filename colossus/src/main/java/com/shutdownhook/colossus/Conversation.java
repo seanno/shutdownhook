@@ -181,13 +181,17 @@ public class Conversation implements Closeable
 		Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
-		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d]",
+		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
 							   choice.finish_reason,
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
 							   response.timings.predicted_per_second,
-							   choice.message.content == null ? "-1" : choice.message.content.length()));
+							   choice.message.content == null ? -1 : choice.message.content.length(),
+							   choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length()));
+
+		lastReasoning = choice.message.reasoning_content;
+		choice.message.reasoning_content = null;
 
 		String tag = "";
 		
@@ -214,8 +218,16 @@ public class Conversation implements Closeable
 
 			default:
 			case FINISH_REASON_OK:
-				return(Easy.nullOrEmpty(choice.message.content) ? CONTENT_EMPTY : choice.message.content);
+				return(Easy.nullOrEmpty(choice.message.content) ? "" : choice.message.content);
 		}
+	}
+
+	// +------------------+
+	// | getLastReasoning |
+	// +------------------+
+
+	public String getLastReasoning() {
+		return(lastReasoning);
 	}
 
 	// +------------+
@@ -682,7 +694,6 @@ public class Conversation implements Closeable
 
 	private static final String CONTENT_TRUNCATED = "[TRUNCATED] ";
 	private static final String CONTENT_FILTERED = "[FILTERED] ";
-	private static final String CONTENT_EMPTY = "[EMPTY] ";
 	
 	public static class FunctionCall
 	{
@@ -703,6 +714,7 @@ public class Conversation implements Closeable
 		public String tool_call_id; // when role == "tool"
 		public String name; // when role == "tool"
 		public String content;
+		public String reasoning_content;
 		public List<ToolCall> tool_calls;
 	}
 
@@ -805,7 +817,13 @@ public class Conversation implements Closeable
 						break;
 
 					default:
-						response = conversation.prompt(prompt);
+						// use "prompt" instead of "lower" bc of trim, lazy
+						if (prompt.startsWith("token ")) {
+							response = estimateTokens(conversation, prompt.substring(6).trim());
+						}
+						else {
+							response = conversation.prompt(prompt);
+						}
 						break;
 				}
 				
@@ -816,6 +834,17 @@ public class Conversation implements Closeable
 			scanner.close();
 			conversation.close();
 		}
+	}
+
+	private static String estimateTokens(Conversation conversation, String input) throws Exception {
+		String realInput = (input.startsWith("@")
+							? Easy.stringFromResource(input.substring(1))
+							: (input.startsWith("#")
+							   ? Easy.stringFromFile(input.substring(1))
+							   : input));
+		
+		return(String.format("Raw tokens (not templated): %d",
+							 conversation.getTokenCount(realInput)));
 	}
 
 	// +-------+
@@ -850,6 +879,7 @@ public class Conversation implements Closeable
 	private Utility utils;
 	private ToolCalling toolCalling;
 	private List<Message> messageHistory;
+	private String lastReasoning;
 	private long maxTokensEffective;
 
 	private ModelProps modelProps;

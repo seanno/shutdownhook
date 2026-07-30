@@ -277,7 +277,11 @@ public class ToolCalling
 			String path = getStringField(arguments, "path");
 
 			if (Easy.nullOrEmpty(op)) return("Error: cmd must be present");
-			if (!"run".equals(op) && Easy.nullOrEmpty(path)) return("Error: path must be present");
+			
+			if (Easy.nullOrEmpty(path)) {
+				if ("list".equals(op)) path = ".";
+				if (!"run".equals(op) && Easy.nullOrEmpty(path)) return("Error: path must be present");
+			}
 
 			switch (op) {
 				case "list":
