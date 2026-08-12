@@ -198,7 +198,7 @@ public class Mail implements Closeable
 
 		try {
 			folder = getStore().getFolder(folderPath);
-			folder.open(Folder.READ_WRITE);
+			folder.open(markRead ? Folder.READ_WRITE : Folder.READ_ONLY);
 			
 			Date dateSince = computeDateSince(daysBack);
 
@@ -395,7 +395,7 @@ public class Mail implements Closeable
 
 				case "list":
 					String folder = (args.length >= 3 ? args[2] : "INBOX");
-					boolean markRead = (args.length >= 4 ? Boolean.parseBoolean(args[2]) : false);
+					boolean markRead = (args.length >= 4 ? Boolean.parseBoolean(args[3]) : false);
 					GetResult result = mail.getFolderSince(folder, 1, null, markRead);
 					System.out.println(utils.getGson().toJson(result));
 					break;
