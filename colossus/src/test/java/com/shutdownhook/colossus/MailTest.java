@@ -204,7 +204,7 @@ public class MailTest
 
 	private Method blockedAddressMethod;
 
-	private Mail mailWithWhitelist(String[] whitelist) {
+	private Mail mailWithWhitelist(String[] whitelist) throws Exception {
 		Mail.Config cfg = new Mail.Config();
 		cfg.Email = "test@example.com";
 		cfg.Password = "password";

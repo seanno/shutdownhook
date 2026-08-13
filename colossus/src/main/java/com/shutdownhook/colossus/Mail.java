@@ -5,6 +5,10 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Calendar;
@@ -42,6 +46,8 @@ import com.shutdownhook.toolbox.Easy;
 
 public class Mail implements Closeable
 {
+	public static String INBOX = "INBOX";
+	
 	// +------------------+
 	// | Setup & Teardown |
 	// +------------------+
@@ -69,8 +75,13 @@ public class Mail implements Closeable
 
 	}
 
-	public Mail(Config cfg) throws IllegalArgumentException {
+	public Mail(Config cfg) throws Exception {
+		this(cfg, new Utility(new Utility.Config()));
+	}
+
+	public Mail(Config cfg, Utility utils) throws IllegalArgumentException {
 		this.cfg = cfg;
+		this.utils = utils;
 		this.session = getSession();
 		cleanupWhiteList(); 
 	}
@@ -167,28 +178,79 @@ public class Mail implements Closeable
 		return(true);
 	}
 
-	// +----------------+
-	// | getInboxSince  |
-	// | getFolderSince |
-	// +----------------+
+	// +---------------------+
+	// | downloadFolderSince |
+	// | getFolderSince      |
+	// +---------------------+
 
 	// note "daysBack" is day-granular. So if you pass "since 1/1/25 13:00:00" you still get everything
 	// on that date before 1pm ... SavedPosition is intended to help avoid repeat processing
-	
+
 	public static class GetResult
 	{
 		public SavedPosition LastPosition = SavedPosition.of(-1L, -1L);
 		public List<MessageData> MessageDatas = new ArrayList<MessageData>();
 	}
 
-	public GetResult getInboxSince(int daysBack, SavedPosition position, boolean markRead) 
-		throws IllegalArgumentException {
+	// returns message objects with Text redacted. Full messages files are written into downloadPath
+	// with the pattern (UID.txt). If downloadPath is null, files will be written to a unique temp
+	// directory. Otherwise the caller is responsible for ensuring there will not be name collisions.
+	//
+	// If non-null, savedPositionPath is the path to a file that (if it exists) contains saved position
+	// information from a previous run. The file is updated with new information by this call.
+	
+	public GetResult downloadFolderSince(String downloadPath, String folderPath,
+											int daysBack, String savedPositionPath, boolean markRead)
+		throws IllegalArgumentException, IOException {
+
+		// setup download path
+		Path target = (downloadPath == null ? Files.createTempDirectory("colossus") : Paths.get(downloadPath));
+		if (!Files.exists(target)) Files.createDirectory(target);
+
+		// read saved position file
+		SavedPosition savedPosition = null;
+		Path pos = (savedPositionPath == null ? null : Paths.get(savedPositionPath));
 		
-		return(getFolderSince("INBOX", daysBack, position, markRead));
+		if (pos != null && Files.exists(pos)) {
+			try {
+				String json = Easy.stringFromFile(pos.toString());
+				savedPosition = utils.getGson().fromJson(json, SavedPosition.class);
+			}
+			catch (Exception e) {
+				log.warning(Easy.exMsg(e, "savedPosition load; ignoring", false));
+			}
+		}
+
+		// do the work
+		GetResult result = getFolderSinceInternal(target, folderPath, daysBack, savedPosition, markRead);
+
+		// update saved position file
+		if (result != null && pos != null) {
+			try {
+				Easy.stringToFile(pos.toString(), utils.getCompactGson().toJson(result.LastPosition));
+			}
+			catch (Exception e) {
+				log.warning(Easy.exMsg(e, "savedPosition save; ignoring", false));
+			}
+		}
+
+		return(result);
 	}
 
-	public GetResult getFolderSince(String folderPath, int daysBack, SavedPosition position, boolean markRead)
-		throws IllegalArgumentException {
+	// returns full message objects
+	
+	public GetResult getFolderSince(String folderPath, int daysBack, SavedPosition position, boolean markRead) 
+		throws IllegalArgumentException, IOException {
+
+		return(getFolderSinceInternal(null, folderPath, daysBack, position, markRead));
+	}
+
+	// internal helper
+	
+	private GetResult getFolderSinceInternal(Path target, String folderPath,
+											int daysBack, SavedPosition position, boolean markRead)
+		
+		throws IllegalArgumentException, IOException {
 
 		if (daysBack < 1) throw new IllegalArgumentException("daysBack must be >= 1");
 							  
@@ -201,11 +263,24 @@ public class Mail implements Closeable
 			folder.open(markRead ? Folder.READ_WRITE : Folder.READ_ONLY);
 			
 			Date dateSince = computeDateSince(daysBack);
-
-			result.LastPosition.Validity = ((UIDFolder)folder).getUIDValidity();
+			long currentValidity = ((UIDFolder)folder).getUIDValidity();
 			
-			long lastSeenUID = (position == null || position.Validity != result.LastPosition.Validity
-								? -1L : position.UID);
+			if (position == null || position.Validity != currentValidity) {
+				
+				if (position != null) {
+					log.warning(String.format("Validity changed %d->%d, reset",
+											  position.Validity, currentValidity));
+				}
+				
+				result.LastPosition.Validity = currentValidity;
+				result.LastPosition.UID = -1L;
+			}
+			else {
+				result.LastPosition.Validity = position.Validity;
+				result.LastPosition.UID = position.UID;
+			}
+
+			long savedUID = result.LastPosition.UID;
 
 			Message[] messages = folder.search(new ReceivedDateTerm(ComparisonTerm.GE, dateSince));
 
@@ -217,6 +292,8 @@ public class Mail implements Closeable
 			for (Message message : messages) {
 				
 				long uid = ((UIDFolder)folder).getUID(message);
+				if (uid <= savedUID) continue;
+				
 				if (uid > result.LastPosition.UID) result.LastPosition.UID = uid;
 
 				MessageData data = new MessageData();
@@ -229,6 +306,12 @@ public class Mail implements Closeable
 				data.Subject = message.getSubject();
 				data.Text = parseMessageText(message);
 
+				if (target != null) {
+					Path path = target.resolve(String.format("%d.txt", data.Position.UID));
+					Easy.stringToFile(path.toString(), utils.getCompactGson().toJson(data));
+					data.Text = null; 
+				}
+				
 				if (markRead) message.setFlag(Flags.Flag.SEEN, true);
 			}
 			
@@ -380,8 +463,8 @@ public class Mail implements Closeable
 		}
 		
 		Config cfg = Config.fromJson(Easy.stringFromFile(args[0]));
-		Mail mail = new Mail(cfg);
 		Utility utils = new Utility(new Utility.Config());
+		Mail mail = new Mail(cfg, utils);
 
 		try {
 			String cmd = args[1].trim().toLowerCase(Locale.ROOT);
@@ -394,9 +477,25 @@ public class Mail implements Closeable
 					break;
 
 				case "list":
+				case "download":
 					String folder = (args.length >= 3 ? args[2] : "INBOX");
 					boolean markRead = (args.length >= 4 ? Boolean.parseBoolean(args[3]) : false);
-					GetResult result = mail.getFolderSince(folder, 1, null, markRead);
+					GetResult result = null;
+					
+					if (cmd.equals("list")) {
+						SavedPosition pos = (args.length >= 5
+											 ? utils.getGson().fromJson(args[4], SavedPosition.class)
+											 : null);
+
+						result = mail.getFolderSince(folder, 1, pos, markRead);
+					}
+					else {
+						String targetPath = (args.length >= 5 ? args[4] : null);
+						String posPath = (args.length >= 6 ? args[5] : null);
+						
+						result = mail.downloadFolderSince(targetPath, folder, 1, posPath, markRead);
+					}
+					
 					System.out.println(utils.getGson().toJson(result));
 					break;
 
@@ -413,7 +512,8 @@ public class Mail implements Closeable
 
 	private static void usage() {
 		System.out.println("java -cp [JAR] com.shutdownhook.colossus.Mail [Config] send [SendMessageData] [isHTML]");
-		System.out.println("java -cp [JAR] com.shutdownhook.colossus.Mail [Config] list [Folder] [MarkRead]");
+		System.out.println("java -cp [JAR] com.shutdownhook.colossus.Mail [Config] list [Folder] [MarkRead] [posJson]");
+		System.out.println("java -cp [JAR] com.shutdownhook.colossus.Mail [Config] download [Folder] [MarkRead] [targetPath] [posPath]");
 	}
 
 	// +---------+
@@ -421,6 +521,7 @@ public class Mail implements Closeable
 	// +---------+
 
 	private Config cfg;
+	private Utility utils;
 	private Session session;
 	private Store store;
 	
