@@ -29,7 +29,7 @@ public class App
 		List<Project.ProjectResult> results = new ArrayList<Project.ProjectResult>();
 		
 		try {
-			Project project = new Project(projectPath, null, null);
+			Project project = new Project(projectPath, null);
 			project.run(results, null, targetProject, promptOverride);
 		}
 		finally {

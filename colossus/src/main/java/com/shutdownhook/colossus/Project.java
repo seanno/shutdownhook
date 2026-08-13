@@ -30,13 +30,11 @@ public class Project
 	// | Setup & Teardown |
 	// +------------------+
 
-	public Project(String path, Conversation.Config parentCfg, String parentPrompt) throws Exception {
+	public Project(String path, Conversation.Config parentCfg) throws Exception {
 		this.projectPath = Paths.get(path);
 		this.parentCfg = parentCfg;
-		this.parentPrompt = parentPrompt;
 		
 		setupConversationConfig();
-		setupConversationPrompt();
 	}
 
 	// +-----+
@@ -92,39 +90,51 @@ public class Project
 		Path archiveDir = null; 
 		
 		try {
-			// prework
+			// (1) prework
 			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
+			// (2) children
 			Path children = getProjectDirectory(CHILDREN_DIR, false);
 			if (Files.exists(children)) {
-				// child projects
 				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), thisCfg, thisPrompt);
+					Project childProject = new Project(childPath.toString(), thisCfg);
 					childProject.run(results, result.Name, targetProject, promptOverride);
 				}
 			}
-			else {
-				String effectivePrompt = thisPrompt;
-				boolean override = false;
-				if (projectName.equals(targetProject) && promptOverride != null) {
-					effectivePrompt = promptOverride;
-					override = true;
-				}
 
-				if (effectivePrompt != null) {
-					// project conversation
-					archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
-					conversation = new Conversation(thisCfg);
-					result.Response = conversation.safePrompt(effectivePrompt);
-					if (!override && Easy.nullOrEmpty(result.Response)) {
-						String wrapUpPrompt = getWrapUpPrompt(conversation);
-						if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
-					}
+			// (3) conversation
+			String effectivePrompt = null;
+			boolean override = false;
+			
+			if (projectName.equals(targetProject) && promptOverride != null) {
+				// override
+				effectivePrompt = promptOverride;
+				override = true;
+			}
+			else {
+				Path promptPath = getProjectFile(PROMPT_FILE);
+				if (Files.exists(promptPath)) {
+					// explicit prompt
+					effectivePrompt = Easy.stringFromFile(promptPath.toString());
+				}
+				else if (!Files.exists(children)) {
+					// implicit prompt at leaf
+					effectivePrompt = START_PROMPT;
 				}
 			}
 
-			// postwork
+			if (effectivePrompt != null) {
+				archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
+				conversation = new Conversation(thisCfg);
+				result.Response = conversation.safePrompt(effectivePrompt);
+				if (!override && Easy.nullOrEmpty(result.Response)) {
+					String wrapUpPrompt = getWrapUpPrompt(conversation);
+					if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+				}
+			}
+
+			// (4) postwork
 			runScript(POST_SCRIPT_FILE);
 			ensureDataAndClearTemp();
 
@@ -177,7 +187,6 @@ public class Project
 
 	// +-------------------------+
 	// | setupConversationConfig |
-	// | setupConversationPrompt |
 	// +-------------------------+
 
 	private void setupConversationConfig() throws Exception {
@@ -233,17 +242,6 @@ public class Project
 		thisCfg.ToolClasses = thisTools.toArray(new ToolClass[thisTools.size()]);
 	}
 
-	private void setupConversationPrompt() throws Exception {
-
-		thisPrompt = parentPrompt;
-		
-		Path prompt = getProjectFile(PROMPT_FILE);
-		if (Files.exists(prompt)) {
-			String newPrompt = Easy.stringFromFile(prompt.toString());
-			thisPrompt = (thisPrompt == null ? newPrompt : thisPrompt + "\n" + newPrompt);
-		}
-	}
-
 	// +-----------+
 	// | runScript |
 	// +-----------+
@@ -277,11 +275,22 @@ public class Project
 
 	private void ensureDataAndClearTemp() throws Exception {
 
-		// this by side-effect creates DATA_DIR if needed
+		// create data if needed
+		Path dataPath = getProjectDirectory(DATA_DIR);
+
+		// ensure temp and clear it out if needed
 		Path tempPath = getProjectSubDirectory(DATA_DIR, TEMP_SUBDIR);
-		
 		if (Files.exists(tempPath)) { Easy.recursiveDelete(tempPath.toFile(), false); }
 		else { Files.createDirectory(tempPath); }
+
+		// symlink to parent data
+		if (parentCfg != null) {
+			Path parentPathLink = dataPath.resolve(PARENT_DATA_NAME);
+			if (!Files.exists(parentPathLink)) {
+				Path parentPathTarget = projectPath.resolve(PARENT_DATA_DIR);
+				Files.createSymbolicLink(parentPathLink, parentPathTarget);
+			}
+		}
 	}
 
 	// +---------+
@@ -340,6 +349,9 @@ public class Project
 	private final static String DATA_DIR = "data";
 	private final static String TEMP_SUBDIR = "temp";
 	
+	private final static String PARENT_DATA_DIR = "../../data";
+	private final static String PARENT_DATA_NAME = "parent";
+	
 	private final static String CHILDREN_DIR = "children";
 	private final static String CONVERSATIONS_DIR = "conversations";
 	private final static String SCRIPTS_DIR = "scripts";
@@ -357,7 +369,9 @@ public class Project
 		" Continue from this reasoning: ";
 
 	private final static int WRAPUP_REASONING_CCH_MAX = 200;
-	
+
+	private final static String START_PROMPT = "Begin";
+		
 	// +---------+
 	// | Members |
 	// +---------+
@@ -365,8 +379,6 @@ public class Project
 	private Path projectPath;
 	private Conversation.Config parentCfg;
 	private Conversation.Config thisCfg;
-	private String parentPrompt;
-	private String thisPrompt;
 	
 	private final static Logger log = Logger.getLogger(Project.class.getName());
 }
