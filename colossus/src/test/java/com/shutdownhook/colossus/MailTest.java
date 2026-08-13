@@ -34,7 +34,7 @@ public class MailTest
 	public void setUp() throws Exception {
 		Mail.Config cfg = new Mail.Config();
 		cfg.Email = "test@example.com";
-		cfg.Password = "password";
+		cfg.Password_S = "password";
 		cfg.ImapHost = "imap.example.com";
 		mail = new Mail(cfg);
 
@@ -207,7 +207,7 @@ public class MailTest
 	private Mail mailWithWhitelist(String[] whitelist) throws Exception {
 		Mail.Config cfg = new Mail.Config();
 		cfg.Email = "test@example.com";
-		cfg.Password = "password";
+		cfg.Password_S = "password";
 		cfg.ImapHost = "imap.example.com";
 		cfg.SendWhiteList = whitelist;
 		return new Mail(cfg);

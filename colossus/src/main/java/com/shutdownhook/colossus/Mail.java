@@ -55,7 +55,7 @@ public class Mail implements Closeable
 	public static class Config
 	{
 		public String Email;
-		public String Password;
+		public String Password_S; // smarty
 
 		public String SmtpHost;
 		public int SmtpPort = 587;
@@ -412,7 +412,10 @@ public class Mail implements Closeable
 	private Session getSession() throws IllegalArgumentException {
 
 		if (cfg.Email == null) throw new IllegalArgumentException("cfg.Email is required");
-		if (cfg.Password == null) throw new IllegalArgumentException("cfg.Password is required");
+		
+		if (cfg.Password_S == null) throw new IllegalArgumentException("cfg.Password_S is required");
+		String resolvedPassword = Easy.smartyGetProperty(cfg.Password_S);
+		if (resolvedPassword == null) throw new IllegalArgumentException("cfg.Password_S (smarty) is required");
 
 		if (cfg.SmtpHost == null && cfg.ImapHost == null) {
 			throw new IllegalArgumentException("cfg.SmtpHost and/or cfg.ImapHost are required");
@@ -437,7 +440,7 @@ public class Mail implements Closeable
 
 		return(Session.getInstance(props, new Authenticator() {
 			protected PasswordAuthentication getPasswordAuthentication() {
-				return(new PasswordAuthentication(cfg.Email, cfg.Password));
+				return(new PasswordAuthentication(cfg.Email, resolvedPassword));
 			}
 		}));
 	}
