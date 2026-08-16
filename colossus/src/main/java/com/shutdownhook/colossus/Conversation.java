@@ -6,6 +6,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -14,6 +15,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -23,6 +25,8 @@ import java.util.logging.Logger;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+
+import org.jsoup.Jsoup;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
@@ -56,6 +60,8 @@ public class Conversation implements Closeable
 		
 		public int PruneTruncationLength = 100;
 
+		public int SummaryTokenBudgetPct = 80;
+
 		public String MinjaRenderPath = "~/.local/bin/minja_render";
 		
 		public String CompletionPath = "/v1/chat/completions";
@@ -77,9 +83,22 @@ public class Conversation implements Closeable
 		public String SummarizePrompt =
 			"Summarize the provided text. Your summary should be as short as possible " +
 			"while maintaining enough fidelity to be useful as a substitute for the text " +
-			"in a chat history. The target audience is you, not a human reader, so use " +
+			"in a chat history. ";
+
+		public String SummarizeCompactPrompt =
+			"The target audience is you, not a human reader, so use " +
 			"shorthand and eliminate grammatical constructions that inflate reponse size " +
 			"without adding content value.";
+
+		public String SummarizeChunkPrompt =
+			" The text you are summarizing is part of a larger document.";
+
+		public String SummarizePreviousPrompt =
+			" Previous sections have been summarized like this: ";
+
+		public String SummarizeSynthesisPrompt =
+			"These summaries were created by iteratively summarizing sections of a single " +
+			"large document. Please blend them together into a single coherent summary.";
 
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -250,23 +269,109 @@ public class Conversation implements Closeable
 	// | summarize |
 	// +-----------+
 
-	public String summarize(String input) {
+	// accepts file:// and http(s):// input as well; 
+	// converts input to text from html as needed
 
-		Conversation.Config summaryCfg = cfg.clone();
-		summaryCfg.SystemPrompt = cfg.SummarizePrompt;
-		Conversation summaryConversation = null;
-		
+	public String summarize(String input, boolean compact) {
+
+		Conversation.Config cfgSummary = cfg.clone();
+		cfgSummary.ToolClasses = null;
+		cfgSummary.SystemPrompt = cfg.SummarizePrompt;
+		if (compact) cfgSummary.SystemPrompt += cfg.SummarizeCompactPrompt;
+
 		try {
-			summaryConversation = new Conversation(summaryCfg);
-			return(summaryConversation.prompt(input));
+			String fetched = fetchInput(input);
+
+			// these are VERY rough estimates (not template, etc.)
+			// thus the SummaryTokenBudgetPct fudge factor
+			
+			long tokens = getTokenCount(fetched);
+			long chunkSize = getContextBudget() * cfg.SummaryTokenBudgetPct / 100;
+			int chunks = (int) ((tokens + chunkSize - 1) / chunkSize);
+
+			log.info(String.format("summarizing in %d chunk%s (tokens=%d,budget=%d)",
+								   chunks, (chunks == 1 ? "" : "s"), tokens, getContextBudget()));
+
+			// simple case
+			if (chunks == 1) return(summarizeChunk(cfgSummary, fetched));
+
+			// chunked case --- collect up the chunk summaries, then combine them 
+			// into a single global one. Note we are playing lots of games with 
+			// cfgSummary.SystemPrompt ... careful!
+			
+			cfgSummary.SystemPrompt += cfg.SummarizeChunkPrompt;
+			int cchChunk = (fetched.length() + chunks - 1) / chunks;
+			log.info(String.format("summarizing in %d chunks of size %d", chunks, cchChunk));
+
+			int ichSummariesStart = 0;
+			
+			for (int i = 0; i < chunks; ++i) {
+
+				int ichStart = (i * cchChunk);
+				int ichEnd = Math.min(ichStart + cchChunk, fetched.length());
+				String chunkSummary = summarizeChunk(cfgSummary, fetched.substring(ichStart, ichEnd));
+
+				if (i == 0) {
+					cfgSummary.SystemPrompt += cfg.SummarizePreviousPrompt;
+					ichSummariesStart = cfgSummary.SystemPrompt.length();
+				}
+				else {
+					cfgSummary.SystemPrompt += "\n-----\n";
+				}
+
+				cfgSummary.SystemPrompt += chunkSummary;
+			}
+
+			String summaries = cfgSummary.SystemPrompt.substring(ichSummariesStart);
+			cfgSummary.SystemPrompt = cfg.SummarizeSynthesisPrompt;
+			return(summarizeChunk(cfgSummary, summaries));
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "summarize", true));
-			return(input);
+			return(null);
+		}
+	}
+
+	private String summarizeChunk(Conversation.Config cfg, String chunk) throws Exception {
+		Conversation summaryConversation = null;
+
+		try {
+			summaryConversation = new Conversation(cfg);
+			return(summaryConversation.prompt(chunk));
 		}
 		finally {
-			Easy.safeClose(summaryConversation);
+			if (summaryConversation != null) summaryConversation.close();
 		}
+	}
+
+	private String fetchInput(String input) throws IOException {
+
+		if (input.startsWith("file://")) {
+			String ret = Easy.stringFromFile(input.substring(7));
+			if (input.endsWith(".htm") || input.endsWith(".html")) ret = Jsoup.parse(ret).text();
+			return(ret);
+		}
+
+		if (input.startsWith("https://") || input.startsWith("http://")) {
+			
+			WebRequests.Response resp = utils.getRequests().fetch(input);
+			
+			if (!resp.successful()) {
+				log.warning(String.format("fetch failed for summary (%s): %d %s",
+										  input, resp.Status, (resp.Ex == null ? "" : resp.Ex.toString())));
+				return("");
+			}
+
+			String ret = resp.Body;
+			String contentType = resp.getFirstHeader("Content-Type");
+			if (contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("text/html")) {
+				ret = Jsoup.parse(ret).text();
+			}
+
+			return(ret);
+		}
+
+		return(input);
 	}
 
 	// +---------------+
@@ -362,6 +467,8 @@ public class Conversation implements Closeable
 	}
 
 	public long getContextLength() { return(modelProps.default_generation_settings.n_ctx); }
+	public long getContextBudget() { return(getContextLength() - maxTokensEffective); }
+	
 	public ModelProps getModelProps() { return(modelProps); }
 	public JsonObject getModelPropsRaw() { return(modelPropsRaw); }
 
@@ -568,7 +675,7 @@ public class Conversation implements Closeable
 
 	private boolean pruneRequest(Request req) {
 
-		long tokenBudget = getContextLength() - maxTokensEffective;
+		long tokenBudget = getContextBudget();
 		if (tokenBudget <= 0) return(true); // degenerate case, just bail
 		
 		long requestTokens = getTokenCount(req);
@@ -776,13 +883,24 @@ public class Conversation implements Closeable
 	
 	public static void main(String[] args) throws Exception {
 
-		Config cfg = Config.fromJson(Easy.stringFromFile(args[0]));
-		Conversation conversation = new Conversation(cfg);
-
-		System.out.println("Use 'exit' to exit, 'reset' to reset conversation, 'dump' for history...");
-		Scanner scanner = new Scanner(System.in);
+		Scanner scanner = null;
+		Conversation conversation = null;
 
 		try {
+			
+			Config cfg = Config.fromJson(Easy.stringFromFile(args[0]));
+			conversation = new Conversation(cfg);
+
+			if (args.length >= 3 && args[1].equalsIgnoreCase("summarize")) {
+				String input = args[2];
+				boolean compact = (args.length >= 4 ? Boolean.parseBoolean(args[3]) : false);
+				System.out.println(conversation.summarize(input, compact));
+				return;
+			}
+		
+			System.out.println("Use 'exit' to exit, 'reset' to reset conversation, 'dump' for history...");
+			scanner = new Scanner(System.in);
+
 			boolean quit = false;
 			while (!quit) {
 				
@@ -831,8 +949,8 @@ public class Conversation implements Closeable
 			}
 		}
 		finally {
-			scanner.close();
-			conversation.close();
+			if (scanner != null) scanner.close();
+			if (conversation != null) conversation.close();
 		}
 	}
 

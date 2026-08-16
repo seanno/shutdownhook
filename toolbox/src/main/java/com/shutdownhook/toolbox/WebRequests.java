@@ -133,6 +133,13 @@ public class WebRequests implements Closeable
 			Ex = e;
 		}
 
+		public String getFirstHeader(String name) {
+			List<String> types = Headers.get(name);
+			if (types == null || types.size() == 0) types = Headers.get(name.toLowerCase());
+			if (types == null || types.size() == 0) return(null);
+			return(types.get(0));
+		}
+
 		@Override
 		public String toString() {
 			

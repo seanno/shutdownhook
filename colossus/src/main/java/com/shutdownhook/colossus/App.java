@@ -18,7 +18,7 @@ public class App
 							   "[PROJECT_PATH] (TARGET_PROJECT) (PROMPT_OVERRIDE)");
 			return;
 		}
-		
+
 		String projectPath = args[0];
 		String targetProject = (args.length > 1 ? args[1] : null);
 		String promptOverride = (args.length > 2 ? args[2] : null);
