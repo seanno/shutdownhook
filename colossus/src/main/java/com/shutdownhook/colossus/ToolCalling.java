@@ -188,6 +188,12 @@ public class ToolCalling
 		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String url = getStringField(arguments, "url");
+
+			if (getBooleanField(arguments, "summarize", false)) {
+				boolean compact = getBooleanField(arguments, "compact", false);
+				return(conversation.summarize(url, compact));
+			}
+			
 			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
 			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
 
@@ -289,6 +295,10 @@ public class ToolCalling
 					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
 					return(conversation.getUtils().getCompactGson().toJson(infos));
 
+				case "summarize":
+					boolean compact = getBooleanField(arguments, "compact", false);
+					return(conversation.summarize("file://" + path, compact));
+					
 				case "read":
 					int ichStart = getIntegerField(arguments, "start_index", 0);
 					int cch = getIntegerField(arguments, "read_length", 0);

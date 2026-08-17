@@ -3,11 +3,22 @@
 
   "function": {
     "name": "web_request",
-    "description": "Fetches data from a URL. If the data is text/html, text is extracted. If the data size exceeds a configured max it is truncated, which may result in malformed json for large application/json data.",
+    "description": "Fetches and/or summarizes data from a URL. If 'summarize' is true, a summarization is returned. Otherwise, if the data is text/html, text is extracted. If the data size exceeds a configured max it is truncated, which may result in malformed json for large application/json data.",
     "parameters": {
       "type": "object",
       "properties": {
-        "url": { "type": "string", "description": "URL to fetch" }
+        "url": {
+		  "type": "string",
+		  "description": "URL to fetch"
+		},
+		"summarize": {
+		  "type": "boolean",
+		  "description": "true = summarize content at URL. Not present implies false."
+		},
+		"compact": {
+		  "type": "boolean",
+		  "description": "Only when 'summarize' is true. false = human consumption, true = model consumption. Not present implies false."
+		}
       },
       "required": ["url"]
     }
