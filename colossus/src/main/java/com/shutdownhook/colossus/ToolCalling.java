@@ -262,7 +262,6 @@ public class ToolCalling
 		public static class Config
 		{
 			public String BasePath;
-			public int QrDimensionPixels = 50;
 			public TextFiles.Config TextFiles = new TextFiles.Config();
 			public CodeSandbox.Config CodeSandbox = new CodeSandbox.Config();
 		}
@@ -340,7 +339,7 @@ public class ToolCalling
 				case "qr":
 					String input = getStringField(arguments, "input");
 					if (Easy.nullOrEmpty(input)) return("Error: input must be present");
-					String svg = BarCodes.qrSvgForString(input, cfg.QrDimensionPixels);
+					String svg = BarCodes.qrSvgForString(input);
 					TextFiles.WriteInfo infoQR = txt.put(path, svg);
 					return(conversation.getUtils().getCompactGson().toJson(infoQR));
 					

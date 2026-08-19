@@ -30,7 +30,7 @@ public class BarCodes
 	// svg conversion cribbed from (MIT license):
 	// https://github.com/nayuki/QR-Code-generator/blob/master/java/QrCodeGeneratorDemo.java
 
-	public static String qrSvgForString(String input, long dp) {
+	public static String qrSvgForString(String input) {
 
 		// encode the qr
 		QrCode qr = QrCode.encodeText(input, QrCode.Ecc.MEDIUM);
@@ -40,7 +40,7 @@ public class BarCodes
 			.append("<!DOCTYPE svg PUBLIC \"-//W3C//DTD SVG 1.1//EN\" ")
 			.append("\"http://www.w3.org/Graphics/SVG/1.1/DTD/svg11.dtd\">\n")
 			.append("<svg xmlns=\"http://www.w3.org/2000/svg\" version=\"1.1\" ")
-			.append(String.format("viewBox=\"0 0 %1$d %1$d\" stroke=\"none\">\n", qr.size + dp * 2))
+			.append(String.format("viewBox=\"0 0 %1$d %1$d\" stroke=\"none\">\n", qr.size + BORDER_MODULES * 2))
 			.append("\t<rect width=\"100%\" height=\"100%\" fill=\"" + LIGHT_COLOR + "\"/>\n")
 			.append("\t<path d=\"");
 
@@ -51,7 +51,7 @@ public class BarCodes
 			for (int x = 0; x < qr.size; ++x) {
 				if (qr.getModule(x, y)) {
 					if (sbRects.length() > 0) sbRects.append(" ");
-					sbRects.append(String.format("M%d,%dh1v1h-1z", x + dp, y + dp));
+					sbRects.append(String.format("M%d,%dh1v1h-1z", x + BORDER_MODULES, y + BORDER_MODULES));
 				}
 			}
 		}
@@ -67,14 +67,24 @@ public class BarCodes
 	// | qrDataForString |
 	// +-----------------+
 
-	// returns a data: string that can be used as src for an html image tag (dp x dp)
+	// returns a data: string that can be used as src for an html image tag
 	// uses qrSvgForString to generate the SVG
 
-	public static String qrDataForString(String input, long dp) {
+	public static String qrDataForString(String input) {
 		return("data:image/svg;base64," +
-			   Easy.base64urlEncode(qrSvgForString(input, dp)));
+			   Easy.base64urlEncode(qrSvgForString(input)));
 	}
 	
+	// +------------+
+	// | Entrypoint |
+	// +------------+
+
+	public static void main(String[] args) throws Exception {
+		String input = args[0];
+		boolean asDataUrl = (args.length >= 2 ? Boolean.parseBoolean(args[1]) : false);
+		System.out.print(asDataUrl ? qrDataForString(input) : qrSvgForString(input));
+	}
+
 	// +---------+
 	// | Members |
 	// +---------+

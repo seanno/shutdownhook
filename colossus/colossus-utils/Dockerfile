@@ -28,3 +28,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 # pip targets the venv, so no marker conflict and no flag needed.
 RUN pip install --no-cache-dir weasyprint==69.0
+
+# ── qr codes ────────────────────────────────────────────────────────────
+RUN pip install --no-cache-dir qrcode
+
+COPY QR /usr/local/bin/QR
+RUN chmod +x /usr/local/bin/QR
