@@ -209,6 +209,9 @@ public class Conversation implements Closeable
 							   choice.message.content == null ? -1 : choice.message.content.length(),
 							   choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length()));
 
+		// debug
+		// System.out.println("TURN:\n" + utils.getGson().toJson(choice.message));
+		
 		lastReasoning = choice.message.reasoning_content;
 		choice.message.reasoning_content = null;
 

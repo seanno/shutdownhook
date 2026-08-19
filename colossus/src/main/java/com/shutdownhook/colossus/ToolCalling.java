@@ -27,6 +27,7 @@ import org.jsoup.nodes.Document;
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.Exec;
 import com.shutdownhook.toolbox.WebRequests;
+import com.shutdownhook.toolbox.dep.BarCodes;
 
 public class ToolCalling
 {
@@ -261,6 +262,7 @@ public class ToolCalling
 		public static class Config
 		{
 			public String BasePath;
+			public int QrDimensionPixels = 50;
 			public TextFiles.Config TextFiles = new TextFiles.Config();
 			public CodeSandbox.Config CodeSandbox = new CodeSandbox.Config();
 		}
@@ -286,7 +288,9 @@ public class ToolCalling
 			
 			if (Easy.nullOrEmpty(path)) {
 				if ("list".equals(op)) path = ".";
-				if (!"run".equals(op) && Easy.nullOrEmpty(path)) return("Error: path must be present");
+				if (!"run".equals(op) && Easy.nullOrEmpty(path)) {
+					return("Error: path must be present");
+				}
 			}
 
 			switch (op) {
@@ -333,6 +337,13 @@ public class ToolCalling
 					if (Easy.nullOrEmpty(cmd)) return("Error: cmd must be present");
 					return(code.run(cmd));
 
+				case "qr":
+					String input = getStringField(arguments, "input");
+					if (Easy.nullOrEmpty(input)) return("Error: input must be present");
+					String svg = BarCodes.qrSvgForString(input, cfg.QrDimensionPixels);
+					TextFiles.WriteInfo infoQR = txt.put(path, svg);
+					return(conversation.getUtils().getCompactGson().toJson(infoQR));
+					
 				default:
 					return("Error: Unknown super_tool operation " + op);
 			}

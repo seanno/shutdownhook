@@ -11,8 +11,8 @@
       "properties": {
         "operation": {
 		  "type": "string",
-		  "enum": [ "list", "summarize", "read", "grep", "write", "append", "download", "run" ],
-		  "description": "Action to perform: 'list' returns files in 'path' sorted most recently modified at the top. All other operationss work on a single file. 'read' returns file contents. 'grep' runs grep -E to search for a regular expression. 'write' writes a file. 'append' adds content to the end of a file. 'download' saves the contents of a URL to a file. 'run' executes a python3 or bash script."
+		  "enum": [ "list", "summarize", "read", "grep", "write", "append", "download", "run", "qr" ],
+		  "description": "Action to perform: 'list' returns files in 'path' sorted most recently modified at the top. All other operationss work on a single file. 'read' returns file contents. 'grep' runs grep -E to search for a regular expression. 'write' writes a file. 'append' adds content to the end of a file. 'download' saves the contents of a URL to a file. 'run' executes a python3 or bash script. 'qr' encodes an input string as a qr code .SVG file and saves it to path."
 		},
 		"path": {
 		  "type": "string",
@@ -57,6 +57,10 @@
 		"compact": {
 		  "type": "boolean",
 		  "description": "For 'summarize' only. false = human consumption, true = model consumption. Not present implies false."
+		},
+		"input": {
+		  "type": "string",
+		  "description": "For 'qr' only. the text or url to encode"
 		}
       },
       "required": [ "operation" ]
