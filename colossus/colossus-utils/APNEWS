@@ -1,0 +1,2 @@
+#!/bin/sh
+node /opt/apnews/fetch-apnews.js "$@"

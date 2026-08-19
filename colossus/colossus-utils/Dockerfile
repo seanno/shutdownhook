@@ -34,3 +34,16 @@ RUN pip install --no-cache-dir qrcode
 
 COPY QR /usr/local/bin/QR
 RUN chmod +x /usr/local/bin/QR
+
+# ── apnews ──────────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        nodejs \
+        npm \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY apnews/package.json apnews/package-lock.json /opt/apnews/
+RUN npm ci --prefix /opt/apnews
+
+COPY apnews/fetch-apnews.js /opt/apnews/
+COPY APNEWS /usr/local/bin/APNEWS
+RUN chmod +x /usr/local/bin/APNEWS
