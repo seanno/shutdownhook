@@ -1,0 +1,42 @@
+#!/opt/venv/bin/python3
+"""
+QR <input-string> <svg|data>
+
+svg  — print raw SVG element to stdout
+data — print data:image/svg+xml;base64,... URL to stdout
+"""
+
+import sys
+import base64
+import io
+import qrcode
+import qrcode.image.svg
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("Usage: QR <input-string> [svg|data]", file=sys.stderr)
+        sys.exit(1)
+
+    text = sys.argv[1]
+    fmt  = sys.argv[2].lower() if len(sys.argv) > 2 else "svg"
+
+    if fmt not in ("svg", "data"):
+        print(f"Unknown format '{fmt}'. Use 'svg' or 'data'.", file=sys.stderr)
+        sys.exit(1)
+
+    img = qrcode.make(text, image_factory=qrcode.image.svg.SvgPathImage)
+
+    buf = io.BytesIO()
+    img.save(buf)
+    svg_bytes = buf.getvalue()
+
+    if fmt == "svg":
+        sys.stdout.write(svg_bytes.decode("utf-8"))
+    else:
+        b64 = base64.b64encode(svg_bytes).decode("ascii")
+        sys.stdout.write(f"data:image/svg+xml;base64,{b64}")
+
+
+if __name__ == "__main__":
+    main()
