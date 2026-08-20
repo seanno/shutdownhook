@@ -6,6 +6,7 @@ const AP_NEWS_URL = 'https://apnews.com';
 const ONE_DAY_MS = 24 * 60 * 60 * 1000;
 
 const outputFile = process.argv[2] || 'apnews-articles.json';
+const textFile = process.argv[3] || null;
 
 async function fetchApNewsArticles() {
   const now = Date.now();
@@ -60,6 +61,13 @@ async function fetchApNewsArticles() {
 
     fs.writeFileSync(outputFile, JSON.stringify(outputData, null, 2));
     console.log(`written to ${outputFile}, ${articles.length} articles found`);
+
+    if (textFile) {
+      $('script, style').remove();
+      const text = $('body').text().replace(/\s+/g, ' ').trim();
+      fs.writeFileSync(textFile, text);
+      console.log(`page text written to ${textFile}`);
+    }
 
     return articles;
 

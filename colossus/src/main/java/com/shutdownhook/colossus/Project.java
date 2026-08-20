@@ -31,7 +31,7 @@ public class Project
 	// +------------------+
 
 	public Project(String path, Conversation.Config parentCfg) throws Exception {
-		this.projectPath = Paths.get(path);
+		this.projectPath = Paths.get(path).toAbsolutePath();
 		this.parentCfg = parentCfg;
 		
 		setupConversationConfig();
