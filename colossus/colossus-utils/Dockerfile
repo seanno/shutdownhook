@@ -48,6 +48,11 @@ COPY apnews/fetch-apnews.js /opt/apnews/
 COPY APNEWS /usr/local/bin/APNEWS
 RUN chmod +x /usr/local/bin/APNEWS
 
+# ── qpdf ────────────────────────────────────────────────────────────────
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        qpdf \
+    && rm -rf /var/lib/apt/lists/*
+
 # ── minja_render ─────────────────────────────────────────────────────────
 # Jinja2-compatible template renderer. Binary built on Ubuntu from
 # ../minja-render; only needs libstdc++6.
