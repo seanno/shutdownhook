@@ -14,5 +14,11 @@
 
 ... `APNEWS [outputfile]`  → fetches articles from apnews.com posted in the last 24 hours and writes JSON to outputfile (default: apnews-articles.json)
 
+## Jinja2 Template Rendering
+
+... `minja_render TEMPLATE_FILE JSON_FILE [OUTPUT_FILE]`  → renders a Jinja2 template with JSON context; writes to OUTPUT_FILE or stdout if omitted
+
+Binary was built on Ubuntu from `../minja-render` and copied in; rebuild there if the source changes.
+
 
 

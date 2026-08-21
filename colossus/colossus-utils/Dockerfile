@@ -47,3 +47,16 @@ RUN npm ci --prefix /opt/apnews
 COPY apnews/fetch-apnews.js /opt/apnews/
 COPY APNEWS /usr/local/bin/APNEWS
 RUN chmod +x /usr/local/bin/APNEWS
+
+# ── minja_render ─────────────────────────────────────────────────────────
+# Jinja2-compatible template renderer. Binary built on Ubuntu from
+# ../minja-render; only needs libstdc++6.
+RUN apt-get update && apt-get install --no-install-recommends -y \
+        libstdc++6 \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY minja_render /usr/local/bin/minja_render_bin
+RUN chmod +x /usr/local/bin/minja_render_bin && \
+    printf '#!/bin/sh\nif [ "$#" -eq 3 ]; then\n    minja_render_bin "$1" "$2" > "$3"\nelse\n    minja_render_bin "$1" "$2"\nfi\n' \
+      > /usr/local/bin/minja_render && \
+    chmod +x /usr/local/bin/minja_render
