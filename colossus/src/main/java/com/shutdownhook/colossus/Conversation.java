@@ -284,6 +284,7 @@ public class Conversation implements Closeable
 
 		try {
 			String fetched = fetchInput(input);
+			if (Easy.nullOrEmpty(fetched)) return("");
 
 			// these are VERY rough estimates (not template, etc.)
 			// thus the SummaryTokenBudgetPct fudge factor
@@ -331,7 +332,7 @@ public class Conversation implements Closeable
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "summarize", true));
-			return(null);
+			return("");
 		}
 	}
 

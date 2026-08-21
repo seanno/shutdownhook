@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
         libharfbuzz-subset0 \
         fonts-dejavu-core \
         fonts-liberation \
+		fonts-noto-core \
     && rm -rf /var/lib/apt/lists/*
 
 # pip targets the venv, so no marker conflict and no flag needed.
