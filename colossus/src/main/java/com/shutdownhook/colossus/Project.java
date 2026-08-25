@@ -4,6 +4,7 @@
 
 package com.shutdownhook.colossus;
 
+import java.io.File;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -257,7 +258,8 @@ public class Project
 		ProcessBuilder pb = new ProcessBuilder(commands);
 		pb.directory(scriptsDir.toFile());
 		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR).toString());
-
+		pb.environment().put(JAR_PATH_ENV, getJarPath());
+		
 		log.info("Running script " + scriptFile.toString());
 		
 		Process p = pb.start();
@@ -267,6 +269,14 @@ public class Project
 		if (exit != 0) log.warning(String.format("Error %d running script %s", exit, scriptFile.toString()));
 		
 		return(exit == 0);
+	}
+
+	private String getJarPath() throws Exception {
+		return(new File(Project.class
+						.getProtectionDomain()
+						.getCodeSource()
+						.getLocation()
+						.toURI()).getAbsolutePath());
 	}
 							  
 	// +------------------------+
@@ -288,6 +298,7 @@ public class Project
 			Path parentPathLink = dataPath.resolve(PARENT_DATA_NAME);
 			if (!Files.exists(parentPathLink)) {
 				Path parentPathTarget = projectPath.resolve(PARENT_DATA_DIR);
+				log.info(String.format("Creating parent symlink: L=%s, T=%s", parentPathLink, parentPathTarget));
 				Files.createSymbolicLink(parentPathLink, parentPathTarget);
 			}
 		}
@@ -357,6 +368,7 @@ public class Project
 	private final static String SCRIPTS_DIR = "scripts";
 
 	private final static String DATA_DIR_ENV = "DATA_DIR";
+	private final static String JAR_PATH_ENV = "COLOSSUS_JAR_PATH";
 
 	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 20; // 20 minutes
 

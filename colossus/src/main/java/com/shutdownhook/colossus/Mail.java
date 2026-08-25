@@ -5,6 +5,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -33,7 +34,9 @@ import jakarta.mail.Store;
 import jakarta.mail.Transport;
 import jakarta.mail.UIDFolder;
 import jakarta.mail.internet.InternetAddress;
+import jakarta.mail.internet.MimeBodyPart;
 import jakarta.mail.internet.MimeMessage;
+import jakarta.mail.internet.MimeMultipart;
 import jakarta.mail.search.ComparisonTerm;
 import jakarta.mail.search.ReceivedDateTerm;
 
@@ -114,6 +117,7 @@ public class Mail implements Closeable
 		public String[] ToAddresses;
 		public String Subject;
 		public String Text;
+		public String[] AttachmentPaths;
 	}
 
 	public static class MessageData extends SendMessageData
@@ -132,14 +136,14 @@ public class Mail implements Closeable
 			sendInternal(msg, isHtml);
 			return(true);
 		}
-		catch (MessagingException e) {
+		catch (MessagingException | IOException e) {
 			log.severe(Easy.exMsg(e, "send", false));
 			return(false);
 		}
 	}
 
 	public void sendInternal(SendMessageData msg, boolean isHtml)
-		throws MessagingException, IllegalArgumentException {
+		throws MessagingException, IllegalArgumentException, IOException {
 
 		if (msg.ToAddresses == null || msg.ToAddresses.length == 0) {
 			throw new IllegalArgumentException("missing to address");
@@ -147,6 +151,7 @@ public class Mail implements Closeable
 		
 		MimeMessage mime = new MimeMessage(session);
 		mime.setFrom(cfg.Email);
+		mime.setSubject(msg.Subject);
 
 		int added = 0;
 		for (String toAddr : msg.ToAddresses) {
@@ -161,8 +166,26 @@ public class Mail implements Closeable
 
 		if (added == 0) throw new IllegalArgumentException("no valid recipients");
 
-		mime.setSubject(msg.Subject);
-		mime.setText(msg.Text, "UTF-8", isHtml ? "html" : "plain");
+		if (msg.AttachmentPaths == null || msg.AttachmentPaths.length == 0) {
+			// simple body
+			mime.setText(msg.Text, "UTF-8", isHtml ? "html" : "plain");
+		}
+		else {
+			// body with attachments
+			Multipart multi = new MimeMultipart();
+			
+			MimeBodyPart messagePart = new MimeBodyPart();
+			messagePart.setText(msg.Text, "UTF-8", isHtml ? "html" : "plain");
+			multi.addBodyPart(messagePart);
+
+			for (String attachmentPath : msg.AttachmentPaths) {
+				MimeBodyPart attachmentPart = new MimeBodyPart();
+				attachmentPart.attachFile(new File(attachmentPath));
+				multi.addBodyPart(attachmentPart);
+			}
+
+			mime.setContent(multi);
+		}
 
 		Transport.send(mime);
 	}
