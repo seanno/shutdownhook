@@ -5,6 +5,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -33,12 +34,18 @@ public class WebHooks implements Closeable
 		public String LocationBasicPass_S;
 		public String LocationReverseGeocoderURLFmt;
 		public boolean ReverseGeocoderIsXML;
+
+		public String[] ProxyHosts;
+		public String ProxyContentAgent = "Claude-User";
 			
 		public WebServer.Config WebServer = new WebServer.Config();
 		public String LoggingConfigPath = "@logging-webhooks.properties";
 
 		public String LocationUpdateUrl = "/loc";
 		public String LocationUpdateTag = "who";
+
+		public String ProxyUrl = "/pxy";
+		public String ProxyUrlParam = "s";
 
 		public WebRequests.Config WebRequests = new WebRequests.Config();
 		
@@ -58,10 +65,61 @@ public class WebHooks implements Closeable
 	private void setupWebServer() throws Exception {
 		server = WebServer.create(cfg.WebServer);
 		registerLocationUpdate();
+		registerProxy();
 	}
 
 	public void runSync() throws Exception { server.runSync(); }
 	public void close() { server.close(); requests.close(); }
+
+	// +---------------+
+	// | registerProxy |
+	// +---------------+
+
+	// for requests with user agents containing cfg.ProxyContentAgent, fetch and
+	// return the content directly. Otherwise issue a redirect to the original url.
+	// Limited to hosts in cfg.ProxyHosts --- others will result in an error response.
+	
+	private void registerProxy() throws Exception {
+
+		server.registerHandler(cfg.ProxyUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				// only accept GET
+				if (!"GET".equals(request.Method)) {
+					response.Status = 404; return;
+				}
+
+				// check for legit host and url values
+				String url = request.QueryParams.get(cfg.ProxyUrlParam);
+				if (url == null || cfg.ProxyHosts == null || cfg.ProxyHosts.length == 0) {
+					response.Status = 500; return;
+				}
+
+				String host = new URL(url).getHost();
+				boolean found = false;
+				for (String proxyHost : cfg.ProxyHosts) {
+					if (proxyHost.equalsIgnoreCase(host)) { found = true; break; }
+				}
+
+				if (!found) { response.Status = 500; return; }
+
+				// check the user agent --- just redirect unless it's the content agent
+				String ua = request.getHeader("User-Agent");
+				if (ua == null || ua.indexOf(cfg.ProxyContentAgent) == -1) {
+					response.redirect(url);
+					return;
+				}
+
+				// fetch and return; this is really brain dead and will
+				// only work for very simple browser fetches. 
+				WebRequests.Response webResponse = requests.fetch(url);
+				response.Body = webResponse.Body;
+				response.ContentType = webResponse.getFirstHeader("Content-Type");
+				response.Status = 200;
+			}
+		});
+		
+	}
 
 	// +------------------------+
 	// | registerLocationUpdate |
