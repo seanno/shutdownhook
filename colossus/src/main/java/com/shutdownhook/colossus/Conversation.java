@@ -53,7 +53,8 @@ public class Conversation implements Closeable
 		public String SystemPrompt;
 
 		public int MaxTurns = 50;
-		
+
+		public String ReasoningEffort;
 		public double Temperature = 0.0d;
 		public long MaxTokens = 4096; 
 		public long MaxTokensCeilingDivisor = 4; // context length / divisor == ceiling
@@ -619,7 +620,8 @@ public class Conversation implements Closeable
 		
 		req.model = cfg.Model;
 		req.stream = false;
-		
+
+		if (cfg.ReasoningEffort != null) req.reasoning_effort = cfg.ReasoningEffort;
 		if (cfg.Temperature > 0.0) req.temperature = cfg.Temperature;
 		if (maxTokensEffective > 0) req.max_tokens = maxTokensEffective;
 
@@ -837,6 +839,7 @@ public class Conversation implements Closeable
 		public Boolean stream;
 		public Double temperature;
 		public Long max_tokens;
+		public String reasoning_effort;
 
 		// This lives here so we ensure we're using the same serialization
 		// when computing token counts and actually submitting the request.
