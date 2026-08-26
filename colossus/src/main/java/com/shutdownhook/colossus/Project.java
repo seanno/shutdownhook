@@ -119,8 +119,8 @@ public class Project
 					// explicit prompt
 					effectivePrompt = Easy.stringFromFile(promptPath.toString());
 				}
-				else if (!Files.exists(children)) {
-					// implicit prompt at leaf
+				else if (!Files.exists(children) && !Easy.nullOrEmpty(thisCfg.SystemPrompt)) {
+					// implicit prompt at leaf (only if we have some prompt to give)
 					effectivePrompt = START_PROMPT;
 				}
 			}
