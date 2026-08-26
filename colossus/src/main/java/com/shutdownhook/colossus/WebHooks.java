@@ -32,8 +32,6 @@ public class WebHooks implements Closeable
 		public Map<String,String> LocationPaths = new HashMap<String,String>();
 		public String LocationBasicUser;
 		public String LocationBasicPass_S;
-		public String LocationReverseGeocoderURLFmt;
-		public boolean ReverseGeocoderIsXML;
 
 		public String[] ProxyHosts;
 		public String ProxyContentAgent = "Claude-User";
@@ -147,48 +145,18 @@ public class WebHooks implements Closeable
 
 				// make sure body is parsable json (will except if not)
 				JsonObject bodyJson = JsonParser.parseString(request.Body).getAsJsonObject();
-				
-				// verify the save path
-				String path = findLocationPath(request);
-				if (path == null) {
-					response.Status = 500;
-					return;
+				if (bodyJson.get("lat") != null && bodyJson.get("lon") != null) {
+					// save the file
+					String path = findLocationPath(request);
+					if (path == null) log.warning("no matching location path: " + request.QueryString);
+					else Easy.stringToFile(path, request.Body);
 				}
-
-				// possibly reverse geocode
-				String output = maybeReverseGeocode(bodyJson);
-
-				// save and out
+				
 				// owntracks requires a json array response
-				Easy.stringToFile(path, output);
 				response.setJson("[]");
 			}
 		});
 		
-	}
-
-	private String maybeReverseGeocode(JsonObject ownTracksJson) {
-
-		if (cfg.LocationReverseGeocoderURLFmt == null) return(ownTracksJson.toString());
-
-		double lat = ownTracksJson.get("lat").getAsDouble();
-		double lng = ownTracksJson.get("lon").getAsDouble(); // careful of these labels!
-		
-		String url = String.format(cfg.LocationReverseGeocoderURLFmt, lat, lng);
-		WebRequests.Response webResponse = requests.fetch(url);
-		if (!webResponse.successful()) {
-			log.warning(String.format("Failed reverse geocode %d: %s (%s)",
-									  webResponse.Status, webResponse.StatusText,
-									  webResponse.Ex));
-			
-			return(ownTracksJson.toString());
-		}
-
-		// check for stupid xml
-		String output = webResponse.Body;
-		if (cfg.ReverseGeocoderIsXML) output = org.json.XML.toJSONObject(output).toString();
-
-		return(output);
 	}
 
 	private String findLocationPath(Request request) {
