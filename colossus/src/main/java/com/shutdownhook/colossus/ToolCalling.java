@@ -121,12 +121,18 @@ public class ToolCalling
 	// | WebSearch_Tool |
 	// +----------------+
 
+	// Uses the BRAVE API
+	
 	public static class WebSearch_Tool implements Tool
 	{
 		public static class Config
 		{
 			public Integer MaxResults = 12;
-			public String UrlPrefix = "http://localhost:3001/search?format=json&q=";
+			public String ApiKeyHeader = "X-Subscription-Token";
+			public String ApiKey_S = "#BRAVE_API_KEY";
+
+			public String UrlPrefix =
+				"https://api.search.brave.com/res/v1/web/search?extra_snippets=true&result_filter=web&search&q=";
 		}
 
 		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
@@ -140,8 +146,13 @@ public class ToolCalling
 			int max = getIntegerField(arguments, "max_results", cfg.MaxResults);
 			
 			String url = cfg.UrlPrefix + Easy.urlEncode(query);
+
+			WebRequests.Params params = new WebRequests.Params();
+			params.addHeader(cfg.ApiKeyHeader, Easy.smartyGetProperty(cfg.ApiKey_S));
+			params.addHeader("Accept", "application/json");
+			params.addHeader("Cache-Control", "no-cache");
 			
-			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
+			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url, params);
 			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
 
 			return(makeResults(response, max));
@@ -149,7 +160,11 @@ public class ToolCalling
 
 		private String makeResults(WebRequests.Response response, int max) {
 
-			JsonArray results = JsonParser.parseString(response.Body).getAsJsonObject().get("results").getAsJsonArray();
+			JsonArray results = JsonParser
+				.parseString(response.Body).getAsJsonObject()
+				.get("web").getAsJsonObject()
+				.get("results").getAsJsonArray();
+			
 			JsonArray transformed = new JsonArray();
 
 			int count = (results.size() > max ? max : results.size());
@@ -161,7 +176,21 @@ public class ToolCalling
 				JsonObject result = results.get(i).getAsJsonObject();
 				json.add("url", result.get("url"));
 				json.add("title", result.get("title"));
-				json.add("content", result.get("content"));
+
+				StringBuilder sbContent = new StringBuilder();
+
+				JsonElement desc = result.get("description");
+				if (desc != null) sbContent.append(desc.getAsString());
+
+				if (result.has("extra_snippets")) {
+					JsonArray extra = result.get("extra_snippets").getAsJsonArray();
+					for (int j = 0; j < extra.size(); ++j) {
+						if (sbContent.length() > 0) sbContent.append("\n");
+						sbContent.append(extra.get(j).getAsString());
+					}
+				}
+
+				json.addProperty("content", sbContent.toString());
 			}
 
 			return(transformed.toString());

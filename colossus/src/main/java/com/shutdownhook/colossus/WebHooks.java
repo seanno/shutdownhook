@@ -15,6 +15,9 @@ import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
+import org.jsoup.Jsoup;
+import org.jsoup.nodes.Document;
+
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.WebRequests;
 import com.shutdownhook.toolbox.WebServer;
@@ -108,15 +111,32 @@ public class WebHooks implements Closeable
 					return;
 				}
 
-				// fetch and return; this is really brain dead and will
+				// fetch and return as text; this is really brain dead and will
 				// only work for very simple browser fetches. 
 				WebRequests.Response webResponse = requests.fetch(url);
 				response.Body = webResponse.Body;
 				response.ContentType = webResponse.getFirstHeader("Content-Type");
+
+				if (response.ContentType.startsWith("text/html")) {
+					response.setText(extractTextFromHtml(response.Body));
+				}
+				
 				response.Status = 200;
 			}
 		});
 		
+	}
+
+	private String extractTextFromHtml(String body) {
+		try {
+			Document doc = Jsoup.parse(body);
+			String cleanText = doc.body().text();
+			return(cleanText);
+		}
+		catch (Exception e) {
+			log.warning(Easy.exMsg(e, "jsoup", true));
+			return(body);
+		}
 	}
 
 	// +------------------------+
