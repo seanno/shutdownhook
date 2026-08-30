@@ -24,5 +24,8 @@
 
 Binary was built on Ubuntu from `../minja-render` and copied in; rebuild there if the source changes.
 
+## This Day in History Fetch
+
+... `HISTORY [outputfile]`  → fetches articles from history.com for today; writes JSON to outputfile (default: history-articles.json)
 
 

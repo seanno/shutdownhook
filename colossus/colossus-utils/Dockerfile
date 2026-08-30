@@ -66,3 +66,12 @@ RUN chmod +x /usr/local/bin/minja_render_bin && \
     printf '#!/bin/sh\nif [ "$#" -eq 3 ]; then\n    minja_render_bin "$1" "$2" > "$3"\nelse\n    minja_render_bin "$1" "$2"\nfi\n' \
       > /usr/local/bin/minja_render && \
     chmod +x /usr/local/bin/minja_render
+
+# ── history ──────────────────────────────────────────────────────────────
+
+COPY history/package.json history/package-lock.json /opt/history/
+RUN npm ci --prefix /opt/history
+
+COPY history/find-history-links.js /opt/history/
+COPY HISTORY /usr/local/bin/HISTORY
+RUN chmod +x /usr/local/bin/HISTORY
