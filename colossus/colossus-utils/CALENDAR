@@ -1,0 +1,2 @@
+#!/bin/sh
+python3 /opt/calendar/azcal.py "$@"

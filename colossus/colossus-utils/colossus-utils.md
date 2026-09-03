@@ -28,4 +28,15 @@ Binary was built on Ubuntu from `../minja-render` and copied in; rebuild there i
 
 ... `HISTORY [outputfile]`  → fetches articles from history.com for today; writes JSON to outputfile (default: history-articles.json)
 
+## Calendar Events Fetch
+
+... `CALENDAR <output_json> <mailbox> <days_ahead> <calendar_id> [<calendar_id> ...]`
+
+Fetches events from one or more Office365/Outlook calendars over a rolling window and merges in US federal holidays (public + unofficial). Writes structured JSON to `output_json` and prints a human-friendly listing to stdout.
+
+Required environment variables (pass via `-e` or `with-secrets`):
+- `CAL_TENANT_ID`
+- `CAL_CLIENT_ID`
+- `CAL_CLIENT_SECRET`
+
 

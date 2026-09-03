@@ -15,6 +15,9 @@ ENV PATH="/opt/venv/bin:$PATH"
 # Shared working directory; map to your CWD at run time with -v "$PWD":/data
 WORKDIR /data
 
+COPY with-secrets /usr/local/bin/with-secrets
+RUN chmod +x /usr/local/bin/with-secrets
+
 # ── weasyprint ──────────────────────────────────────────────────────────
 # Runtime libs (Pango stack; official list for v69+) plus base fonts so
 # HTML that names common families renders instead of falling back to boxes.
@@ -75,3 +78,13 @@ RUN npm ci --prefix /opt/history
 COPY history/find-history-links.js /opt/history/
 COPY HISTORY /usr/local/bin/HISTORY
 RUN chmod +x /usr/local/bin/HISTORY
+
+# ── calendar ──────────────────────────────────────────────────────────────
+# Fetches Office365/Outlook calendar events via Microsoft Graph + merges in
+# US federal holidays. Credentials via CAL_TENANT_ID / CAL_CLIENT_ID /
+# CAL_CLIENT_SECRET environment variables.
+RUN pip install --no-cache-dir holidays msal requests
+
+COPY calendar/azcal.py /opt/calendar/azcal.py
+COPY CALENDAR /usr/local/bin/CALENDAR
+RUN chmod +x /usr/local/bin/CALENDAR
