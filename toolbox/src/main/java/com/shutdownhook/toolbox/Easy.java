@@ -100,11 +100,7 @@ public class Easy
 			return(Easy.class.getClassLoader().getResourceAsStream(path.substring(1)));
 		}
 
-		String homeDir = System.getProperty("user.home");
-		
-		return(new FileInputStream(new File(path)
-								   .getCanonicalPath()
-								   .replaceAll("~", homeDir)));
+		return(new FileInputStream(resolvePathFully(path)));
 	}
 
 	public static String stringFromSmartyPath(String path) throws IOException {
@@ -391,7 +387,7 @@ public class Easy
 		}
 		else {
 
-			// named entity, use the lookup
+			// named entity,  the lookup
 			sb.append(htmlEntityLookup.get(entity));
 		}
 	}
@@ -729,6 +725,11 @@ public class Easy
 			if (stm != null) stm.close();
 			if (zipFile != null) zipFile.close();
 		}
+	}
+
+	public static String resolvePathFully(String input) throws IOException {
+		String homeDir = System.getProperty("user.home");
+		return(new File(input.replaceAll("~", homeDir)).getCanonicalPath());
 	}
 
 	// +---------+

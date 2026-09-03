@@ -5,6 +5,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.File;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -14,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
@@ -22,6 +25,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
+import com.shutdownhook.toolbox.Exec;
 import com.shutdownhook.toolbox.Template;
 import com.shutdownhook.colossus.ToolCalling.ToolClass;
 
@@ -31,9 +35,10 @@ public class Project
 	// | Setup & Teardown |
 	// +------------------+
 
-	public Project(String path, Conversation.Config parentCfg) throws Exception {
+	public Project(String path, Exec exec, Conversation.Config parentCfg) throws Exception {
 		this.projectPath = Paths.get(path).toAbsolutePath();
 		this.parentCfg = parentCfg;
+		this.exec = exec;
 		
 		setupConversationConfig();
 	}
@@ -99,7 +104,7 @@ public class Project
 			Path children = getProjectDirectory(CHILDREN_DIR, false);
 			if (Files.exists(children)) {
 				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), thisCfg);
+					Project childProject = new Project(childPath.toString(), exec, thisCfg);
 					childProject.run(results, result.Name, targetProject, promptOverride);
 				}
 			}
@@ -137,7 +142,7 @@ public class Project
 
 			// (4) postwork
 			runScript(POST_SCRIPT_FILE);
-			ensureDataAndClearTemp();
+			//ensureDataAndClearTemp(); // don't do this, for debugging purposes
 
 			if (result.Response == null) result.Response = "OK";
 			
@@ -254,20 +259,47 @@ public class Project
 		Path scriptFile = scriptsDir.resolve(script).toAbsolutePath();
 		if (!Files.exists(scriptFile)) return(true);
 
-		String[] commands = new String[] { "bash", "-c", scriptFile.toString() };
+		String jarPath = getJarPath();
+		String secretsVolume = getSecretsVolume();
+		String preamble = String.format(SCRIPT_PREAMBLE_FMT, secretsVolume, jarPath);
+		
+		String[] commands = new String[] { "bash", "-c", preamble + scriptFile.toString() };
 		ProcessBuilder pb = new ProcessBuilder(commands);
+		pb.redirectErrorStream(true);
 		pb.directory(scriptsDir.toFile());
 		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR).toString());
-		pb.environment().put(JAR_PATH_ENV, getJarPath());
+		pb.environment().put(JAR_PATH_ENV, jarPath);
 		
 		log.info("Running script " + scriptFile.toString());
-		
 		Process p = pb.start();
-		p.waitFor(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
-		int exit = p.exitValue();
-		if (exit != 0) log.warning(String.format("Error %d running script %s", exit, scriptFile.toString()));
+		// this painful completeable dance allows us to capture output AND
+		// force a timeout on the process. Sometimes things are just dumb.
 		
+		CompletableFuture<String> future =
+			exec.runAsyncEx("Project.runScript", new Exec.AsyncOperationEx() {
+				public String execute() throws Exception {
+					return(new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
+				}
+			});
+
+		int exit = 1;
+		
+		try {
+			String output = future.get(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+			p.waitFor();
+			exit = p.exitValue();
+			if (exit != 0) {
+				log.warning(String.format("Error %d running script %s; output follows", exit, scriptFile.toString()));
+				log.warning(output);
+			}
+		}
+		catch (TimeoutException e) {
+			future.cancel(true);
+			p.destroyForcibly();
+			log.warning(String.format("TIMEOUT running script " + scriptFile.toString()));
+		}
+
 		return(exit == 0);
 	}
 
@@ -278,7 +310,18 @@ public class Project
 						.getLocation()
 						.toURI()).getAbsolutePath());
 	}
-							  
+
+	private String getSecretsVolume() throws Exception {
+		
+		String path = Easy.resolvePathFully(SCRIPT_PREAMBLE_SECRETS_FILE);
+		if (!Files.exists(Paths.get(path))) {
+			log.warning("No ~/.colossus-env file found; can't use with-secrets");
+			return("");
+		}
+		
+		return(String.format(SCRIPT_PREAMBLE_SECRETS_VOLUME_FMT, path));
+	}
+	
 	// +------------------------+
 	// | ensureDataAndClearTemp |
 	// +------------------------+
@@ -370,6 +413,18 @@ public class Project
 	private final static String DATA_DIR_ENV = "DATA_DIR";
 	private final static String JAR_PATH_ENV = "COLOSSUS_JAR_PATH";
 
+	private final static String SCRIPT_PREAMBLE_FMT =
+		"colossus_util() { docker run --rm --user \"$(id -u):$(id -g)\" " +
+		"%s -v \"$DATA_DIR\":/data -v \"$PWD\":/scripts:ro colossus-utils \"$@\"; } \n" +
+		"colossus_jar() { java -cp %s \"$@\"; } \n" +
+		"export -f colossus_util; export -f colossus_jar; \n";
+
+	private final static String SCRIPT_PREAMBLE_SECRETS_FILE = 
+		"~/.colossus-env";
+
+	private final static String SCRIPT_PREAMBLE_SECRETS_VOLUME_FMT =
+		"-v \"%s\":/secrets.env:ro";
+	
 	private final static int PROCESS_TIMEOUT_SECONDS = 60 * 20; // 20 minutes
 
 	private final static String PAUSED_SUFFIX = ".paused";
@@ -391,6 +446,7 @@ public class Project
 	private Path projectPath;
 	private Conversation.Config parentCfg;
 	private Conversation.Config thisCfg;
+	private Exec exec;
 	
 	private final static Logger log = Logger.getLogger(Project.class.getName());
 }

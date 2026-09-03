@@ -211,7 +211,9 @@ public class Conversation implements Closeable
 							   choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length()));
 
 		// debug
-		// System.out.println("TURN:\n" + utils.getGson().toJson(choice.message));
+		if ("1".equals(System.getenv("COLOSSUS_SHOW_CONVERSATIONS"))) {
+			System.out.println("TURN:\n" + utils.getGson().toJson(choice.message));
+		}
 		
 		lastReasoning = choice.message.reasoning_content;
 		choice.message.reasoning_content = null;
