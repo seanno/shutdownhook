@@ -92,8 +92,11 @@ RUN chmod +x /usr/local/bin/CALENDAR
 # ── playwright ──────────────────────────────────────────────────────────────
 # Full-browser URL fetch via Playwright/Chromium for JS-rendered pages.
 # playwright install --with-deps also installs all required system libraries.
-COPY playwright/package.json /opt/playwright/
-RUN npm install --prefix /opt/playwright && \
+# PLAYWRIGHT_BROWSERS_PATH is a fixed path so the browser is found regardless
+# of which user (root or otherwise) runs the container at runtime.
+ENV PLAYWRIGHT_BROWSERS_PATH=/opt/ms-playwright
+COPY playwright/package.json playwright/package-lock.json /opt/playwright/
+RUN npm ci --prefix /opt/playwright && \
     /opt/playwright/node_modules/.bin/playwright install --with-deps chromium
 
 COPY playwright/fetch-url.js /opt/playwright/
