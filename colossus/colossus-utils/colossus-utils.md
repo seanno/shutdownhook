@@ -28,6 +28,12 @@ Binary was built on Ubuntu from `../minja-render` and copied in; rebuild there i
 
 ... `HISTORY [outputfile]`  → fetches articles from history.com for today; writes JSON to outputfile (default: history-articles.json)
 
+## Playwright Browser Fetch
+
+... `PLAYWRIGHT <url>`  → fetches the fully-rendered HTML of url via a headless Chromium browser and writes it to stdout
+
+Behaves like a real browser (executes JS, sends realistic headers/user-agent). Useful for sites that block plain HTTP clients. Also available as a subprocess from within the image.
+
 ## Calendar Events Fetch
 
 ... `CALENDAR <output_json> <mailbox> <days_ahead> <calendar_id> [<calendar_id> ...]`

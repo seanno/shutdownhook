@@ -88,3 +88,14 @@ RUN pip install --no-cache-dir holidays msal requests
 COPY calendar/azcal.py /opt/calendar/azcal.py
 COPY CALENDAR /usr/local/bin/CALENDAR
 RUN chmod +x /usr/local/bin/CALENDAR
+
+# ── playwright ──────────────────────────────────────────────────────────────
+# Full-browser URL fetch via Playwright/Chromium for JS-rendered pages.
+# playwright install --with-deps also installs all required system libraries.
+COPY playwright/package.json /opt/playwright/
+RUN npm install --prefix /opt/playwright && \
+    /opt/playwright/node_modules/.bin/playwright install --with-deps chromium
+
+COPY playwright/fetch-url.js /opt/playwright/
+COPY PLAYWRIGHT /usr/local/bin/PLAYWRIGHT
+RUN chmod +x /usr/local/bin/PLAYWRIGHT
