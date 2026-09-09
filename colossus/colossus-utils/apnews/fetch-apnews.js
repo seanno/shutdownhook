@@ -1,4 +1,4 @@
-const axios = require('axios');
+const { execFileSync } = require('child_process');
 const cheerio = require('cheerio');
 const fs = require('fs');
 
@@ -13,16 +13,8 @@ async function fetchApNewsArticles() {
   const cutoff = now - ONE_DAY_MS;
 
   try {
-    const response = await axios.get(AP_NEWS_URL, {
-      headers: {
-		'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/151.0.0.0 Safari/537.36',
-		'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-		'Accept-Language': 'en-US,en;q=0.9'
-	  },
-      timeout: 10000,
-    });
-
-    const $ = cheerio.load(response.data);
+    const html = execFileSync('PLAYWRIGHT', [AP_NEWS_URL], { encoding: 'utf8', maxBuffer: 16 * 1024 * 1024 });
+    const $ = cheerio.load(html);
     const articles = [];
     const seenUrls = new Set();
 
@@ -77,11 +69,6 @@ async function fetchApNewsArticles() {
 
   } catch (error) {
     console.error('Error fetching AP News:', error.message);
-
-    if (error.response) {
-      console.error(`  Status: ${error.response.status}`);
-    }
-
     throw error;
   }
 }
