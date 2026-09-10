@@ -9,7 +9,6 @@ import java.util.List;
 import java.util.logging.Logger;
 
 import com.shutdownhook.toolbox.Easy;
-import com.shutdownhook.toolbox.Exec;
 
 public class App 
 {
@@ -27,12 +26,11 @@ public class App
 		
 		Easy.configureLoggingProperties("@logging.properties");
 
-		Exec exec = new Exec(Exec.CACHED_THREADPOOL);
-
 		List<Project.ProjectResult> results = new ArrayList<Project.ProjectResult>();
 		
 		try {
-			Project project = new Project(projectPath, exec, null);
+			Project.initGlobalUtilities(projectPath);
+			Project project = new Project(projectPath, null);
 			project.run(results, null, targetProject, promptOverride);
 		}
 		finally {
@@ -40,7 +38,7 @@ public class App
 				System.out.println(result.toString());
 			}
 
-			exec.close();
+			Project.closeGlobalUtilities();
 		}
 	}
 

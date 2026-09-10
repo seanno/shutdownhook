@@ -15,7 +15,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Scanner;
 import java.util.Set;
 import java.util.concurrent.CompletableFuture;
@@ -351,7 +350,7 @@ public class Conversation implements Closeable
 		}
 	}
 
-	private String fetchInput(String input) throws IOException {
+	private String fetchInput(String input) throws Exception {
 
 		if (input.startsWith("file://")) {
 			String ret = Easy.stringFromFile(input.substring(7));
@@ -360,22 +359,7 @@ public class Conversation implements Closeable
 		}
 
 		if (input.startsWith("https://") || input.startsWith("http://")) {
-			
-			WebRequests.Response resp = utils.getRequests().fetch(input);
-			
-			if (!resp.successful()) {
-				log.warning(String.format("fetch failed for summary (%s): %d %s",
-										  input, resp.Status, (resp.Ex == null ? "" : resp.Ex.toString())));
-				return("");
-			}
-
-			String ret = resp.Body;
-			String contentType = resp.getFirstHeader("Content-Type");
-			if (contentType != null && contentType.toLowerCase(Locale.ROOT).startsWith("text/html")) {
-				ret = Jsoup.parse(ret).text();
-			}
-
-			return(ret);
+			return(utils.simpleFetchUrlText(input));
 		}
 
 		return(input);

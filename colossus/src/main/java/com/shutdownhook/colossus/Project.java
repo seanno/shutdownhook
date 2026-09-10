@@ -5,7 +5,6 @@
 package com.shutdownhook.colossus;
 
 import java.io.File;
-import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -15,9 +14,6 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeoutException;
-import java.util.concurrent.TimeUnit;
 import java.util.logging.Logger;
 
 import com.google.gson.Gson;
@@ -25,20 +21,44 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
-import com.shutdownhook.toolbox.Exec;
 import com.shutdownhook.toolbox.Template;
 import com.shutdownhook.colossus.ToolCalling.ToolClass;
 
 public class Project
 {
+	// +-----------------+
+	// | GlobalUtilities |
+	// +------------------+
+
+	public static void initGlobalUtilities(String path) throws Exception {
+		if (utils != null) throw new Exception("Project Global Utilities double-initialized");
+
+		Path cfgPath = Paths.get(path, GLOBAL_UTILITIES);
+		if (!Files.exists(cfgPath)) {
+			utils = new Utility(new Utility.Config());
+			return;
+		}
+		
+		String json = Easy.stringFromFile(cfgPath.toAbsolutePath().toString());
+		utils = new Utility(Utility.Config.fromJson(json));
+	}
+
+	public static void closeGlobalUtilities() {
+		if (utils == null) return;
+		utils.close();
+		utils = null;
+	}
+
 	// +------------------+
 	// | Setup & Teardown |
 	// +------------------+
 
-	public Project(String path, Exec exec, Conversation.Config parentCfg) throws Exception {
+	public Project(String path, Conversation.Config parentCfg) throws Exception {
+
+		if (utils == null) log.warning("Warning; Global Utilities not initialized");
+		
 		this.projectPath = Paths.get(path).toAbsolutePath();
 		this.parentCfg = parentCfg;
-		this.exec = exec;
 		
 		setupConversationConfig();
 	}
@@ -104,7 +124,7 @@ public class Project
 			Path children = getProjectDirectory(CHILDREN_DIR, false);
 			if (Files.exists(children)) {
 				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), exec, thisCfg);
+					Project childProject = new Project(childPath.toString(), thisCfg);
 					childProject.run(results, result.Name, targetProject, promptOverride);
 				}
 			}
@@ -228,6 +248,9 @@ public class Project
 		List<ToolClass> thisTools = new ArrayList<ToolClass>();
 
 		String superToolClass = ToolCalling.Super_Tool.class.getName();
+		String scriptToolClass = Script_Tool.class.getName();
+		
+		String scriptsDir = getProjectDirectory(SCRIPTS_DIR).toString();
 		String dataDir = getProjectDirectory(DATA_DIR).toString();
 
 		if (thisCfg.ToolClasses != null) {
@@ -239,6 +262,11 @@ public class Project
 				if (superToolClass.equals(toolClass.ClassName)) {
 					if (toolClass.Config == null) toolClass.Config = new JsonObject();
 					toolClass.Config.addProperty("BasePath", dataDir);
+				}
+				else if (scriptToolClass.equals(toolClass.ClassName)) {
+					if (toolClass.Config == null) toolClass.Config = new JsonObject();
+					toolClass.Config.addProperty("ScriptsDirectory", scriptsDir);
+					toolClass.Config.addProperty("DataDirectory", dataDir);
 				}
 
 				thisTools.add(toolClass);
@@ -255,55 +283,33 @@ public class Project
 	private boolean runScript(String script) throws Exception {
 		
 		Path scriptsDir = getProjectDirectory(SCRIPTS_DIR, false).toAbsolutePath();
-		if (!Files.exists(scriptsDir)) return(true);
-		Path scriptFile = scriptsDir.resolve(script).toAbsolutePath();
+		Path dataDir = getProjectDirectory(DATA_DIR);
+
+		Path scriptFile = scriptsDir.resolve(script);
 		if (!Files.exists(scriptFile)) return(true);
 
+		Utility.ProcessResult result = runScript(scriptFile.toString(), scriptsDir, dataDir);
+		return(result.ExitCode == 0);
+	}
+
+	private static Utility.ProcessResult runScript(String script, Path scriptsDir, Path dataDir) throws Exception {
+
+		log.info(String.format("RUNNING %s with s=%s d=%s", script, scriptsDir, dataDir));
+		
 		String jarPath = getJarPath();
 		String secretsVolume = getSecretsVolume();
 		String preamble = String.format(SCRIPT_PREAMBLE_FMT, secretsVolume, jarPath);
-		
-		String[] commands = new String[] { "bash", "-c", preamble + scriptFile.toString() };
-		ProcessBuilder pb = new ProcessBuilder(commands);
-		pb.redirectErrorStream(true);
-		pb.directory(scriptsDir.toFile());
-		pb.environment().put(DATA_DIR_ENV, getProjectDirectory(DATA_DIR).toString());
-		pb.environment().put(JAR_PATH_ENV, jarPath);
-		
-		log.info("Running script " + scriptFile.toString());
-		Process p = pb.start();
 
-		// this painful completeable dance allows us to capture output AND
-		// force a timeout on the process. Sometimes things are just dumb.
-		
-		CompletableFuture<String> future =
-			exec.runAsyncEx("Project.runScript", new Exec.AsyncOperationEx() {
-				public String execute() throws Exception {
-					return(new String(p.getInputStream().readAllBytes(), StandardCharsets.UTF_8));
-				}
-			});
+		Utility.ProcessOptions options = new Utility.ProcessOptions();
+		options.CaptureErrorStream = true;
+		options.WorkingDirectory = scriptsDir.toString();
+		options.Environment.put(DATA_DIR_ENV, dataDir.toString());
+		options.Environment.put(JAR_PATH_ENV, jarPath);
 
-		int exit = 1;
-		
-		try {
-			String output = future.get(PROCESS_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-			p.waitFor();
-			exit = p.exitValue();
-			if (exit != 0) {
-				log.warning(String.format("Error %d running script %s; output follows", exit, scriptFile.toString()));
-				log.warning(output);
-			}
-		}
-		catch (TimeoutException e) {
-			future.cancel(true);
-			p.destroyForcibly();
-			log.warning(String.format("TIMEOUT running script " + scriptFile.toString()));
-		}
-
-		return(exit == 0);
+		return(utils.runProcess(preamble + script, options));
 	}
 
-	private String getJarPath() throws Exception {
+	private static String getJarPath() throws Exception {
 		return(new File(Project.class
 						.getProtectionDomain()
 						.getCodeSource()
@@ -311,7 +317,7 @@ public class Project
 						.toURI()).getAbsolutePath());
 	}
 
-	private String getSecretsVolume() throws Exception {
+	private static String getSecretsVolume() throws Exception {
 		
 		String path = Easy.resolvePathFully(SCRIPT_PREAMBLE_SECRETS_FILE);
 		if (!Files.exists(Paths.get(path))) {
@@ -387,6 +393,56 @@ public class Project
 		return(prompt);
 	}
 
+	// +-------------+
+	// | Script_Tool |
+	// +-------------+
+
+	// runs a script and returns stdout/stderr as a string.
+	// PWD is the scripts directory, $DATA_DIR will be set just like
+	// for pre and post scripts. If arguments is non-null and non-empty,
+	// it will be written to a temp file and passed as a final parameter
+	// tacked onto the end of CommandLine.
+
+	public static class Script_Tool implements ToolCalling.Tool
+	{
+		public static class Config
+		{
+			public String CommandLine;
+			public String ScriptsDirectory;
+			public String DataDirectory;
+		}
+
+		public JsonObject initialize(ToolCalling.ToolClass toolClass, Conversation conversation) throws Exception {
+			this.cfg = ToolCalling.loadConfig(toolClass, Config.class);
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@script_tool.json"));
+		}
+		
+		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+
+			String cmd = cfg.CommandLine;
+
+			String paramsJSON = ToolCalling.getStringField(arguments, "params_json");
+			if (!Easy.nullOrEmpty(paramsJSON) && !paramsJSON.replaceAll("\\s", "").equals("{}")) {
+				Path tempPath = Paths.get(cfg.DataDirectory, TEMP_SUBDIR);
+				String paramsFile = Files.createTempFile(tempPath, null, ".json").toString();
+				Easy.stringToFile(paramsFile, paramsJSON);
+				cmd = String.format("%s \"%s\"", cmd, paramsFile);
+			}
+
+			Path scriptsDir = Paths.get(cfg.ScriptsDirectory);
+			Path dataDir = Paths.get(cfg.DataDirectory);
+
+			if (!Files.exists(scriptsDir) || !Files.exists(dataDir)) {
+				throw new Exception("Required directories missing");
+			}
+			
+			Utility.ProcessResult result = runScript(cmd, scriptsDir, dataDir);
+			return((result.ExitCode == 0 ? "" : "ERROR\n") + result.Output);
+		}
+
+		private Config cfg;
+ 	}
+
 	// +-----------+
 	// | Constants |
 	// +-----------+
@@ -438,7 +494,9 @@ public class Project
 	private final static int WRAPUP_REASONING_CCH_MAX = 200;
 
 	private final static String START_PROMPT = "Begin";
-		
+
+	private final static String GLOBAL_UTILITIES = "globals.json";
+	
 	// +---------+
 	// | Members |
 	// +---------+
@@ -446,7 +504,8 @@ public class Project
 	private Path projectPath;
 	private Conversation.Config parentCfg;
 	private Conversation.Config thisCfg;
-	private Exec exec;
+
+	private static Utility utils;
 	
 	private final static Logger log = Logger.getLogger(Project.class.getName());
 }

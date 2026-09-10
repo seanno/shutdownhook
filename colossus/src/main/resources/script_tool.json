@@ -1,0 +1,14 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "environment",
+    "description": "run a project script. If you're seeing this description something is probably wrong.",
+    "parameters": { "type": "object", "properties": {
+	  "params_json": {
+		"type": "string",
+		"description": "A single, valid, JSON string containing parameters for the script. Must be properly escaped."
+	  }
+	}, "required": [ ] }
+  }
+}

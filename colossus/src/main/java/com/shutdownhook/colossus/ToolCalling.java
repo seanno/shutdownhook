@@ -224,15 +224,7 @@ public class ToolCalling
 				return(conversation.summarize(url, compact));
 			}
 			
-			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url);
-			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
-
-			String body = response.Body;
-
-			if (response.Headers.containsKey("Content-Type")) {
-				String contentType = response.Headers.get("Content-Type").get(0).toLowerCase();
-				if (contentType.startsWith("text/html")) body = extractTextFromHtml(body);
-			}
+			String body = conversation.getUtils().simpleFetchUrlText(url);
 
 			boolean truncated = false;
 			int originalLength = body.length();
@@ -248,18 +240,6 @@ public class ToolCalling
 			json.addProperty("original_length", originalLength);
 
 			return(json.toString());
-		}
-
-		private String extractTextFromHtml(String body) {
-			try {
-				Document doc = Jsoup.parse(body);
-				String cleanText = doc.body().text();
-				return(cleanText);
-			}
-			catch (Exception e) {
-				log.warning(Easy.exMsg(e, "jsoup", true));
-				return(body);
-			}
 		}
 
 		private Config cfg;
