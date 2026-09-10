@@ -1,8 +1,11 @@
 const { chromium } = require('playwright');
+const cheerio = require('cheerio');
 
 const url = process.argv[2];
+const extractText = process.argv[3] === 'true';
+
 if (!url) {
-  process.stderr.write('Usage: PLAYWRIGHT <url>\n');
+  process.stderr.write('Usage: PLAYWRIGHT <url> [extract-text]\n');
   process.exit(1);
 }
 
@@ -17,10 +20,18 @@ if (!url) {
   });
   const page = await context.newPage();
 
-  await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const response = await page.goto(url, { waitUntil: 'domcontentloaded', timeout: 30000 });
+  const contentType = (response.headers()['content-type'] || '');
   const content = await page.content();
 
-  process.stdout.write(content);
+  if (extractText && contentType.includes('text/html')) {
+    const $ = cheerio.load(content);
+    $('script, style, noscript').remove();
+    process.stdout.write($('body').text().replace(/\s+/g, ' ').trim());
+  } else {
+    process.stdout.write(content);
+  }
+
   await browser.close();
 })().catch(err => {
   process.stderr.write(err.message + '\n');
