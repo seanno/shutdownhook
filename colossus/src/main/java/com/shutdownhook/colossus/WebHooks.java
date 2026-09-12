@@ -19,7 +19,6 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
 import com.shutdownhook.toolbox.Easy;
-import com.shutdownhook.toolbox.WebRequests;
 import com.shutdownhook.toolbox.WebServer;
 import com.shutdownhook.toolbox.WebServer.Request;
 import com.shutdownhook.toolbox.WebServer.Response;
@@ -47,8 +46,9 @@ public class WebHooks implements Closeable
 
 		public String ProxyUrl = "/pxy";
 		public String ProxyUrlParam = "s";
+		public String ProxyCommandFormat = "docker run colossus-utils PLAYWRIGHT \"%s\" true";
 
-		public WebRequests.Config WebRequests = new WebRequests.Config();
+		public Utility.Config Utils = new Utility.Config();
 		
 		public static Config fromJson(String json) {
 			Config cfg = new Gson().fromJson(json, Config.class);
@@ -59,7 +59,7 @@ public class WebHooks implements Closeable
 
 	public WebHooks(Config cfg) throws Exception {
 		this.cfg = cfg;
-		this.requests = new WebRequests(cfg.WebRequests);
+		this.utils = new Utility(cfg.Utils);
 		setupWebServer();
 	}
 	
@@ -70,7 +70,7 @@ public class WebHooks implements Closeable
 	}
 
 	public void runSync() throws Exception { server.runSync(); }
-	public void close() { server.close(); requests.close(); }
+	public void close() { server.close(); utils.close(); }
 
 	// +---------------+
 	// | registerProxy |
@@ -112,14 +112,10 @@ public class WebHooks implements Closeable
 				}
 
 				// fetch and return as text; this is really brain dead and will
-				// only work for very simple browser fetches. 
-				WebRequests.Response webResponse = requests.fetch(url);
-				response.Body = webResponse.Body;
-				response.ContentType = webResponse.getFirstHeader("Content-Type");
-
-				if (response.ContentType.startsWith("text/html")) {
-					response.setText(extractTextFromHtml(response.Body));
-				}
+				// only work for very simple browser fetches.
+				String proxyCommand = String.format(cfg.ProxyCommandFormat, url);
+				Utility.ProcessResult result = utils.runProcess(proxyCommand);
+				response.setText(result.Output);
 				
 				response.Status = 200;
 			}
@@ -239,7 +235,7 @@ public class WebHooks implements Closeable
 
 	Config cfg;
 	WebServer server;
-	WebRequests requests;
+	Utility utils;
 	
 	private final static Logger log = Logger.getLogger(WebHooks.class.getName());
 }
