@@ -120,49 +120,57 @@ public class Project
 			ensureDataAndClearTemp();
 			runScript(PRE_SCRIPT_FILE);
 
-			// (2) children
-			Path children = getProjectDirectory(CHILDREN_DIR, false);
-			if (Files.exists(children)) {
-				for (Path childPath : Files.list(children).toList()) {
-					Project childProject = new Project(childPath.toString(), thisCfg);
-					childProject.run(results, result.Name, targetProject, promptOverride);
-				}
-			}
-
-			// (3) conversation
-			String effectivePrompt = null;
-			boolean override = false;
-			
-			if (projectName.equals(targetProject) && promptOverride != null) {
-				// override
-				effectivePrompt = promptOverride;
-				override = true;
+			Path quickExitFile = getProjectSubDirectory(DATA_DIR, TEMP_SUBDIR).resolve(QUICK_EXIT_FILE);
+			if (Files.exists(quickExitFile)) {
+				// if pre script writes this file into the (newly-cleared) temp
+				// directory, don't do anything else --- including the post
+				result.Response = "QUICK_EXIT";
 			}
 			else {
-				Path promptPath = getProjectFile(PROMPT_FILE);
-				if (Files.exists(promptPath)) {
-					// explicit prompt
-					effectivePrompt = Easy.stringFromFile(promptPath.toString());
+				// (2) children
+				Path children = getProjectDirectory(CHILDREN_DIR, false);
+				if (Files.exists(children)) {
+					for (Path childPath : Files.list(children).toList()) {
+						Project childProject = new Project(childPath.toString(), thisCfg);
+						childProject.run(results, result.Name, targetProject, promptOverride);
+					}
 				}
-				else if (!Files.exists(children) && !Easy.nullOrEmpty(thisCfg.SystemPrompt)) {
-					// implicit prompt at leaf (only if we have some prompt to give)
-					effectivePrompt = START_PROMPT;
-				}
-			}
 
-			if (effectivePrompt != null) {
-				archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
-				conversation = new Conversation(thisCfg);
-				result.Response = conversation.safePrompt(effectivePrompt);
-				if (!override && Easy.nullOrEmpty(result.Response)) {
-					String wrapUpPrompt = getWrapUpPrompt(conversation);
-					if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+				// (3) conversation
+				String effectivePrompt = null;
+				boolean override = false;
+			
+				if (projectName.equals(targetProject) && promptOverride != null) {
+					// override
+					effectivePrompt = promptOverride;
+					override = true;
 				}
-			}
+				else {
+					Path promptPath = getProjectFile(PROMPT_FILE);
+					if (Files.exists(promptPath)) {
+						// explicit prompt
+						effectivePrompt = Easy.stringFromFile(promptPath.toString());
+					}
+					else if (!Files.exists(children) && !Easy.nullOrEmpty(thisCfg.SystemPrompt)) {
+						// implicit prompt at leaf (only if we have some prompt to give)
+						effectivePrompt = START_PROMPT;
+					}
+				}
 
-			// (4) postwork
-			runScript(POST_SCRIPT_FILE);
-			//ensureDataAndClearTemp(); // don't do this, for debugging purposes
+				if (effectivePrompt != null) {
+					archiveDir = getProjectDirectory(CONVERSATIONS_DIR);
+					conversation = new Conversation(thisCfg);
+					result.Response = conversation.safePrompt(effectivePrompt);
+					if (!override && Easy.nullOrEmpty(result.Response)) {
+						String wrapUpPrompt = getWrapUpPrompt(conversation);
+						if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+					}
+				}
+
+				// (4) postwork
+				runScript(POST_SCRIPT_FILE);
+				//ensureDataAndClearTemp(); // don't do this, for debugging purposes
+			}
 
 			if (result.Response == null) result.Response = "OK";
 			
@@ -455,6 +463,7 @@ public class Project
 	private final static String LEARNINGS_FILE = "learnings.json";
 	private final static String RUNS_FILE = "runs.md";
 	private final static String PAUSED_FILE = "paused.txt";
+	private final static String QUICK_EXIT_FILE = "exit.txt";
 
 	private final static String DATA_DIR = "data";
 	private final static String TEMP_SUBDIR = "temp";
