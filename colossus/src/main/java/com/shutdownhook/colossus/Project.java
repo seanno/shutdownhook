@@ -124,7 +124,10 @@ public class Project
 			if (Files.exists(quickExitFile)) {
 				// if pre script writes this file into the (newly-cleared) temp
 				// directory, don't do anything else --- including the post
-				result.Response = "QUICK_EXIT";
+				String msg = "";
+				try { msg = Easy.stringFromFile(quickExitFile.toString()); }
+				catch (Exception eq) { /* eat it */ }
+				result.Response = "[Quick exit] " + msg;
 			}
 			else {
 				// (2) children
