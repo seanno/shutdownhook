@@ -204,7 +204,7 @@ public class Project
 	private boolean shouldSkip(String thisProject, String targetProject) {
 		if (targetProject == null) return(false);
 		if (thisProject.startsWith(targetProject)) return(false); // descendant
-		if (targetProject.startsWith(thisProject)) return(false); // ancestor
+		if (targetProject.startsWith(thisProject + " : ")) return(false); // ancestor
 		return(true);
 	}
 	
