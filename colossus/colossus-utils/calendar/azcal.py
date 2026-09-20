@@ -15,12 +15,24 @@ Credentials come from the environment:
     CAL_CLIENT_SECRET
 
 Usage:
-    calendar_events.py <output_json> <mailbox> <days_ahead> <calendar_id> [<calendar_id> ...]
+    calendar_events.py --output <output_json> --mailbox <mailbox> \
+        --days-ahead <days_ahead> --calendars <calendar_id> [<calendar_id> ...] \
+        [--categories CATEGORIES]
+
+    --categories takes a pipe-separated list of category labels to keep
+    (e.g. "Family|Work") or the literal "all". When omitted or set to "all",
+    no filtering is applied. An event is kept when its categories include at
+    least one requested label; locally-computed holidays carry the "general"
+    tag, so filter on "general" to keep them.
 
 Example:
-    calendar_events.py events.json you@yourdomain.com 14 AAMk...cal1 AAMk...cal2
+    calendar_events.py -o events.json -m you@yourdomain.com -d 14 \
+        --calendars AAMk...cal1 AAMk...cal2
+    calendar_events.py -o events.json -m you@yourdomain.com -d 14 \
+        --calendars AAMk...cal1 -c "Family|general"
 """
 
+import argparse
 import datetime as dt
 import json
 import os
@@ -46,6 +58,25 @@ US_HOLIDAY_CATEGORIES = ("public", "unofficial")
 def die(msg, code=1):
     print(msg, file=sys.stderr)
     sys.exit(code)
+
+
+def parse_category_filter(spec):
+    """Turn the --categories value into a set of labels to keep, or None.
+
+    None (flag absent) or "all" (any case) -> None, meaning no filtering.
+    Otherwise a pipe-separated list -> set of trimmed, non-empty, casefolded
+    labels (matching against event categories is case-insensitive).
+    Raises ValueError if a filter is requested but no usable labels remain.
+    """
+    if spec is None or spec.strip().lower() == "all":
+        return None
+    labels = {label.strip().casefold() for label in spec.split("|") if label.strip()}
+    if not labels:
+        raise ValueError(
+            "--categories was given but contained no usable labels "
+            "(use 'all' or omit the flag for no filtering)."
+        )
+    return labels
 
 
 def get_token(tenant_id, client_id, client_secret):
@@ -109,20 +140,36 @@ def get_holidays(start_date, end_date):
 
 
 def main():
-    args = sys.argv[1:]
-    if len(args) < 4:
-        die(
-            "Usage: calendar_events.py <output_json> <mailbox> <days_ahead> "
-            "<calendar_id> [<calendar_id> ...]"
-        )
+    parser = argparse.ArgumentParser(
+        description="Pull Office365 calendar events plus US holidays into JSON.",
+    )
+    parser.add_argument("-o", "--output", required=True, metavar="OUTPUT_JSON",
+                        help="Path to write the structured JSON.")
+    parser.add_argument("-m", "--mailbox", required=True,
+                        help="Mailbox UPN, e.g. you@yourdomain.com")
+    parser.add_argument("-d", "--days-ahead", required=True, type=int,
+                        help="Size of the forward window, in days.")
+    parser.add_argument("--calendars", required=True, nargs="+",
+                        metavar="CALENDAR_ID",
+                        help="One or more calendar IDs.")
+    parser.add_argument(
+        "-c", "--categories", default=None,
+        help='Pipe-separated category labels to keep, e.g. "Family|Work". '
+             'Use "all" or omit for no filtering. An event is kept when its '
+             'categories include at least one requested label; holidays carry '
+             f'the "{GENERAL_TAG}" tag.',
+    )
+    args = parser.parse_args()
 
-    output_json = args[0]
-    mailbox = args[1]
     try:
-        days_ahead = int(args[2])
-    except ValueError:
-        die(f"days_ahead must be an integer, got: {args[2]!r}")
-    calendar_ids = args[3:]
+        keep_categories = parse_category_filter(args.categories)
+    except ValueError as exc:
+        die(str(exc))
+
+    output_json = args.output
+    mailbox = args.mailbox
+    days_ahead = args.days_ahead
+    calendar_ids = args.calendars
 
     # Credentials from environment
     missing = [v for v in ("CAL_TENANT_ID", "CAL_CLIENT_ID", "CAL_CLIENT_SECRET")
@@ -145,6 +192,14 @@ def main():
 
     # Merge in locally-computed US federal holidays over the same window.
     all_events.extend(get_holidays(now.date(), end.date()))
+
+    # Optional category filter: keep events sharing at least one requested
+    # label. Matching is case-insensitive (both sides casefolded), but the
+    # original casing is preserved in the output. Applied uniformly, so
+    # holidays (tagged "general") survive only when "general" is requested.
+    if keep_categories is not None:
+        all_events = [ev for ev in all_events
+                      if keep_categories.intersection(c.casefold() for c in ev[2])]
 
     # Sort by date string (ISO YYYY-MM-DD sorts chronologically as text).
     all_events.sort(key=lambda ev: ev[0])
