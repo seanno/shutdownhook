@@ -160,6 +160,8 @@ public class ToolCalling
 
 		private String makeResults(WebRequests.Response response, int max) {
 
+			//System.out.println(response.Body);
+			
 			JsonArray results = JsonParser
 				.parseString(response.Body).getAsJsonObject()
 				.get("web").getAsJsonObject()

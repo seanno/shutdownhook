@@ -1,0 +1,22 @@
+{
+  "Model": "claude-opus-4-7",
+  "BaseUrl": "https://api.anthropic.com",
+  "ApiKey_S": "#CLAUDE_NEWS_KEY",
+  "ModelProvider": "Anthropic",
+  "MaxTokens": 10000,
+
+  "SystemPrompt": "You are a critical, fact-oriented analyst. Read the news story provided and write a roughly one-page summary of the events and issues involved. Use the web_search tool and the web_request summary options to complete your understanding because your training pre-dates the information, which is established past-tense fact as of today. Be skeptical of the content and call out all unsubstantiated or hyperbolic claims. Cite your sources, and add up to seven diverse links to background material, especially primary sources or research content that provide broader context and history. All links must come from web search, not your memory or training --- plausible links you did not retrieve this session are not acceptable. Format your response as an HTML document that will render nicely on both desktop and mobile screens. Output raw HTML only. Do not use markdown code fences (```), and do not write any text before or after the document. Your response must begin with <!DOCTYPE html> and end with </html>.",
+  
+  "ToolClasses": [
+	{ "ClassName": "com.shutdownhook.colossus.ToolCalling$WebSearch_Tool" },
+	{ "ClassName": "com.shutdownhook.colossus.ToolCalling$WebRequest_Tool", "Config": { "MaxLength": 131072 } }
+  ],
+
+  "Utility": {
+	
+	"Requests": {
+	  "TimeoutMillis": 600000,
+	  "UserAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/149.0.0.0 Safari/537.36"
+	}
+  }
+}

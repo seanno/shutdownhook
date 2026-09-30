@@ -83,9 +83,25 @@ public class Utility implements Closeable
 	}
 
 	// +--------------------+
+	// | simpleFetchUrl     |
 	// | simpleFetchUrlText |
 	// +--------------------+
 
+	public String simpleFetchUrl(String url, String json) throws Exception {
+
+		WebRequests.Params webParams = new WebRequests.Params();
+
+		if (json != null) {
+			webParams.Body = json;
+			webParams.setContentType("application/json");
+		}
+		
+		WebRequests.Response webResponse = getRequests().fetch(url, webParams);
+		if (!webResponse.successful()) webResponse.throwException("simpleFetchUrl");
+
+		return(webResponse.Body);
+	}
+	
 	public String simpleFetchUrlText(String url) throws Exception {
 
 		if (cfg.SimpleRequestOverrideFmt != null) {

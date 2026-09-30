@@ -7,11 +7,8 @@ package com.shutdownhook.colossus;
 
 import java.io.Closeable;
 import java.io.IOException;
-import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.Paths;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -36,15 +33,21 @@ public class Conversation implements Closeable
 	// | Setup & Teardown |
 	// +------------------+
 
+	public final static String MODEL_PROVIDER_LLAMA = "llamaCPP";
+	public final static String MODEL_PROVIDER_OTHER = "other";
+	
 	public static class Config
 	{
 		public String Model;
+
+		public String ModelProvider = MODEL_PROVIDER_LLAMA;
+		public JsonObject ModelProviderConfig;
 
 		public ToolCalling.ToolClass[] ToolClasses;
 		public long ToolTimeoutMillis = (10 * 60 * 1000); // 10 minutes
 
 		public String BaseUrl = "http://localhost:11434";
-		public String ApiKey;
+		public String ApiKey_S; // smarty
 		
 		public Utility.Config Utility = new Utility.Config();
 		public Environment.Config Environment = new Environment.Config();
@@ -62,11 +65,7 @@ public class Conversation implements Closeable
 
 		public int SummaryTokenBudgetPct = 80;
 
-		public String MinjaRenderPath = "~/.local/bin/minja_render";
-		
 		public String CompletionPath = "/v1/chat/completions";
-		public String PropsPathPrefix = "/props?model=";
-		public String TokenizePath = "/tokenize";
 
 		public String ConversationTooLargeMessage =
 			"This conversation has grown too large to fit into model context, even after " +
@@ -135,7 +134,7 @@ public class Conversation implements Closeable
 		this.reset();
 
 		try {
-			this.setupModelProps();
+			this.limits = ModelLimits.createModelLimits(this);
 		}
 		catch (Exception e) {
 			this.close();
@@ -191,13 +190,13 @@ public class Conversation implements Closeable
 		if (request == null) return(cfg.ConversationTooLargeMessage);
 		
 		String body = sendRequest(cfg.CompletionPath, request);
-		Response response = utils.getGson().fromJson(body, Response.class);
+		OpenAI.Response response = utils.getGson().fromJson(body, OpenAI.Response.class);
 
 		if (response.choices == null || response.choices.length != 1) {
 			throw new Exception(String.format("No unique choice in response: %s", body));
 		}
 
-		Choice choice = response.choices[0];
+		OpenAI.Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
 		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
@@ -205,7 +204,7 @@ public class Conversation implements Closeable
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
-							   response.timings.predicted_per_second,
+							   (response.timings == null ? -1d : response.timings.predicted_per_second),
 							   choice.message.content == null ? -1 : choice.message.content.length(),
 							   choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length()));
 
@@ -221,11 +220,11 @@ public class Conversation implements Closeable
 		
 		switch (choice.finish_reason) {
 
-			case FINISH_REASON_TOOLS:
+			case OpenAI.FINISH_REASON_TOOLS:
 				callTools(choice.message.tool_calls);
 				return(null);
 				
-			case FINISH_REASON_TRUNC:
+			case OpenAI.FINISH_REASON_TRUNC:
 				log.info(String.format("Hit generation max: %d", maxTokensEffective));
 				choice.message.tool_calls = null; // this prevents truncated/invalid json in arguments
 				if (tryIncreaseMaxTokens()) {
@@ -236,12 +235,12 @@ public class Conversation implements Closeable
 				log.warning("Unable to increase max tokens; terminating prompt.");
 				return(CONTENT_TRUNCATED);
 
-			case FINISH_REASON_FILTER:
+			case OpenAI.FINISH_REASON_FILTER:
 				log.warning("OOPS: Hit filter");
 				return(CONTENT_FILTERED);
 
 			default:
-			case FINISH_REASON_OK:
+			case OpenAI.FINISH_REASON_OK:
 				return(Easy.nullOrEmpty(choice.message.content) ? "" : choice.message.content);
 		}
 	}
@@ -267,7 +266,7 @@ public class Conversation implements Closeable
 	// +-------+
 
 	public void reset() {
-		this.messageHistory = new ArrayList<Message>();
+		this.messageHistory = new ArrayList<OpenAI.Message>();
 	}
 
 	// +-----------+
@@ -291,12 +290,13 @@ public class Conversation implements Closeable
 			// these are VERY rough estimates (not template, etc.)
 			// thus the SummaryTokenBudgetPct fudge factor
 			
-			long tokens = getTokenCount(fetched);
-			long chunkSize = getContextBudget() * cfg.SummaryTokenBudgetPct / 100;
+			long tokens = limits.countTokens(fetched);
+			long budget = limits.getInputTokenBudget(maxTokensEffective);
+			long chunkSize = budget * cfg.SummaryTokenBudgetPct / 100;
 			int chunks = (int) ((tokens + chunkSize - 1) / chunkSize);
 
 			log.info(String.format("summarizing in %d chunk%s (tokens=%d,budget=%d)",
-								   chunks, (chunks == 1 ? "" : "s"), tokens, getContextBudget()));
+								   chunks, (chunks == 1 ? "" : "s"), tokens, budget));
 
 			// simple case
 			if (chunks == 1) return(summarizeChunk(cfgSummary, fetched));
@@ -402,163 +402,16 @@ public class Conversation implements Closeable
 		}
 	}
 	
-	// +-----------------+
-	// | setupModelProps |
-	// +-----------------+
-
-	// LLAMA.CPP-Specific! Note the ModelProps structure is in no way exhaustive; I've just
-	// picked out the pieces I care about ... easy to add others as needed
-
-	public static class GenerationSettings
-	{
-		public long n_ctx;
-	}
-	
-	public static class ModelProps
-	{
-		public GenerationSettings default_generation_settings;
-		public String model_alias;
-		public String chat_template;
-		public String bos_token;
-		public String eos_token;
-	}
-
-	private final static int MODEL_PROPS_DELAY_MS = 2000;
-	private final static int MODEL_PROPS_RETRY_LIMIT = 3;
-	
-	private void setupModelProps() throws Exception {
-
-		int tries = 0;
-		
-		while (true) {
-			
-			try {
-				++tries;
-				trySetupModelProps();
-				return;
-			}
-			catch (Exception e) {
-				
-				if (tries < MODEL_PROPS_RETRY_LIMIT) {
-					log.info("(Hopefully) transient ex getting model props; will retry: " + e.toString());
-					Thread.sleep(MODEL_PROPS_DELAY_MS);
-				}
-				else {
-					log.severe("FATAL ex getting model props; will retry: " + e.toString());
-					return;
-				}
-			}
-		}
-	}
-
-	private void trySetupModelProps() throws Exception {
-		String body = sendRequest(cfg.PropsPathPrefix + Easy.urlEncode(cfg.Model), null);
-		this.modelProps = utils.getGson().fromJson(body, ModelProps.class);
-		this.modelPropsRaw = JsonParser.parseString(body).getAsJsonObject();
-	}
-
-	public long getContextLength() { return(modelProps.default_generation_settings.n_ctx); }
-	public long getContextBudget() { return(getContextLength() - maxTokensEffective); }
-	
-	public ModelProps getModelProps() { return(modelProps); }
-	public JsonObject getModelPropsRaw() { return(modelPropsRaw); }
-
-	// +---------------+
-	// | getTokenCount |
-	// +---------------+
-
-	// LLAMA.CPP-Specific!
-
-	private long getTokenCount(Request req) {
-		String templated = applyModelTemplate(req);
-		if (templated == null) return(0L); // degenerate case
-		return(getTokenCount(templated));
-	}
-
-	private long getTokenCount(String input) {
-		
-		String post = null;
-		
-		try {
-			JsonObject jsonPost = new JsonObject();
-			jsonPost.addProperty("model", cfg.Model);
-			jsonPost.addProperty("content", input);
-
-			post = jsonPost.toString();
-			String body = sendRequest(cfg.TokenizePath, post);
-			JsonObject jsonResponse = JsonParser.parseString(body).getAsJsonObject();
-
-			return(jsonResponse.get("tokens").getAsJsonArray().size());
-		}
-		catch (Exception e) {
-			log.warning(Easy.exMsg(e, "getTokenCount", true));
-			return(0L);
-		}
-	}
-	
-	// +--------------------+
-	// | applyModelTemplate |
-	// +--------------------+
-
-	// uses a callout to minja-render (cfg.MiniJinjaPath) to render a request into
-	// a chat template so we can accurately measure its token count via getTokenCount().
-	// note minja-render is buildable from shutdownhook/colossus/minja-render, you'll
-	// need C++ and CMake.
-	
-	private String applyModelTemplate(Request req) {
-
-		Path modelContextTemp = null;
-		OutputStream os = null;
-
-		try {
-			// write out req as context object
-			JsonObject context = JsonParser.parseString(utils.getCompactGson().toJson(req)).getAsJsonObject();
-			context.addProperty("add_generation_prompt", true);
-			context.addProperty("bos_token", modelProps.bos_token);
-			context.addProperty("eos_token", modelProps.eos_token);
-
-			modelContextTemp = Files.createTempFile("colossus", null);
-			Easy.stringToFile(modelContextTemp.toString(), utils.getCompactGson().toJson(context));
-
-			// start the process
-			String home = System.getProperty("user.home");
-			Path minja = Paths.get(cfg.MinjaRenderPath.replaceAll("~", home));
-
-			String[] commands = new String[] { minja.toString(), "-", modelContextTemp.toString()};
-			ProcessBuilder pb = new ProcessBuilder(commands).redirectErrorStream(false);
-			Process p = pb.start();
-
-			// write the template to STDIN
-			os = p.getOutputStream();
-			os.write(modelProps.chat_template.getBytes(StandardCharsets.UTF_8));
-			os.flush(); os.close(); os = null;
-			
-			// and read the result
-			return(Easy.stringFromInputStream(p.getInputStream()));
-		}
-		catch (Exception e) {
-			log.warning(Easy.exMsg(e, "applyModelTemplate", true));
-			return(null);
-		}
-		finally {
-			Easy.safeClose(os);
-			if (modelContextTemp != null) {
-				try { Files.delete(modelContextTemp); }
-				catch (Exception eFinal) { /* eat it */ }
-			}
-		}
-	}
-
 	// +-----------+
 	// | callTools |
 	// +-----------+
 
-	private void callTools(List<ToolCall> toolCalls) throws Exception {
+	private void callTools(List<OpenAI.ToolCall> toolCalls) throws Exception {
 
 		// start the calls going
 		List<CompletableFuture<String>> futures = new ArrayList<CompletableFuture<String>>();
 		for (int i = 0; i < toolCalls.size(); ++i) {
-			ToolCall call = toolCalls.get(i);
+			OpenAI.ToolCall call = toolCalls.get(i);
 			futures.add(toolCalling.callAsync(call.function.name, call.function.arguments));
 		}
 
@@ -567,10 +420,10 @@ public class Conversation implements Closeable
 		
 		for (int i = 0; i < toolCalls.size(); ++i) {
 			
-			ToolCall call = toolCalls.get(i);
+			OpenAI.ToolCall call = toolCalls.get(i);
 			String content = futures.get(i).get(cfg.ToolTimeoutMillis, TimeUnit.MILLISECONDS);
 			
-			Message msg = makeToolMessage(content, call.id, call.function.name);
+			OpenAI.Message msg = makeToolMessage(content, call.id, call.function.name);
 			messageHistory.add(msg);
 		}
 	}
@@ -588,21 +441,25 @@ public class Conversation implements Closeable
 			webParams.setContentType("application/json");
 		}
 		
-		if (cfg.ApiKey != null) {
-			webParams.addHeader("Authorization", "Bearer " + cfg.ApiKey);
+		if (cfg.ApiKey_S != null) {
+			String resolvedApiKey = Easy.smartyGetProperty(cfg.ApiKey_S);
+			webParams.addHeader("Authorization", "Bearer " + resolvedApiKey);
 		}
 
 		String url = Easy.urlPaste(cfg.BaseUrl, path);
 		WebRequests.Response webResponse = utils.getRequests().fetch(url, webParams);
 		
-		if (!webResponse.successful()) webResponse.throwException("completion");
+		if (!webResponse.successful()) {
+			// System.out.println(webResponse.toString());
+			webResponse.throwException("completion");
+		}
 
 		return(webResponse.Body);
 	}
 	
 	private String makeRequestBody(String input) {
 		
-		Request req = new Request();
+		OpenAI.Request req = new OpenAI.Request();
 		
 		req.model = cfg.Model;
 		req.stream = false;
@@ -630,23 +487,23 @@ public class Conversation implements Closeable
 		return(utils.getGson().toJson(req));
 	}
 
-	private Message makeUserMessage(String input) {
-		return(makeMessage(ROLE_USER, environment.getTimeStamp() + input));
+	private OpenAI.Message makeUserMessage(String input) {
+		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input));
 	}
 
-	private Message makeSystemMessage(String input) {
-		return(makeMessage(ROLE_SYSTEM, input));
+	private OpenAI.Message makeSystemMessage(String input) {
+		return(makeMessage(OpenAI.ROLE_SYSTEM, input));
 	}
 
-	private Message makeToolMessage(String content, String id, String name) {
-		Message msg = makeMessage(ROLE_TOOL, content);
+	private OpenAI.Message makeToolMessage(String content, String id, String name) {
+		OpenAI.Message msg = makeMessage(OpenAI.ROLE_TOOL, content);
 		msg.tool_call_id = id;
 		msg.name = name;
 		return(msg);
 	}
 
-	private Message makeMessage(String role, String input) {
-		Message msg = new Message();
+	private OpenAI.Message makeMessage(String role, String input) {
+		OpenAI.Message msg = new OpenAI.Message();
 		msg.role = role;
 		msg.content = input;
 		return(msg);
@@ -665,12 +522,12 @@ public class Conversation implements Closeable
 	// TRUE return means all is well. FALSE means we couldn't gret small
 	// enough to fit into our budget.
 
-	private boolean pruneRequest(Request req) {
+	private boolean pruneRequest(OpenAI.Request req) {
 
-		long tokenBudget = getContextBudget();
+		long tokenBudget = limits.getInputTokenBudget(maxTokensEffective);
 		if (tokenBudget <= 0) return(true); // degenerate case, just bail
 		
-		long requestTokens = getTokenCount(req);
+		long requestTokens = limits.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// 1. try to remove old tool calls --- this may not do much, but
@@ -679,7 +536,7 @@ public class Conversation implements Closeable
 		log.info(String.format("Request too large 1: %d, limit %d)", requestTokens, tokenBudget));
 		boolean prunedSome = pruneToolRequests(req);
 
-		if (prunedSome) requestTokens = getTokenCount(req);
+		if (prunedSome) requestTokens = limits.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// 2. try to prune old tool responses, leaving the last instance of every tool
@@ -687,7 +544,7 @@ public class Conversation implements Closeable
 		log.info(String.format("Request too large 2: %d, limit %d)", requestTokens, tokenBudget));
 		prunedSome = pruneToolResponses(req);
 
-		if (prunedSome) requestTokens = getTokenCount(req);
+		if (prunedSome) requestTokens = limits.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// Sad, nothing more to do.....
@@ -702,17 +559,17 @@ public class Conversation implements Closeable
 	// replace with an empty object. Harder to "prune" this leaving some trace because it has
 	// to remain json; this is a good easy approach.
 
-	private boolean pruneToolRequests(Request req) {
+	private boolean pruneToolRequests(OpenAI.Request req) {
 
 		boolean prunedSome = false;
 		
 		for (int i = 0; i < req.messages.size(); ++i) {
 			
-			Message thisMsg = req.messages.get(i);
-			if (!thisMsg.role.equals(ROLE_ASST)) continue;
+			OpenAI.Message thisMsg = req.messages.get(i);
+			if (!thisMsg.role.equals(OpenAI.ROLE_ASST)) continue;
 			if (thisMsg.tool_calls == null || thisMsg.tool_calls.size() == 0) continue;
 			
-			for (ToolCall toolCall : thisMsg.tool_calls) {
+			for (OpenAI.ToolCall toolCall : thisMsg.tool_calls) {
 				
 				String args = toolCall.function.arguments;
 				if (args != null && args.length() > cfg.PruneTruncationLength) {
@@ -729,7 +586,7 @@ public class Conversation implements Closeable
 
 	private final static String PRUNE_MARKER = "...PRUNED";
 	
-	private boolean pruneToolResponses(Request req) {
+	private boolean pruneToolResponses(OpenAI.Request req) {
 
 		boolean prunedSome = false;
 		int realMaxLength = cfg.PruneTruncationLength + PRUNE_MARKER.length();
@@ -737,8 +594,8 @@ public class Conversation implements Closeable
 		
 		for (int i = req.messages.size() - 1; i >= 0; --i) {
 			
-			Message thisMsg = req.messages.get(i);
-			if (!thisMsg.role.equals(ROLE_TOOL)) continue;
+			OpenAI.Message thisMsg = req.messages.get(i);
+			if (!thisMsg.role.equals(OpenAI.ROLE_TOOL)) continue;
 
 			if (seen.contains(thisMsg.name)) {
 				// seen it before ... maybe prune
@@ -768,106 +625,13 @@ public class Conversation implements Closeable
 		
 		if (maxTokensEffective == 0) return(false);
 
-		long ceiling = getContextLength() / cfg.MaxTokensCeilingDivisor;
+		long ceiling = limits.getContextSize() / cfg.MaxTokensCeilingDivisor;
 		if (maxTokensEffective >= ceiling) return(false);
 		
 		long newMaxTokens = maxTokensEffective + cfg.MaxTokens;
 
 		maxTokensEffective = (newMaxTokens > ceiling ? ceiling : newMaxTokens);
 		return(true);
-	}
-
-	// +------------------------+
-	// | OpenAI JSON Structures |
-	// +------------------------+
-
-	private static final String ROLE_USER = "user";
-	private static final String ROLE_ASST = "assistant";
-	private static final String ROLE_TOOL = "tool";
-	private static final String ROLE_SYSTEM = "system";
-
-	private static final String FINISH_REASON_OK = "stop";
-	private static final String FINISH_REASON_TOOLS = "tool_calls";
-	private static final String FINISH_REASON_TRUNC = "length";
-	private static final String FINISH_REASON_FILTER = "content_filter";
-
-	private static final String CONTENT_TRUNCATED = "[TRUNCATED] ";
-	private static final String CONTENT_FILTERED = "[FILTERED] ";
-	
-	public static class FunctionCall
-	{
-		public String name;
-		public String arguments;
-	}
-	
-	public static class ToolCall
-	{
-		public String id;
-		public String type;
-		public FunctionCall function;
-	}
-	
-	public static class Message
-	{
-		public String role;
-		public String tool_call_id; // when role == "tool"
-		public String name; // when role == "tool"
-		public String content;
-		public String reasoning_content;
-		public List<ToolCall> tool_calls;
-	}
-
-	public static class Request
-	{
-		public String model;
-		public List<Message> messages;
-		public List<JsonObject> tools;
-		public Boolean stream;
-		public Double temperature;
-		public Long max_tokens;
-		public String reasoning_effort;
-
-		// This lives here so we ensure we're using the same serialization
-		// when computing token counts and actually submitting the request.
-		public String toString() { return(new Gson().toJson(this)); }
-	}
-
-	public static class Choice
-	{
-		public Integer index;
-		public Message message;
-		public String finish_reason;
-	}
-
-	public static class Usage
-	{
-		public Integer prompt_tokens;
-		public Integer completion_tokens;
-		public Integer total_tokens;
-	}
-
-	public static class Timings
-	{
-		public Integer cache_n;
-		public Integer prompt_n;
-		public Double prompt_ms;
-		public Double prompt_per_token_ms;
-		public Double prompt_per_second;
-		public Integer predicted_n;
-		public Double predicted_ms;
-		public Double predicted_per_token_ms;
-		public Double predicted_per_second;
-	}
-
-	public static class Response
-	{
-		public String id;
-		public String object;
-		public Long created;
-		public String model;
-		public Choice[] choices;
-		public Usage usage;
-		public Timings timings;
 	}
 
 	// +------------+
@@ -923,8 +687,8 @@ public class Conversation implements Closeable
 						Easy.stringToFile("/tmp/conversation.dump", response);
 						break;
 
-					case "props":
-						response = conversation.getModelPropsRaw().toString();
+					case "limits":
+						response = conversation.limits.toString();
 						break;
 
 					default:
@@ -955,7 +719,7 @@ public class Conversation implements Closeable
 							   : input));
 		
 		return(String.format("Raw tokens (not templated): %d",
-							 conversation.getTokenCount(realInput)));
+							 conversation.limits.countTokens(realInput)));
 	}
 
 	// +-------+
@@ -973,7 +737,7 @@ public class Conversation implements Closeable
 		sb.append(utils.getGson().toJson(toolCalling.getDescriptions()));
 		sb.append("\n===== MESSAGE HISTORY\n");
 
-		for (Message msg : messageHistory) {
+		for (OpenAI.Message msg : messageHistory) {
 			sb.append(utils.getGson().toJson(msg));
 			sb.append("-----\n");
 		}
@@ -989,12 +753,13 @@ public class Conversation implements Closeable
 	private Environment environment;
 	private Utility utils;
 	private ToolCalling toolCalling;
-	private List<Message> messageHistory;
+	private ModelLimits limits;
+	private List<OpenAI.Message> messageHistory;
 	private String lastReasoning;
 	private long maxTokensEffective;
 
-	private ModelProps modelProps;
-	private JsonObject modelPropsRaw;
+	private static final String CONTENT_TRUNCATED = "[TRUNCATED] ";
+	private static final String CONTENT_FILTERED = "[FILTERED] ";
 	
 	private final static Logger log = Logger.getLogger(Conversation.class.getName());
 }

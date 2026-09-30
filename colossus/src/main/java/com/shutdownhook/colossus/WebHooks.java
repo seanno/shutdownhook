@@ -44,6 +44,15 @@ public class WebHooks implements Closeable
 		public String LocationUpdateUrl = "/loc";
 		public String LocationUpdateTag = "who";
 
+		public String ExplainUrl = "/e";
+		public String ExplainUrlReal = "/e2";
+		public String ExplainUrlParam = "url";
+		public String ExplainSeniorParam = "s";
+
+		public String ExplainPending = "@explain-pending.html";
+		public String ExplainConversationConfig = "@news-conversation.json";
+		public String ExplainConversationSenior = "@news-conversation-senior.txt";
+			
 		public String ProxyUrl = "/pxy";
 		public String ProxyUrlParam = "s";
 		public String ProxyCommandFormat = "docker run colossus-utils PLAYWRIGHT \"%s\" true";
@@ -65,6 +74,8 @@ public class WebHooks implements Closeable
 	
 	private void setupWebServer() throws Exception {
 		server = WebServer.create(cfg.WebServer);
+		registerExplain();
+		registerExplainReal();
 		registerLocationUpdate();
 		registerProxy();
 	}
@@ -184,6 +195,91 @@ public class WebHooks implements Closeable
 		if (path == null) log.warning("Warning: got location request for invalid who");
 
 		return(path);
+	}
+
+	// +---------------------+
+	// | registerExplain     |
+	// | registerExplainReal |
+	// +---------------------+
+
+	// just renders a please wait page and redirects...
+	
+	private void registerExplain() throws Exception {
+
+		server.registerHandler(cfg.ExplainUrl, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				String url = Easy.urlPaste(request.Base, cfg.ExplainUrlReal);
+				url = url + "?" + request.QueryString;
+
+				String html = Easy.stringFromSmartyPath(cfg.ExplainPending);
+				html = html.replace("[[FINAL_URL]]", url);
+
+				response.setHtml(html);
+			}
+		});
+	}
+
+	// the real work
+
+	private void registerExplainReal() throws Exception {
+
+		server.registerHandler(cfg.ExplainUrlReal, new WebServer.Handler() {
+			public void handle(Request request, Response response) throws Exception {
+
+				// only accept GET
+				if (!"GET".equals(request.Method)) {
+					response.Status = 404;
+					return;
+				}
+				
+				// params
+				String url = request.QueryParams.get(cfg.ExplainUrlParam);
+				if (Easy.nullOrEmpty(url)) { response.Status = 500; return; }
+				
+				String seniorFlag = request.QueryParams.get(cfg.ExplainSeniorParam);
+				boolean senior = (Easy.nullOrEmpty(url) ? false : Boolean.parseBoolean(seniorFlag));
+
+				// fetch the file
+				String proxyCommand = String.format(cfg.ProxyCommandFormat, url);
+				Utility.ProcessResult result = utils.runProcess(proxyCommand);
+				String newsContent = result.Output;
+
+				// setup the conversation
+				String convoCfgStr = Easy.stringFromSmartyPath(cfg.ExplainConversationConfig);
+				Conversation.Config convoCfg = Conversation.Config.fromJson(convoCfgStr);
+				if (senior) {
+					convoCfg.SystemPrompt = convoCfg.SystemPrompt + " " +
+						Easy.stringFromSmartyPath(cfg.ExplainConversationSenior);
+				}
+
+				Conversation conversation = null;
+				String html = null;
+				
+				try {
+					conversation = new Conversation(convoCfg);
+					html = conversation.prompt(newsContent);
+					String htmlLower = html.toLowerCase();
+
+					int start = htmlLower.indexOf("<!doctype");
+					if (start == -1) start = 0;
+
+					int end = htmlLower.lastIndexOf("</html>");
+					if (end == -1) end = htmlLower.length(); else end += 7; 
+
+					html = html.substring(start, end);
+				}
+				catch (Exception e) {
+					html = "<b>Oops something went wrong</b>";
+				}
+				finally {
+					if (conversation != null) conversation.close();
+				}
+
+				response.setHtml(html);
+			}
+		});
+		
 	}
 
 	// +---------+
