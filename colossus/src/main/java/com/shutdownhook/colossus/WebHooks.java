@@ -209,9 +209,7 @@ public class WebHooks implements Closeable
 		server.registerHandler(cfg.ExplainUrl, new WebServer.Handler() {
 			public void handle(Request request, Response response) throws Exception {
 
-				String url = Easy.urlPaste(request.Base, cfg.ExplainUrlReal);
-				url = url + "?" + request.QueryString;
-
+				String url = cfg.ExplainUrlReal + "?" + request.QueryString;
 				String html = Easy.stringFromSmartyPath(cfg.ExplainPending);
 				html = html.replace("[[FINAL_URL]]", url);
 
