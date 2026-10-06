@@ -5,6 +5,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.File;
 import java.net.URL;
 import java.util.HashMap;
 import java.util.List;
@@ -52,6 +53,9 @@ public class WebHooks implements Closeable
 		public String ExplainPending = "@explain-pending.html";
 		public String ExplainConversationConfig = "@news-conversation.json";
 		public String ExplainConversationSenior = "@news-conversation-senior.txt";
+
+		public String ExplainCacheDir = null; // null = use system temp dir
+		public int ExplainCacheTtlSeconds = 0; // 0 = never expire
 			
 		public String ProxyUrl = "/pxy";
 		public String ProxyUrlParam = "s";
@@ -230,13 +234,26 @@ public class WebHooks implements Closeable
 					response.Status = 404;
 					return;
 				}
-				
+
 				// params
 				String url = request.QueryParams.get(cfg.ExplainUrlParam);
 				if (Easy.nullOrEmpty(url)) { response.Status = 500; return; }
-				
+
 				String seniorFlag = request.QueryParams.get(cfg.ExplainSeniorParam);
-				boolean senior = (Easy.nullOrEmpty(url) ? false : Boolean.parseBoolean(seniorFlag));
+				boolean senior = (Easy.nullOrEmpty(seniorFlag) ? false : Boolean.parseBoolean(seniorFlag));
+
+				// check cache
+				String cacheKey = Easy.sha256(url + "|" + senior);
+				File cacheFile = new File(explainCacheDir(), cacheKey + ".html");
+
+				if (cacheFile.exists()) {
+					long ageSeconds = (System.currentTimeMillis() - cacheFile.lastModified()) / 1000L;
+					if (cfg.ExplainCacheTtlSeconds == 0 || ageSeconds < cfg.ExplainCacheTtlSeconds) {
+						log.info("explain cache hit: " + cacheKey);
+						response.setHtml(Easy.stringFromFile(cacheFile.getPath()));
+						return;
+					}
+				}
 
 				// fetch the file
 				String proxyCommand = String.format(cfg.ProxyCommandFormat, url);
@@ -253,7 +270,7 @@ public class WebHooks implements Closeable
 
 				Conversation conversation = null;
 				String html = null;
-				
+
 				try {
 					conversation = new Conversation(convoCfg);
 					html = conversation.prompt(newsContent);
@@ -263,7 +280,7 @@ public class WebHooks implements Closeable
 					if (start == -1) start = 0;
 
 					int end = htmlLower.lastIndexOf("</html>");
-					if (end == -1) end = htmlLower.length(); else end += 7; 
+					if (end == -1) end = htmlLower.length(); else end += 7;
 
 					html = html.substring(start, end);
 				}
@@ -274,10 +291,23 @@ public class WebHooks implements Closeable
 					if (conversation != null) conversation.close();
 				}
 
+				// save to cache
+				try {
+					Easy.stringToFile(cacheFile.getPath(), html);
+				}
+				catch (Exception e) {
+					log.warning("explain cache write failed: " + Easy.exMsg(e, "cache", false));
+				}
+
 				response.setHtml(html);
 			}
 		});
-		
+
+	}
+
+	private String explainCacheDir() {
+		if (cfg.ExplainCacheDir != null) return(cfg.ExplainCacheDir);
+		return(System.getProperty("java.io.tmpdir"));
 	}
 
 	// +---------+
