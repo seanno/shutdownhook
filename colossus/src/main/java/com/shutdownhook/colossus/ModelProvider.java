@@ -9,8 +9,10 @@ package com.shutdownhook.colossus;
 import java.util.logging.Logger;
 
 import com.google.gson.JsonObject;
+import com.google.gson.JsonParser;
 
 import com.shutdownhook.toolbox.Easy;
+import com.shutdownhook.toolbox.WebRequests;
 
 public abstract class ModelProvider
 {
@@ -29,8 +31,17 @@ public abstract class ModelProvider
 	}
 	
 	public abstract String serializeRequest(OpenAI.Request request) throws Exception;
-	public abstract OpenAI.Response deserializeResponse(String response) throws Exception;
-	public JsonObject getResponseStats() throws Exception { return(null); }
+
+	public static class DeserializeResult
+	{
+		public OpenAI.Response Response = new OpenAI.Response();
+		public JsonObject UsageDetails;
+	}
+	
+	public abstract DeserializeResult deserializeResponse(String response) throws Exception;
+
+	public abstract String getCompletionPath();
+	public abstract void addAuthenticationHeaders(WebRequests.Params params, String apiKey);
 
 	protected Conversation conversation;
 	protected Utility utils;
@@ -92,14 +103,29 @@ public abstract class ModelProvider
 		}
 		
 		public ModelLimits getLimits() { return(limits); }
+		public String getCompletionPath() { return("/v1/chat/completions"); }
+
+		public void addAuthenticationHeaders(WebRequests.Params params, String apiKey) {
+			params.addHeader("Authorization", "Bearer " + apiKey);
+		}
 
 		public String serializeRequest(OpenAI.Request request) throws Exception {
 			return(utils.getCompactGson().toJson(request));
 		}
 		
-		public OpenAI.Response deserializeResponse(String response) throws Exception {
-			return(utils.getGson().fromJson(response, OpenAI.Response.class));
+		public ModelProvider.DeserializeResult deserializeResponse(String response) throws Exception {
+			
+			DeserializeResult result = new DeserializeResult();
+			JsonObject jsonResponse = JsonParser.parseString(response).getAsJsonObject();
+			result.Response = utils.getGson().fromJson(jsonResponse, OpenAI.Response.class);
+			
+			result.UsageDetails = new JsonObject();
+			result.UsageDetails.add("usage", jsonResponse.get("usage"));
+			result.UsageDetails.add("timings", jsonResponse.get("timings"));
+
+			return(result);
 		}
+
 		
 		private Config cfg;
 		private ModelLimits.Simple limits;
@@ -139,6 +165,7 @@ public abstract class ModelProvider
 	{
 		public static class Config
 		{
+			public boolean AutomaticCaching = true;
 			public ModelLimits.Simple.Config Limits = new ModelLimits.Simple.Config();
 		}
 		
@@ -152,16 +179,20 @@ public abstract class ModelProvider
 		}
 		
 		public String serializeRequest(OpenAI.Request request) throws Exception {
-			// NYI
-			return(null);
+			return(Claude.serializeRequest(request, cfg.AutomaticCaching, utils.getCompactGson()));
 		}
 		
-		public OpenAI.Response deserializeResponse(String response) throws Exception {
-			// NYI
-			return(null);
+		public DeserializeResult deserializeResponse(String response) throws Exception {
+			return(Claude.deserializeResponse(response, utils.getGson()));
 		}
 		
 		public ModelLimits getLimits() { return(limits); }
+		public String getCompletionPath() { return("/v1/messages"); }
+		
+		public void addAuthenticationHeaders(WebRequests.Params params, String apiKey) {
+			params.addHeader("x-api-key", apiKey);
+			params.addHeader("anthropic-version", "2023-06-01");
+		}
 
 		private Config cfg;
 		private ModelLimits.Simple limits;

@@ -62,8 +62,6 @@ public class Conversation implements Closeable
 
 		public int SummaryTokenBudgetPct = 80;
 
-		public String CompletionPath = "/v1/chat/completions";
-
 		public String ConversationTooLargeMessage =
 			"This conversation has grown too large to fit into model context, even after " +
 			"attempts to prune old content. Please start a new conversation to continue.";
@@ -187,8 +185,9 @@ public class Conversation implements Closeable
 		String request = makeRequestBody(input);
 		if (request == null) return(cfg.ConversationTooLargeMessage);
 		
-		String body = sendRequest(cfg.CompletionPath, request);
-		OpenAI.Response response = provider.deserializeResponse(body);
+		String body = sendRequest(provider.getCompletionPath(), request);
+		ModelProvider.DeserializeResult result = provider.deserializeResponse(body);
+		OpenAI.Response response = result.Response;
 
 		if (response.choices == null || response.choices.length != 1) {
 			throw new Exception(String.format("No unique choice in response: %s", body));
@@ -197,14 +196,19 @@ public class Conversation implements Closeable
 		OpenAI.Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
+		// stats
+		int contentLength = (choice.message.content == null ? -1 : choice.message.content.length());
+		int reasoningLength = (choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length());
+
 		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
 							   choice.finish_reason,
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
 							   (response.timings == null ? -1d : response.timings.predicted_per_second),
-							   choice.message.content == null ? -1 : choice.message.content.length(),
-							   choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length()));
+							   contentLength, reasoningLength));
+
+		if (result.UsageDetails != null) log.info("Stats Detail: " + result.UsageDetails.toString());
 
 		// debug
 		if ("1".equals(System.getenv("COLOSSUS_SHOW_CONVERSATIONS"))) {
@@ -441,7 +445,7 @@ public class Conversation implements Closeable
 		
 		if (cfg.ApiKey_S != null) {
 			String resolvedApiKey = Easy.smartyGetProperty(cfg.ApiKey_S);
-			webParams.addHeader("Authorization", "Bearer " + resolvedApiKey);
+			provider.addAuthenticationHeaders(webParams, resolvedApiKey);
 		}
 
 		String url = Easy.urlPaste(provider.getInfo().ApiUrl, path);
@@ -571,7 +575,7 @@ public class Conversation implements Closeable
 				
 				String args = toolCall.function.arguments;
 				if (args != null && args.length() > cfg.PruneTruncationLength) {
-					args = "{}";
+					toolCall.function.arguments = "{}";
 					prunedSome = true;
 				}
 			}
