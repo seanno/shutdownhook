@@ -29,7 +29,6 @@ public class ConversationConfigTest
 	@Test
 	public void testDefaults() {
 		Conversation.Config cfg = new Conversation.Config();
-		assertEquals("http://localhost:11434", cfg.BaseUrl);
 		assertEquals(0.0d, cfg.Temperature, 0.001d);
 		assertEquals(4096L, cfg.MaxTokens);
 		assertEquals(4L, cfg.MaxTokensCeilingDivisor);
@@ -46,7 +45,6 @@ public class ConversationConfigTest
 	public void testJsonRoundTrip() {
 		Conversation.Config cfg = new Conversation.Config();
 		cfg.Model = "test-model";
-		cfg.BaseUrl = "http://example.com";
 		cfg.Temperature = 0.7d;
 		cfg.MaxTokens = 2048L;
 		cfg.SystemPrompt = "You are helpful.";
@@ -54,7 +52,6 @@ public class ConversationConfigTest
 		Conversation.Config restored = Conversation.Config.fromJson(cfg.toJson());
 
 		assertEquals(cfg.Model, restored.Model);
-		assertEquals(cfg.BaseUrl, restored.BaseUrl);
 		assertEquals(cfg.Temperature, restored.Temperature, 0.001d);
 		assertEquals(cfg.MaxTokens, restored.MaxTokens);
 		assertEquals(cfg.SystemPrompt, restored.SystemPrompt);
@@ -68,7 +65,6 @@ public class ConversationConfigTest
 	public void testClonePreservesValues() {
 		Conversation.Config original = new Conversation.Config();
 		original.Model = "my-model";
-		original.BaseUrl = "http://custom.host";
 		original.MaxTokens = 8192L;
 		original.Temperature = 0.4d;
 		original.SystemPrompt = "Be concise.";
@@ -77,7 +73,6 @@ public class ConversationConfigTest
 		Conversation.Config cloned = original.clone();
 
 		assertEquals(original.Model, cloned.Model);
-		assertEquals(original.BaseUrl, cloned.BaseUrl);
 		assertEquals(original.MaxTokens, cloned.MaxTokens);
 		assertEquals(original.Temperature, cloned.Temperature, 0.001d);
 		assertEquals(original.SystemPrompt, cloned.SystemPrompt);

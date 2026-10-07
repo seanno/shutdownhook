@@ -21,100 +21,57 @@ import com.shutdownhook.toolbox.Easy;
 
 public abstract class ModelLimits
 {
-	public ModelLimits(Conversation conversation) {
-		this.conversation = conversation;
-		this.utils = conversation.getUtils();
+	// +------------------------+
+	// | ModelLimits (abstract) |
+	// +------------------------+
+	
+    public ModelLimits(ModelInfo info, Utility utils) {
+		this.info = info;
+		this.utils = utils;
 	}
 		
 	public abstract long getContextSize();
 	public abstract long getInputTokenBudget(long maxOutputTokens);
-	public abstract long countTokens(OpenAI.Request request);
 	public abstract long countTokens(String input);
 
-	public String toString() { return("na"); }
-
-	protected Conversation conversation;
+	protected ModelInfo info;
 	protected Utility utils;
-	
-	// +-------------------+
-	// | createModelLimits |
-	// +-------------------+
 
-	public static ModelLimits createModelLimits(Conversation conversation) throws Exception {
-
-		String modelProvider = conversation.getConfig().ModelProvider;
-		if (Easy.nullOrEmpty(modelProvider)) modelProvider = Conversation.MODEL_PROVIDER_LLAMA;
-		
-		switch (modelProvider) {
-			
-			case Conversation.MODEL_PROVIDER_LLAMA:
-				return(new ModelLimits_Llama(conversation));
-
-			case Conversation.MODEL_PROVIDER_OTHER:
-			default:
-				return(new ModelLimits_Simple(conversation));
-		}
-	}
+	private final static Logger log = Logger.getLogger(ModelLimits.class.getName());
 	
 	// +--------------------+
-	// | ModelLimits_Simple |
+	// | ModelLimits.Simple |
 	// +--------------------+
 
-	public static class ModelLimits_Simple extends ModelLimits
-	{
+	public static class Simple extends ModelLimits
+    {
+		private static final String DEFAULT_MODELNAME = "Unknown";
+	
 		public static class Config
 		{
-			public String ModelsCsvPath = "@models.csv";
+		    public String ModelsCsvPath = "@models.csv";
 			public double CharToTokenFactor = (1d / 3.0d); // conservative
-
-			public long DefaultContextSize = 132000;
 		}
 		
-		public ModelLimits_Simple(Conversation conversation) throws Exception {
-			super(conversation);
-			this.cfg = getConfig();
-			setContextSize();
+		public Simple(ModelInfo info, Utility utils, Config cfg) throws Exception {
+			super(info, utils);
+			this.cfg = cfg;
 		}
 
-		private Config getConfig() {
-			JsonObject providerConfig = conversation.getConfig().ModelProviderConfig;
-			if (providerConfig == null) return(new Config());
-			return(utils.getGson().fromJson(providerConfig.toString(), Config.class));
-		}
-
-		private void setContextSize() throws Exception {
-			
-			Map<String,ModelInfo> models = ModelInfo.loadModels(cfg.ModelsCsvPath);
-
-			String modelName = conversation.getConfig().Model;
-			ModelInfo info = models.get(modelName.toLowerCase());
-
-			if (info == null) {
-				this.contextSize = cfg.DefaultContextSize;
-				log.warning(String.format("Could not find info for model %s; using default %d",
-										  modelName, cfg.DefaultContextSize));
-			}
-			else {
-				this.contextSize = info.ContextSize;
-			}
-		}
-
-		public long getContextSize() { return(contextSize); }
-		public long getInputTokenBudget(long maxOutputTokens) { return(contextSize - maxOutputTokens); }
-		public long countTokens(OpenAI.Request request) { return(countTokens(request.toString())); }
+		public long getContextSize() { return(info.ContextSize); }
+		public long getInputTokenBudget(long maxOutputTokens) { return(info.ContextSize - maxOutputTokens); }
 		public long countTokens(String input) { return((long)(((double)input.length()) * cfg.CharToTokenFactor)); }
 
-		public String toString() { return(String.format("{ \"contextSize\": %d }", contextSize)); }
+		public String toString() { return(utils.getGson().toJson(info, ModelInfo.class)); }
 
 		private Config cfg;
-		private long contextSize;
 	}
 
 	// +-------------------+
-	// | ModelLimits_Llama |
+	// | ModelLimits.Llama |
 	// +-------------------+
 
-	public static class ModelLimits_Llama extends ModelLimits
+	public static class Llama extends ModelLimits
 	{
 		public static class Config
 		{
@@ -123,16 +80,10 @@ public abstract class ModelLimits
 			public String PropsPathPrefix = "/props?model=";
 		}
 		
-		public ModelLimits_Llama(Conversation conversation) throws Exception {
-			super(conversation);
-			this.cfg = getConfig();
+		public Llama(ModelInfo info, Utility utils, Config cfg) throws Exception {
+			super(info, utils);
+			this.cfg = cfg;
 			setupModelProps();
-		}
-
-		private Config getConfig() {
-			JsonObject providerConfig = conversation.getConfig().ModelProviderConfig;
-			if (providerConfig == null) return(new Config());
-			return(utils.getGson().fromJson(providerConfig.toString(), Config.class));
 		}
 
 		public long getContextSize() {	return(modelProps.default_generation_settings.n_ctx); }
@@ -143,23 +94,17 @@ public abstract class ModelLimits
 		// +------------
 		// | countTokens
 
-		public long countTokens(OpenAI.Request request) {
-			String templated = applyModelTemplate(request);
-			if (templated == null) return(0L); // degenerate case
-			return(countTokens(templated));
-		}
-		
 		public long countTokens(String input) {
 
 			String post = null;
 		
 			try {
 				JsonObject jsonPost = new JsonObject();
-				jsonPost.addProperty("model", conversation.getConfig().Model);
+				jsonPost.addProperty("model", info.ApiName);
 				jsonPost.addProperty("content", input);
 
 				post = jsonPost.toString();
-				String url = Easy.urlPaste(conversation.getConfig().BaseUrl, cfg.TokenizePath);
+				String url = Easy.urlPaste(info.ApiUrl, cfg.TokenizePath);
 				String body = utils.simpleFetchUrl(url, post);
 				JsonObject jsonResponse = JsonParser.parseString(body).getAsJsonObject();
 
@@ -269,8 +214,7 @@ public abstract class ModelLimits
 		}
 
 		private void trySetupModelProps() throws Exception {
-			Conversation.Config convoCfg = conversation.getConfig();
-			String url = Easy.urlPaste(convoCfg.BaseUrl, cfg.PropsPathPrefix + Easy.urlEncode(convoCfg.Model));
+			String url = Easy.urlPaste(info.ApiUrl, cfg.PropsPathPrefix + Easy.urlEncode(info.ApiName));
 			String body = utils.simpleFetchUrl(url, null);
 			this.modelProps = utils.getGson().fromJson(body, ModelProps.class);
 		}
@@ -282,10 +226,5 @@ public abstract class ModelLimits
 		private ModelProps modelProps;
 	}
 
-	// +---------+
-	// | Members |
-	// +---------+
-
-	private final static Logger log = Logger.getLogger(ModelLimits.class.getName());
 }
 

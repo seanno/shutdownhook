@@ -33,20 +33,17 @@ public class Conversation implements Closeable
 	// | Setup & Teardown |
 	// +------------------+
 
-	public final static String MODEL_PROVIDER_LLAMA = "llamaCPP";
-	public final static String MODEL_PROVIDER_OTHER = "other";
-	
 	public static class Config
 	{
 		public String Model;
 
-		public String ModelProvider = MODEL_PROVIDER_LLAMA;
+		public ModelInfo ModelInfo; // null = lookup in ModelsCsvPath
 		public JsonObject ModelProviderConfig;
+		public String ModelsCsvPath = "@models.csv";
 
 		public ToolCalling.ToolClass[] ToolClasses;
 		public long ToolTimeoutMillis = (10 * 60 * 1000); // 10 minutes
 
-		public String BaseUrl = "http://localhost:11434";
 		public String ApiKey_S; // smarty
 		
 		public Utility.Config Utility = new Utility.Config();
@@ -134,7 +131,8 @@ public class Conversation implements Closeable
 		this.reset();
 
 		try {
-			this.limits = ModelLimits.createModelLimits(this);
+			this.provider = ModelProvider.create(this);
+			this.limits = provider.getLimits();
 		}
 		catch (Exception e) {
 			this.close();
@@ -190,7 +188,7 @@ public class Conversation implements Closeable
 		if (request == null) return(cfg.ConversationTooLargeMessage);
 		
 		String body = sendRequest(cfg.CompletionPath, request);
-		OpenAI.Response response = utils.getGson().fromJson(body, OpenAI.Response.class);
+		OpenAI.Response response = provider.deserializeResponse(body);
 
 		if (response.choices == null || response.choices.length != 1) {
 			throw new Exception(String.format("No unique choice in response: %s", body));
@@ -446,7 +444,7 @@ public class Conversation implements Closeable
 			webParams.addHeader("Authorization", "Bearer " + resolvedApiKey);
 		}
 
-		String url = Easy.urlPaste(cfg.BaseUrl, path);
+		String url = Easy.urlPaste(provider.getInfo().ApiUrl, path);
 		WebRequests.Response webResponse = utils.getRequests().fetch(url, webParams);
 		
 		if (!webResponse.successful()) {
@@ -457,7 +455,7 @@ public class Conversation implements Closeable
 		return(webResponse.Body);
 	}
 	
-	private String makeRequestBody(String input) {
+	private String makeRequestBody(String input) throws Exception {
 		
 		OpenAI.Request req = new OpenAI.Request();
 		
@@ -484,7 +482,7 @@ public class Conversation implements Closeable
 		req.tools = toolCalling.getDescriptions();
 
 		if (!pruneRequest(req)) return(null);
-		return(utils.getGson().toJson(req));
+		return(provider.serializeRequest(req));
 	}
 
 	private OpenAI.Message makeUserMessage(String input) {
@@ -522,12 +520,12 @@ public class Conversation implements Closeable
 	// TRUE return means all is well. FALSE means we couldn't gret small
 	// enough to fit into our budget.
 
-	private boolean pruneRequest(OpenAI.Request req) {
+	private boolean pruneRequest(OpenAI.Request req) throws Exception {
 
 		long tokenBudget = limits.getInputTokenBudget(maxTokensEffective);
 		if (tokenBudget <= 0) return(true); // degenerate case, just bail
 		
-		long requestTokens = limits.countTokens(req);
+		long requestTokens = provider.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// 1. try to remove old tool calls --- this may not do much, but
@@ -536,7 +534,7 @@ public class Conversation implements Closeable
 		log.info(String.format("Request too large 1: %d, limit %d)", requestTokens, tokenBudget));
 		boolean prunedSome = pruneToolRequests(req);
 
-		if (prunedSome) requestTokens = limits.countTokens(req);
+		if (prunedSome) requestTokens = provider.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// 2. try to prune old tool responses, leaving the last instance of every tool
@@ -544,7 +542,7 @@ public class Conversation implements Closeable
 		log.info(String.format("Request too large 2: %d, limit %d)", requestTokens, tokenBudget));
 		prunedSome = pruneToolResponses(req);
 
-		if (prunedSome) requestTokens = limits.countTokens(req);
+		if (prunedSome) requestTokens = provider.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
 		// Sad, nothing more to do.....
@@ -753,10 +751,12 @@ public class Conversation implements Closeable
 	private Environment environment;
 	private Utility utils;
 	private ToolCalling toolCalling;
-	private ModelLimits limits;
 	private List<OpenAI.Message> messageHistory;
 	private String lastReasoning;
 	private long maxTokensEffective;
+
+	private ModelProvider provider;
+	private ModelLimits limits;
 
 	private static final String CONTENT_TRUNCATED = "[TRUNCATED] ";
 	private static final String CONTENT_FILTERED = "[FILTERED] ";

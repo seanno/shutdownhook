@@ -1,14 +1,18 @@
 provider,url,display_name,id,max_input_tokens,max_tokens
-Anthropic,https://api.anthropic.com,Claude Sonnet 5.5,claude-sonnet-5-5,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 5.5,claude-opus-5-5,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Fable 5.1,claude-fable-5-1,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 5,claude-opus-5,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Sonnet 5,claude-sonnet-5,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Fable 5,claude-fable-5,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 4.8,claude-opus-4-8,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 4.7,claude-opus-4-7,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Sonnet 4.6,claude-sonnet-4-6,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 4.6,claude-opus-4-6,1000000,128000
-Anthropic,https://api.anthropic.com,Claude Opus 4.5,claude-opus-4-5-20251101,200000,64000
-Anthropic,https://api.anthropic.com,Claude Haiku 4.5,claude-haiku-4-5-20251001,200000,64000
-Anthropic,https://api.anthropic.com,Claude Sonnet 4.5,claude-sonnet-4-5-20250929,1000000,64000
+Claude,https://api.anthropic.com,Claude Sonnet 5.5,claude-sonnet-5-5,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 5.5,claude-opus-5-5,1000000,128000
+Claude,https://api.anthropic.com,Claude Fable 5.1,claude-fable-5-1,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 5,claude-opus-5,1000000,128000
+Claude,https://api.anthropic.com,Claude Sonnet 5,claude-sonnet-5,1000000,128000
+Claude,https://api.anthropic.com,Claude Fable 5,claude-fable-5,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 4.8,claude-opus-4-8,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 4.7,claude-opus-4-7,1000000,128000
+Claude,https://api.anthropic.com,Claude Sonnet 4.6,claude-sonnet-4-6,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 4.6,claude-opus-4-6,1000000,128000
+Claude,https://api.anthropic.com,Claude Opus 4.5,claude-opus-4-5-20251101,200000,64000
+Claude,https://api.anthropic.com,Claude Haiku 4.5,claude-haiku-4-5-20251001,200000,64000
+Claude,https://api.anthropic.com,Claude Sonnet 4.5,claude-sonnet-4-5-20250929,1000000,64000
+Llama,http://localhost:8091/,Gemma 4 26b,gemma-4-26b,-1,-1
+Llama,http://localhost:8091/,Qwen 3.6 27b,qwen-3.6-27b,-1,-1
+Llama,http://localhost:8091/,Qwen 3.8 27b,qwen-3.8-27b,-1,-1
+Llama,http://localhost:8091/,Mistral Small 3.2 24b,mistral-small-3.2-24b,-1,-1
