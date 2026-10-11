@@ -34,15 +34,57 @@ public class OpenAI
 		public String type;
 		public FunctionCall function;
 	}
+
+	public static class ContentPartImageContent
+	{
+		public String url;
+	}
+	
+	public static class ContentPart
+	{
+		public String type;
+		public String text;
+		public ContentPartImageContent image_url;
+
+		public static ContentPart textPart(String text) {
+			ContentPart part = new ContentPart();
+			part.type = "text";
+			part.text = text;
+			return(part);
+		}
+
+		public static ContentPart imagePart(String imageUrl) {
+			ContentPart part = new ContentPart();
+			part.type = "image_url";
+			part.image_url = new ContentPartImageContent();
+			part.image_url.url = imageUrl;
+			return(part);
+		}
+	}
 	
 	public static class Message
 	{
 		public String role;
 		public String tool_call_id; // when role == "tool"
 		public String name; // when role == "tool"
-		public String content;
+		public Object content; // String OR List<ContentPart>
 		public String reasoning_content;
 		public List<ToolCall> tool_calls;
+
+		public String getContentText() {
+			
+			if (content instanceof String s)  return(s);
+
+			if (content instanceof List<?> parts) {
+				for (Object part : parts) {
+					if (part instanceof ContentPart cp && "text".equals(cp.type)) {
+						return(cp.text);
+					}
+				}
+			}
+
+			return(null);
+		}
 	}
 
 	public static class Request

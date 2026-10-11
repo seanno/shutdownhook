@@ -13,6 +13,8 @@ Claude,https://api.anthropic.com,Claude Opus 4.5,claude-opus-4-5-20251101,200000
 Claude,https://api.anthropic.com,Claude Haiku 4.5,claude-haiku-4-5-20251001,200000,64000
 Claude,https://api.anthropic.com,Claude Sonnet 4.5,claude-sonnet-4-5-20250929,1000000,64000
 Llama,http://localhost:8091/,Gemma 4 26b,gemma-4-26b,-1,-1
+Llama,http://localhost:8091/,Qwen 2.5 VL 7b,qwen-2.5-VL-7b,-1,-1
 Llama,http://localhost:8091/,Qwen 3.6 27b,qwen-3.6-27b,-1,-1
 Llama,http://localhost:8091/,Qwen 3.8 27b,qwen-3.8-27b,-1,-1
+Llama,http://localhost:8091/,Qwen 3.8 27b MultiMedia,qwen-3.8-27b-mm,-1,-1
 Llama,http://localhost:8091/,Mistral Small 3.2 24b,mistral-small-3.2-24b,-1,-1

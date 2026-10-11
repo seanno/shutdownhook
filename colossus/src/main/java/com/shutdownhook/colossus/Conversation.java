@@ -151,8 +151,12 @@ public class Conversation implements Closeable
 	// +--------+
 
 	public String safePrompt(String input) {
+		return(safePrompt(input, null));
+	}
+
+	public String safePrompt(String input, String imageUrl) {
 		try { 
-			return(prompt(input));
+			return(prompt(input, imageUrl));
 		}
 		catch (Exception e) {
 			log.severe(Easy.exMsg(e, "safePrompt", true));
@@ -162,15 +166,19 @@ public class Conversation implements Closeable
 	}
 
 	public String prompt(String input) throws Exception {
+		return(prompt(input, null));
+	}
+	
+	public String prompt(String input, String imageUrl) throws Exception {
 		maxTokensEffective = cfg.MaxTokens;
 		int turns = 0;
-		String response = promptOne(input);
+		String response = promptOne(input, imageUrl);
 		while (response == null && !turnLimit(turns++)) {
 			if (turnLimit(turns)) {
 				log.warning("turn limit reached");
 				messageHistory.add(makeUserMessage(cfg.TurnLimitMessage));
 			}
-			response = promptOne(null);
+			response = promptOne(null, null);
 		}
 		return(response);
 	}
@@ -180,9 +188,9 @@ public class Conversation implements Closeable
 		return(turns >= cfg.MaxTurns);
 	}
 	
-	private String promptOne(String input) throws Exception {
+	private String promptOne(String input, String imageUrl) throws Exception {
 
-		String request = makeRequestBody(input);
+		String request = makeRequestBody(input, imageUrl);
 		if (request == null) return(cfg.ConversationTooLargeMessage);
 		
 		String body = sendRequest(provider.getCompletionPath(), request);
@@ -197,7 +205,8 @@ public class Conversation implements Closeable
 		messageHistory.add(choice.message);
 
 		// stats
-		int contentLength = (choice.message.content == null ? -1 : choice.message.content.length());
+		String content = choice.message.getContentText();
+		int contentLength = (content == null ? -1 : content.length());
 		int reasoningLength = (choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length());
 
 		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
@@ -243,7 +252,8 @@ public class Conversation implements Closeable
 
 			default:
 			case OpenAI.FINISH_REASON_OK:
-				return(Easy.nullOrEmpty(choice.message.content) ? "" : choice.message.content);
+				String text = choice.message.getContentText();
+				return(text == null ? "" : text);
 		}
 	}
 
@@ -459,7 +469,7 @@ public class Conversation implements Closeable
 		return(webResponse.Body);
 	}
 	
-	private String makeRequestBody(String input) throws Exception {
+	private String makeRequestBody(String input, String imageUrl) throws Exception {
 		
 		OpenAI.Request req = new OpenAI.Request();
 		
@@ -480,7 +490,7 @@ public class Conversation implements Closeable
 			messageHistory.add(makeSystemMessage(sb.toString()));
 		}
 		
-		if (input != null) messageHistory.add(makeUserMessage(input));
+		if (input != null) messageHistory.add(makeUserMessage(input, imageUrl));
 
 		req.messages = messageHistory;
 		req.tools = toolCalling.getDescriptions();
@@ -490,24 +500,40 @@ public class Conversation implements Closeable
 	}
 
 	private OpenAI.Message makeUserMessage(String input) {
-		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input));
+		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input, null));
+	}
+
+	private OpenAI.Message makeUserMessage(String input, String imageURL) {
+		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input, imageURL));
 	}
 
 	private OpenAI.Message makeSystemMessage(String input) {
-		return(makeMessage(OpenAI.ROLE_SYSTEM, input));
+		return(makeMessage(OpenAI.ROLE_SYSTEM, input, null));
 	}
 
 	private OpenAI.Message makeToolMessage(String content, String id, String name) {
-		OpenAI.Message msg = makeMessage(OpenAI.ROLE_TOOL, content);
+		OpenAI.Message msg = makeMessage(OpenAI.ROLE_TOOL, content, null);
 		msg.tool_call_id = id;
 		msg.name = name;
 		return(msg);
 	}
 
-	private OpenAI.Message makeMessage(String role, String input) {
+	private OpenAI.Message makeMessage(String role, String input, String imageURL) {
 		OpenAI.Message msg = new OpenAI.Message();
 		msg.role = role;
-		msg.content = input;
+
+		if (imageURL == null) {
+			// assign string directly
+			msg.content = input;
+		}
+		else {
+			// assign as list of content parts (image first based on vague doc preferences)
+			List<OpenAI.ContentPart> contentParts = new ArrayList<OpenAI.ContentPart>();
+			contentParts.add(OpenAI.ContentPart.imagePart(imageURL));
+			contentParts.add(OpenAI.ContentPart.textPart(input));
+			msg.content = contentParts;
+		}
+		
 		return(msg);
 	}
 
@@ -601,7 +627,7 @@ public class Conversation implements Closeable
 
 			if (seen.contains(thisMsg.name)) {
 				// seen it before ... maybe prune
-				String content = thisMsg.content;
+				String content = thisMsg.getContentText();
 
 				if (content != null && !content.endsWith(PRUNE_MARKER) && content.length() > realMaxLength) {
 
@@ -654,6 +680,13 @@ public class Conversation implements Closeable
 				String input = args[2];
 				boolean compact = (args.length >= 4 ? Boolean.parseBoolean(args[3]) : false);
 				System.out.println(conversation.summarize(input, compact));
+				return;
+			}
+
+			if (args.length >= 3 && args[1].equalsIgnoreCase("ask")) {
+				String input = args[2];
+				String image = (args.length >= 4 ? args[3] : null);
+				System.out.println(conversation.prompt(input, image));
 				return;
 			}
 		

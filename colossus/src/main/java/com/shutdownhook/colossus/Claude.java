@@ -44,7 +44,8 @@ public class Claude
 			OpenAI.Message msg = request.messages.get(i);
 
 			if (msg.role.equals(OpenAI.ROLE_SYSTEM)) {
-				obj.addProperty("system", msg.content);
+				String text = msg.getContentText();
+				obj.addProperty("system", text != null ? text : "");
 				i++;
 				continue;
 			}
@@ -71,10 +72,7 @@ public class Claude
 			}
 
 			// user (or anything else)
-			JsonObject userMsg = new JsonObject();
-			userMsg.addProperty("role", "user");
-			userMsg.addProperty("content", msg.content != null ? msg.content : "");
-			messages.add(userMsg);
+			messages.add(convertUserMessage(msg));
 			i++;
 		}
 
@@ -92,6 +90,73 @@ public class Claude
 		return(gson.toJson(obj));
 	}
 
+	// +---------------------+
+	// | convertUserMessage  |
+	// +---------------------+
+
+	private static JsonObject convertUserMessage(OpenAI.Message msg) {
+
+		JsonObject userMsg = new JsonObject();
+		userMsg.addProperty("role", "user");
+
+		if (msg.content instanceof List<?> parts) {
+			JsonArray content = new JsonArray();
+			for (Object part : parts) {
+				if (part instanceof OpenAI.ContentPart cp) {
+					content.add(convertContentPart(cp));
+				}
+			}
+			userMsg.add("content", content);
+		}
+		else {
+			String text = msg.getContentText();
+			userMsg.addProperty("content", text != null ? text : "");
+		}
+
+		return(userMsg);
+	}
+
+	// +--------------------+
+	// | convertContentPart |
+	// +--------------------+
+
+	private static JsonObject convertContentPart(OpenAI.ContentPart part) {
+
+		JsonObject block = new JsonObject();
+
+		if ("image_url".equals(part.type)) {
+			String url = part.image_url.url;
+
+			block.addProperty("type", "image");
+			JsonObject source = new JsonObject();
+
+			if (url.startsWith("data:")) {
+				// data:image/png;base64,iVBOR...
+				int semiColon = url.indexOf(';');
+				int comma = url.indexOf(',', semiColon);
+				String mediaType = url.substring(5, semiColon);
+				String data = url.substring(comma + 1);
+
+				source.addProperty("type", "base64");
+				source.addProperty("media_type", mediaType);
+				source.addProperty("data", data);
+			}
+			else {
+				source.addProperty("type", "url");
+				source.addProperty("url", url);
+			}
+
+			block.add("source", source);
+		}
+		else {
+			// text
+			block.addProperty("type", "text");
+			block.addProperty("text", part.text != null ? part.text : "");
+		}
+
+		return(block);
+	}
+
 	// +-------------------------+
 	// | convertAssistantMessage |
 	// +-------------------------+
@@ -101,13 +166,15 @@ public class Claude
 		JsonObject obj = new JsonObject();
 		obj.addProperty("role", "assistant");
 
+		String text = msg.getContentText();
+
 		if (msg.tool_calls != null && msg.tool_calls.size() > 0) {
 			JsonArray content = new JsonArray();
 
-			if (msg.content != null && msg.content.length() > 0) {
+			if (text != null && text.length() > 0) {
 				JsonObject textBlock = new JsonObject();
 				textBlock.addProperty("type", "text");
-				textBlock.addProperty("text", msg.content);
+				textBlock.addProperty("text", text);
 				content.add(textBlock);
 			}
 
@@ -123,7 +190,7 @@ public class Claude
 			obj.add("content", content);
 		}
 		else {
-			obj.addProperty("content", msg.content != null ? msg.content : "");
+			obj.addProperty("content", text != null ? text : "");
 		}
 
 		return(obj);
@@ -138,7 +205,8 @@ public class Claude
 		JsonObject result = new JsonObject();
 		result.addProperty("type", "tool_result");
 		result.addProperty("tool_use_id", msg.tool_call_id);
-		result.addProperty("content", msg.content != null ? msg.content : "");
+		String text = msg.getContentText();
+		result.addProperty("content", text != null ? text : "");
 		return(result);
 	}
 

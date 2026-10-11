@@ -1,21 +1,45 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
+  <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Please Wait</title>
-</head>
-<body>
+    <title></title>
+  </head>
+  <body>
 
-    <p>Please wait; analyzing content...</p>
+	<div id="#pendingDiv" style="display: none;">
+      <p>Please wait; analyzing content...</p>
+	</div>
+
+	<div id="#inputDiv" style="display: none;">
+	  <form method="GET">
+		<h2>Explain the News</h2>
+		<p>URL: <input type="text" id="#urlInput" name="url" size="80" /></p>
+		<p><input type="checkbox" name="s" />senior</p>
+		<p><input type="submit" name="submit" value=" submit " /></p>
+	  </form>
+	</div>
 
     <script>
-        document.addEventListener('DOMContentLoaded', function() {
-            setTimeout(function() {
-                window.location.replace("[[FINAL_URL]]");
-            }, 100);
-        });
+
+	  var finalUrl = "[[FINAL_URL]]";
+
+	  if (finalUrl.indexOf("url=") != -1) {
+		document.getElementById("#pendingDiv").style.display = "block";
+		document.title="please wait";
+		document.addEventListener('DOMContentLoaded', function() {
+          setTimeout(function() {
+			window.location.replace(finalUrl);
+          }, 100);
+		});
+	  }
+	  else {
+		document.title="explain";
+		document.getElementById("#inputDiv").style.display = "block";
+		document.getElementById("#urlInput").focus();
+	  }
+	  
     </script>
 
-</body>
+  </body>
 </html>
