@@ -1,0 +1,45 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "adventure_tool",
+
+    "description": "Provides read/write access to named notepads that can be used to keep track of game state and history. The notepads are STATE, MAP, LOG and HISTORY. STATE, MAP and LOG will be provided as context on each request. HISTORY is read-only; it is be updated automatically with each turn. All operations are line-based; all line indices are 0-based. Actions are: (1) READ to read a contiguous range of lines; (2) SEARCH to find lines matching a search string; (3) APPEND to add lines to the end; (4) INSERT to insert new lines at a line index; (5) DELETE to delete a contiguous range of lines; (6) REPLACE to replace a continuous range of lines.",
+	
+    "parameters": {
+      "type": "object",
+      "properties": {
+		
+        "notepad": {
+		  "type": "string",
+		  "enum": [ "STATE", "MAP", "LOG", "HISTORY" ],
+		  "description": "The notepad to act on."
+		},
+
+		"action": {
+		  "type": "string",
+		  "enum": [ "READ", "SEARCH", "APPEND", "INSERT", "DELETE", "REPLACE" ],
+		  "description": "The action to perform. See tool description for details."
+		},
+		
+		"line_index_start": {
+		  "type": "integer",
+		  "description": "For READ, DELETE, REPLACE, INSERT; the start of the range (0-based)."
+		},
+		"line_index_end_inclusive": {
+		  "type": "integer",
+		  "description": "For READ, DELETE, REPLACE; the end of the range (0-based, inclusive). -1 means to EOF."
+		},
+		"lines": {
+		  "type": "string",
+		  "description": "For REPLACE, INSERT, APPEND; the new line(s) to add to the notepad."
+		},
+		"search": {
+		  "type": "string",
+		  "description": "For SEARCH only; the search string, matched case-insensitive."
+		}
+      },
+      "required": [ "notepad", "action" ]
+    }
+  }
+}

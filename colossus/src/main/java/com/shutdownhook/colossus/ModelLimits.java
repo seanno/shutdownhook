@@ -100,7 +100,7 @@ public abstract class ModelLimits
 		
 			try {
 				JsonObject jsonPost = new JsonObject();
-				jsonPost.addProperty("model", info.ApiName);
+				jsonPost.addProperty("model", info.ApiId);
 				jsonPost.addProperty("content", input);
 
 				post = jsonPost.toString();
@@ -214,7 +214,7 @@ public abstract class ModelLimits
 		}
 
 		private void trySetupModelProps() throws Exception {
-			String url = Easy.urlPaste(info.ApiUrl, cfg.PropsPathPrefix + Easy.urlEncode(info.ApiName));
+			String url = Easy.urlPaste(info.ApiUrl, cfg.PropsPathPrefix + Easy.urlEncode(info.ApiId));
 			String body = utils.simpleFetchUrl(url, null);
 			this.modelProps = utils.getGson().fromJson(body, ModelProps.class);
 		}

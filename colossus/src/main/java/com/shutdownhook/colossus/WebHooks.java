@@ -264,8 +264,8 @@ public class WebHooks implements Closeable
 				String convoCfgStr = Easy.stringFromSmartyPath(cfg.ExplainConversationConfig);
 				Conversation.Config convoCfg = Conversation.Config.fromJson(convoCfgStr);
 				if (senior) {
-					convoCfg.SystemPrompt = convoCfg.SystemPrompt + " " +
-						Easy.stringFromSmartyPath(cfg.ExplainConversationSenior);
+					convoCfg.appendToSystemPrompt(
+					    " " + Easy.stringFromSmartyPath(cfg.ExplainConversationSenior));
 				}
 
 				Conversation conversation = null;

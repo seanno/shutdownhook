@@ -57,7 +57,8 @@ public abstract class ModelProvider
 	{
 		LLAMA,
 		OPENAI,
-		CLAUDE
+		CLAUDE,
+		OPENROUTER
 	}
 	
 	public static ModelProvider create(Conversation conversation) throws Exception {
@@ -65,7 +66,7 @@ public abstract class ModelProvider
 		Conversation.Config ccfg = conversation.getConfig();
 		ModelInfo info = ccfg.ModelInfo;
 		if (info == null || info.Provider == null) {
-			info = ModelInfo.getModelInfo(ccfg.Model, ccfg.ModelsCsvPath);
+			info = ModelInfo.getModelInfo(ccfg.Model, ccfg.ModelsTsvPath);
 		}
 		
 		switch (info.Provider) {
@@ -75,6 +76,9 @@ public abstract class ModelProvider
 				
 			case LLAMA:
 				return(new Provider_Llama(conversation, info));
+
+			case OPENROUTER:
+				return(new Provider_OpenRouter(conversation, info));
 
 			default:
 			case OPENAI:
@@ -131,6 +135,26 @@ public abstract class ModelProvider
 		private ModelLimits.Simple limits;
 	}
 	
+	// +-----------------+
+	// | Provider_OpenAI |
+	// +-----------------+
+
+	public static class Provider_OpenRouter extends Provider_OpenAI
+	{
+		public Provider_OpenRouter(Conversation conversation, ModelInfo info) throws Exception {
+			super(conversation, info);
+		}
+
+		public String serializeRequest(OpenAI.Request request) throws Exception {
+			JsonObject req = utils.getGson().toJsonTree(request).getAsJsonObject();
+			if (this.info.ExtraConfig != null) {
+				JsonObject provider = JsonParser.parseString(this.info.ExtraConfig).getAsJsonObject();
+				req.add("provider", provider);
+			}
+			return(utils.getCompactGson().toJson(req));
+		}
+	}
+
 	// +----------------+
 	// | Provider_Llama |
 	// +----------------+

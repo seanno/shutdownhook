@@ -4,6 +4,7 @@
 
 package com.shutdownhook.colossus;
 
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -42,19 +43,19 @@ public class ConversationConfigTest
 	// +-----------+
 
 	@Test
-	public void testJsonRoundTrip() {
+	public void testJsonRoundTrip() throws IOException {
 		Conversation.Config cfg = new Conversation.Config();
 		cfg.Model = "test-model";
 		cfg.Temperature = 0.7d;
 		cfg.MaxTokens = 2048L;
-		cfg.SystemPrompt = "You are helpful.";
+		cfg.setSystemPrompt("You are helpful.");
 
 		Conversation.Config restored = Conversation.Config.fromJson(cfg.toJson());
 
 		assertEquals(cfg.Model, restored.Model);
 		assertEquals(cfg.Temperature, restored.Temperature, 0.001d);
 		assertEquals(cfg.MaxTokens, restored.MaxTokens);
-		assertEquals(cfg.SystemPrompt, restored.SystemPrompt);
+		assertEquals(cfg.getSystemPrompt(), restored.getSystemPrompt());
 	}
 
 	// +-------+
@@ -62,30 +63,30 @@ public class ConversationConfigTest
 	// +-------+
 
 	@Test
-	public void testClonePreservesValues() {
+	public void testClonePreservesValues() throws IOException {
 		Conversation.Config original = new Conversation.Config();
 		original.Model = "my-model";
 		original.MaxTokens = 8192L;
 		original.Temperature = 0.4d;
-		original.SystemPrompt = "Be concise.";
+		original.setSystemPrompt("Be concise.");
 		original.PruneTruncationLength = 50;
 
-		Conversation.Config cloned = original.clone();
+		Conversation.Config cloned = original.cloneConfig();
 
 		assertEquals(original.Model, cloned.Model);
 		assertEquals(original.MaxTokens, cloned.MaxTokens);
 		assertEquals(original.Temperature, cloned.Temperature, 0.001d);
-		assertEquals(original.SystemPrompt, cloned.SystemPrompt);
+		assertEquals(original.getSystemPrompt(), cloned.getSystemPrompt());
 		assertEquals(original.PruneTruncationLength, cloned.PruneTruncationLength);
 	}
 
 	@Test
-	public void testCloneIsIndependent() {
+	public void testCloneIsIndependent() throws IOException {
 		Conversation.Config original = new Conversation.Config();
 		original.Model = "original-model";
 		original.Temperature = 0.5d;
 
-		Conversation.Config cloned = original.clone();
+		Conversation.Config cloned = original.cloneConfig();
 		cloned.Model = "cloned-model";
 		cloned.Temperature = 0.9d;
 
@@ -94,12 +95,12 @@ public class ConversationConfigTest
 	}
 
 	@Test
-	public void testClonePreservesNestedEnvironmentConfig() {
+	public void testClonePreservesNestedEnvironmentConfig() throws IOException {
 		Conversation.Config original = new Conversation.Config();
 		original.Environment.LocationString = "Seattle";
 		original.Environment.TimeZone = "America/Los_Angeles";
 
-		Conversation.Config cloned = original.clone();
+		Conversation.Config cloned = original.cloneConfig();
 
 		assertEquals("Seattle", cloned.Environment.LocationString);
 		assertEquals("America/Los_Angeles", cloned.Environment.TimeZone);
@@ -148,7 +149,7 @@ public class ConversationConfigTest
 		Conversation.Config original = new Conversation.Config();
 		original.Model = "base-model";
 		original.MaxTokens = 9999L;
-		original.SystemPrompt = "Keep this.";
+		original.setSystemPrompt("Keep this.");
 
 		tempFile = Files.createTempFile("colossus-test-", ".json");
 		Files.write(tempFile,
@@ -159,7 +160,7 @@ public class ConversationConfigTest
 
 		assertEquals("new-model", result.Model);
 		assertEquals(9999L, result.MaxTokens);
-		assertEquals("Keep this.", result.SystemPrompt);
+		assertEquals("Keep this.", result.getSystemPrompt());
 	}
 
 	@Test

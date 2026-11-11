@@ -33,13 +33,16 @@ public class Conversation implements Closeable
 	// | Setup & Teardown |
 	// +------------------+
 
+	// marker for smartypath-based system prompt
+	private final static String SYSTEM_PROMPT_SP_MARKER = "sp:";
+	
 	public static class Config
 	{
 		public String Model;
 
-		public ModelInfo ModelInfo; // null = lookup in ModelsCsvPath
+		public ModelInfo ModelInfo; // null = lookup in ModelsTsvPath
 		public JsonObject ModelProviderConfig;
-		public String ModelsCsvPath = "@models.csv";
+		public String ModelsTsvPath = "@models.tsv";
 
 		public ToolCalling.ToolClass[] ToolClasses;
 		public long ToolTimeoutMillis = (10 * 60 * 1000); // 10 minutes
@@ -48,8 +51,12 @@ public class Conversation implements Closeable
 		
 		public Utility.Config Utility = new Utility.Config();
 		public Environment.Config Environment = new Environment.Config();
+		public Boolean AutoEnv = true;
 
-		public String SystemPrompt;
+		// USE getSystemPrompt / setSystemPrompt!
+		// if the field starts with SYSTEM_PROMPT_SP_MARKER it's loaded using
+		// Easy.stringFromSmartyPath, otherwise a direct string is assumed
+		private String SystemPrompt;
 
 		public int MaxTurns = 50;
 
@@ -102,13 +109,13 @@ public class Conversation implements Closeable
 			return(new Gson().toJson(this));
 		}
 
-		public Config clone() {
+		public Config cloneConfig() {
 			return(fromJson(toJson())); // round trip for clean clone
 		}
 
 		public Config override(Path overridePath) throws Exception {
 			
-			if (!Files.exists(overridePath)) return(clone());
+			if (!Files.exists(overridePath)) return(cloneConfig());
 			
 			JsonObject thisCfg = JsonParser.parseString(toJson()).getAsJsonObject();
 
@@ -118,6 +125,27 @@ public class Conversation implements Closeable
 			for (String key : overrideCfg.keySet()) thisCfg.add(key, overrideCfg.get(key));
 
 			return(fromJson(thisCfg.toString()));
+		}
+
+		public String getSystemPrompt() throws IOException {
+
+			if (SystemPrompt == null) return(null);
+			if (!SystemPrompt.startsWith(SYSTEM_PROMPT_SP_MARKER)) return(SystemPrompt);
+
+			// we could cache this --- but it's only injected into the message history
+			// once, so that doesn't really buy us anything, so don't bother.
+			int cchMarker = SYSTEM_PROMPT_SP_MARKER.length();
+			return(Easy.stringFromSmartyPath(SystemPrompt.substring(cchMarker)));
+		}
+
+		public void setSystemPrompt(String newSystemPrompt) {
+			this.SystemPrompt = newSystemPrompt;
+		}
+
+		public void appendToSystemPrompt(String toAppend) throws IOException{
+			String existingSystemPrompt = getSystemPrompt();
+			if (existingSystemPrompt == null) existingSystemPrompt = "";
+			setSystemPrompt(existingSystemPrompt + toAppend);
 		}
 	}
 
@@ -143,8 +171,43 @@ public class Conversation implements Closeable
 	}
 
 	public Config getConfig() { return(cfg); }
+	public ToolCalling.Tool findTool(String name) { return(toolCalling.find(name)); }
 	public Utility getUtils() { return(utils); }
 	public Environment getEnv() { return(environment); }
+
+	// +----------------+
+	// | addUserMessage |
+	// +----------------+
+
+	public OpenAI.Message addUserMessage(String input) throws IOException {
+		return(addUserMessage(input, null));
+	}
+	
+	public OpenAI.Message addUserMessage(String input, String imageUrl) throws IOException {
+		
+		if (messageHistory.size() == 0) {
+			StringBuilder sb = new StringBuilder();
+
+			String effectiveSystemPrompt = cfg.getSystemPrompt();
+			if (effectiveSystemPrompt != null) sb.append(effectiveSystemPrompt);
+
+			if (cfg.AutoEnv) {
+				sb.append(environment.getLocation());
+				sb.append(environment.getTimeZone());
+			}
+
+			messageHistory.add(makeSystemMessage(sb.toString()));
+		}
+
+		OpenAI.Message message = null;
+		
+		if (input != null) {
+			message = makeUserMessage(input, imageUrl);
+			messageHistory.add(message);
+		}
+
+		return(message);
+	}
 
 	// +--------+
 	// | prompt |
@@ -192,8 +255,11 @@ public class Conversation implements Closeable
 
 		String request = makeRequestBody(input, imageUrl);
 		if (request == null) return(cfg.ConversationTooLargeMessage);
-		
+
+		//System.out.println("*****\n" + request + "\n*****");
 		String body = sendRequest(provider.getCompletionPath(), request);
+		//System.out.println("*****\n" + body + "\n*****");
+			
 		ModelProvider.DeserializeResult result = provider.deserializeResponse(body);
 		OpenAI.Response response = result.Response;
 
@@ -288,12 +354,12 @@ public class Conversation implements Closeable
 	// accepts file:// and http(s):// input as well; 
 	// converts input to text from html as needed
 
-	public String summarize(String input, boolean compact) {
+	public String summarize(String input, boolean compact) throws IOException {
 
-		Conversation.Config cfgSummary = cfg.clone();
+		Conversation.Config cfgSummary = cfg.cloneConfig();
 		cfgSummary.ToolClasses = null;
-		cfgSummary.SystemPrompt = cfg.SummarizePrompt;
-		if (compact) cfgSummary.SystemPrompt += cfg.SummarizeCompactPrompt;
+		cfgSummary.setSystemPrompt(cfg.SummarizePrompt);
+		if (compact) cfgSummary.appendToSystemPrompt(cfg.SummarizeCompactPrompt);
 
 		try {
 			String fetched = fetchInput(input);
@@ -316,8 +382,7 @@ public class Conversation implements Closeable
 			// chunked case --- collect up the chunk summaries, then combine them 
 			// into a single global one. Note we are playing lots of games with 
 			// cfgSummary.SystemPrompt ... careful!
-			
-			cfgSummary.SystemPrompt += cfg.SummarizeChunkPrompt;
+			cfgSummary.appendToSystemPrompt(cfg.SummarizeChunkPrompt);
 			int cchChunk = (fetched.length() + chunks - 1) / chunks;
 			log.info(String.format("summarizing in %d chunks of size %d", chunks, cchChunk));
 
@@ -330,18 +395,18 @@ public class Conversation implements Closeable
 				String chunkSummary = summarizeChunk(cfgSummary, fetched.substring(ichStart, ichEnd));
 
 				if (i == 0) {
-					cfgSummary.SystemPrompt += cfg.SummarizePreviousPrompt;
-					ichSummariesStart = cfgSummary.SystemPrompt.length();
+					cfgSummary.appendToSystemPrompt(cfg.SummarizePreviousPrompt);
+					ichSummariesStart = cfgSummary.getSystemPrompt().length();
 				}
 				else {
-					cfgSummary.SystemPrompt += "\n-----\n";
+					cfgSummary.appendToSystemPrompt("\n-----\n");
 				}
 
-				cfgSummary.SystemPrompt += chunkSummary;
+				cfgSummary.appendToSystemPrompt(chunkSummary);
 			}
 
-			String summaries = cfgSummary.SystemPrompt.substring(ichSummariesStart);
-			cfgSummary.SystemPrompt = cfg.SummarizeSynthesisPrompt;
+			String summaries = cfgSummary.getSystemPrompt().substring(ichSummariesStart);
+			cfgSummary.setSystemPrompt(cfg.SummarizeSynthesisPrompt);
 			return(summarizeChunk(cfgSummary, summaries));
 		}
 		catch (Exception e) {
@@ -473,24 +538,14 @@ public class Conversation implements Closeable
 		
 		OpenAI.Request req = new OpenAI.Request();
 		
-		req.model = cfg.Model;
+		req.model = provider.getInfo().ApiId;
 		req.stream = false;
 
 		if (cfg.ReasoningEffort != null) req.reasoning_effort = cfg.ReasoningEffort;
 		if (cfg.Temperature > 0.0) req.temperature = cfg.Temperature;
 		if (maxTokensEffective > 0) req.max_tokens = maxTokensEffective;
 
-		if (messageHistory.size() == 0) {
-			StringBuilder sb = new StringBuilder();
-
-			if (cfg.SystemPrompt != null) sb.append(cfg.SystemPrompt);
-			sb.append(environment.getLocation());
-			sb.append(environment.getTimeZone());
-
-			messageHistory.add(makeSystemMessage(sb.toString()));
-		}
-		
-		if (input != null) messageHistory.add(makeUserMessage(input, imageUrl));
+		addUserMessage(input, imageUrl);
 
 		req.messages = messageHistory;
 		req.tools = toolCalling.getDescriptions();
@@ -500,11 +555,13 @@ public class Conversation implements Closeable
 	}
 
 	private OpenAI.Message makeUserMessage(String input) {
-		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input, null));
+		String msg = (cfg.AutoEnv ? environment.getTimeStamp() : "") + input;
+		return(makeMessage(OpenAI.ROLE_USER, msg, null));
 	}
 
 	private OpenAI.Message makeUserMessage(String input, String imageURL) {
-		return(makeMessage(OpenAI.ROLE_USER, environment.getTimeStamp() + input, imageURL));
+		String msg = (cfg.AutoEnv ? environment.getTimeStamp() : "") + input;
+		return(makeMessage(OpenAI.ROLE_USER, msg, imageURL));
 	}
 
 	private OpenAI.Message makeSystemMessage(String input) {

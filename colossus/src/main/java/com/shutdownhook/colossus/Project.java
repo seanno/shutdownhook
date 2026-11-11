@@ -154,7 +154,7 @@ public class Project
 						// explicit prompt
 						effectivePrompt = Easy.stringFromFile(promptPath.toString());
 					}
-					else if (!Files.exists(children) && !Easy.nullOrEmpty(thisCfg.SystemPrompt)) {
+					else if (!Files.exists(children) && !Easy.nullOrEmpty(thisCfg.getSystemPrompt())) {
 						// implicit prompt at leaf (only if we have some prompt to give)
 						effectivePrompt = START_PROMPT;
 					}
@@ -241,7 +241,7 @@ public class Project
 			}
 		}
 		else {
-			thisCfg = ((parentCfg == null ? new Conversation.Config() : parentCfg.clone()));
+			thisCfg = ((parentCfg == null ? new Conversation.Config() : parentCfg.cloneConfig()));
 		}
 
 		// 2. inherit the system prompt
@@ -249,9 +249,9 @@ public class Project
 		Path projectSys = getProjectFile(SYSTEMPROMPT_FILE);
 		
 		if (Files.exists(projectSys)) {
-			thisCfg.SystemPrompt =
-				(thisCfg.SystemPrompt == null ? "" : thisCfg.SystemPrompt + "\n") +
-				Easy.stringFromFile(projectSys.toString());
+			String baseSystemPrompt = thisCfg.getSystemPrompt();
+			thisCfg.setSystemPrompt((baseSystemPrompt == null ? "" : baseSystemPrompt + "\n") +
+									Easy.stringFromFile(projectSys.toString()));
 		}
 
 		// 3. force the working directory for file and code tools if present

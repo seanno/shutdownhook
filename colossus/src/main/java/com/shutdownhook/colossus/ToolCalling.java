@@ -7,7 +7,6 @@ package com.shutdownhook.colossus;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
-
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -108,6 +107,14 @@ public class ToolCalling
 		return(tools.get(name).execute(jsonArgs, conversation));
 	}
 	
+	// +------+
+	// | find |
+	// +------+
+
+	public Tool find(String name) {
+		return(tools.get(name));
+	}
+
 	// +----------------+
 	// | Tool Interface |
 	// +----------------+
@@ -387,6 +394,7 @@ public class ToolCalling
 		}
 
 		private void mergeConfigOverrides(ToolClass toolClass, Conversation conversation) {
+
 			JsonObject base = JsonParser.parseString(conversation.getConfig().toJson()).getAsJsonObject();
 			for (String key : toolClass.Config.keySet()) base.add(key, toolClass.Config.get(key));
 			this.cfg = Conversation.Config.fromJson(base.toString());
