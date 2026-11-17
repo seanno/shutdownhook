@@ -165,8 +165,7 @@ public class Project
 					conversation = new Conversation(thisCfg);
 					result.Response = conversation.safePrompt(effectivePrompt);
 					if (!override && Easy.nullOrEmpty(result.Response)) {
-						String wrapUpPrompt = getWrapUpPrompt(conversation);
-						if (wrapUpPrompt != null) result.Response = conversation.safePrompt(wrapUpPrompt);
+						result.Response = conversation.safePrompt(WRAPUP_PROMPT);
 					}
 				}
 
@@ -388,22 +387,6 @@ public class Project
 		return(path);
 	}
 
-	private String getWrapUpPrompt(Conversation conversation) {
-
-		String prompt = WRAPUP_PROMPT_PREFIX;
-		
-		String reasoning = conversation.getLastReasoning();
-		if (!Easy.nullOrEmpty(reasoning)) {
-			if (reasoning.length() > WRAPUP_REASONING_CCH_MAX) {
-				reasoning = reasoning.substring(0, WRAPUP_REASONING_CCH_MAX) + "...";
-			}
-
-			prompt += WRAPUP_PROMPT_REASONING + reasoning;
-		}
-
-		return(prompt);
-	}
-
 	// +-------------+
 	// | Script_Tool |
 	// +-------------+
@@ -428,7 +411,7 @@ public class Project
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@script_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+		public ToolCalling.ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String cmd = cfg.CommandLine;
 
@@ -446,9 +429,9 @@ public class Project
 			if (!Files.exists(scriptsDir) || !Files.exists(dataDir)) {
 				throw new Exception("Required directories missing");
 			}
-			
+
 			Utility.ProcessResult result = runScript(cmd, scriptsDir, dataDir);
-			return((result.ExitCode == 0 ? "" : "ERROR\n") + result.Output);
+			return(ToolCalling.ToolResponse.content((result.ExitCode == 0 ? "" : "ERROR\n") + result.Output));
 		}
 
 		private Config cfg;
@@ -497,13 +480,8 @@ public class Project
 
 	private final static String PAUSED_SUFFIX = ".paused";
 
-	private final static String WRAPUP_PROMPT_PREFIX = 
+	private final static String WRAPUP_PROMPT = 
 		"Your previous response was empty. Give a non-empty response.";
-
-	private final static String WRAPUP_PROMPT_REASONING =
-		" Continue from this reasoning: ";
-
-	private final static int WRAPUP_REASONING_CCH_MAX = 200;
 
 	private final static String START_PROMPT = "Begin";
 

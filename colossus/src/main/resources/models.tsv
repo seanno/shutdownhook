@@ -18,4 +18,6 @@ Llama	http://localhost:8091/	Qwen 3.6 27b		qwen-3.6-27b	-1	-1
 Llama	http://localhost:8091/	Qwen 3.8 27b		qwen-3.8-27b	-1	-1
 Llama	http://localhost:8091/	Qwen 3.8 27b MultiMedia		qwen-3.8-27b-mm	-1	-1
 Llama	http://localhost:8091/	Mistral Small 3.2 24b		mistral-small-3.2-24b	-1	-1
-OpenRouter	https://openrouter.ai/api	OpenRouter Qwen 3.8 27b	qwen-3.8-27b-or	qwen/qwen3.8-27b	262144	235929	{"quantizations":["fp8"],"require_parameters":true}
+OpenRouter	https://openrouter.ai/api	OpenRouter Qwen 3.8 27b	qwen-3.8-27b-or	qwen/qwen3.8-27b	262144	235929	{"provider":{"quantizations":["fp8"],"require_parameters":true}}
+OpenRouter	https://openrouter.ai/api	OpenRouter Gemma 4 26b	gemma-4-26b-or	google/gemma-4-26b-a4b-it	262144	16384	{"provider":{"quantizations":["bf16"],"require_parameters":true}}
+OpenRouter	https://openrouter.ai/api	OpenRouter MuseGlimmer 30b	muse-glimmer-30b-or	meta/muse-glimmer-30b	131072	16384	{"provider":{"quantizations":["bf16"],"require_parameters":true}}

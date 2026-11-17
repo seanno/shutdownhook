@@ -67,7 +67,8 @@ public class ModelInfo
 		for (String line: lines) {
 			if (line.startsWith("provider\t")) continue;
 			ModelInfo info = ModelInfo.fromTSV(line);
-			models.put(info.AlternativeId == null ? info.ApiId.toLowerCase() : info.AlternativeId.toLowerCase(), info);
+			models.put(Easy.nullOrEmpty(info.AlternativeId)
+					   ? info.ApiId.toLowerCase() : info.AlternativeId.toLowerCase(), info);
 		}
 
 		return(models);

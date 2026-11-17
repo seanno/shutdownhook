@@ -9,6 +9,9 @@ import java.io.Closeable;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -64,7 +67,9 @@ public class Conversation implements Closeable
 		public double Temperature = 0.0d;
 		public long MaxTokens = 4096; 
 		public long MaxTokensCeilingDivisor = 4; // context length / divisor == ceiling
-		
+
+		public String VerboseLogPath;
+
 		public int PruneTruncationLength = 100;
 
 		public int SummaryTokenBudgetPct = 80;
@@ -184,29 +189,42 @@ public class Conversation implements Closeable
 	}
 	
 	public OpenAI.Message addUserMessage(String input, String imageUrl) throws IOException {
-		
-		if (messageHistory.size() == 0) {
-			StringBuilder sb = new StringBuilder();
+		return(addMessage(input, imageUrl, OpenAI.ROLE_USER));
+	}
 
-			String effectiveSystemPrompt = cfg.getSystemPrompt();
-			if (effectiveSystemPrompt != null) sb.append(effectiveSystemPrompt);
+	public OpenAI.Message addAssistantMessage(String input) throws IOException {
+		return(addMessage(input, null, OpenAI.ROLE_ASST));
+	}
 
-			if (cfg.AutoEnv) {
-				sb.append(environment.getLocation());
-				sb.append(environment.getTimeZone());
-			}
+	public OpenAI.Message addMessage(String input, String imageUrl, String role) throws IOException {
 
-			messageHistory.add(makeSystemMessage(sb.toString()));
-		}
+		ensureSystemMessage();
 
 		OpenAI.Message message = null;
-		
+
 		if (input != null) {
-			message = makeUserMessage(input, imageUrl);
+			message = makeMessage(role, input, imageUrl);
 			messageHistory.add(message);
 		}
 
 		return(message);
+	}
+
+	private void ensureSystemMessage() throws IOException {
+
+		if (messageHistory.size() > 0) return;
+
+		StringBuilder sb = new StringBuilder();
+
+		String effectiveSystemPrompt = cfg.getSystemPrompt();
+		if (effectiveSystemPrompt != null) sb.append(effectiveSystemPrompt);
+
+		if (cfg.AutoEnv) {
+			sb.append(environment.getLocation());
+			sb.append(environment.getTimeZone());
+		}
+		
+		messageHistory.add(makeSystemMessage(sb.toString()));
 	}
 
 	// +--------+
@@ -233,16 +251,19 @@ public class Conversation implements Closeable
 	}
 	
 	public String prompt(String input, String imageUrl) throws Exception {
+		Path verboseLogPath = getVerboseLogPath();
 		maxTokensEffective = cfg.MaxTokens;
 		int turns = 0;
-		String response = promptOne(input, imageUrl);
+		String response = promptOne(input, imageUrl, turns, verboseLogPath);
 		while (response == null && !turnLimit(turns++)) {
 			if (turnLimit(turns)) {
 				log.warning("turn limit reached");
 				messageHistory.add(makeUserMessage(cfg.TurnLimitMessage));
 			}
-			response = promptOne(null, null);
+			response = promptOne(null, null, turns, verboseLogPath);
 		}
+
+		pruneReasoning();
 		return(response);
 	}
 
@@ -251,15 +272,18 @@ public class Conversation implements Closeable
 		return(turns >= cfg.MaxTurns);
 	}
 	
-	private String promptOne(String input, String imageUrl) throws Exception {
+	private String promptOne(String input, String imageUrl,
+							 int turnIndex, Path verboseLogPath) throws Exception {
 
 		String request = makeRequestBody(input, imageUrl);
-		if (request == null) return(cfg.ConversationTooLargeMessage);
 
-		//System.out.println("*****\n" + request + "\n*****");
+		if (request == null) return(cfg.ConversationTooLargeMessage);
+		
+		log.info(String.format("Request started, length=%d", request.length()));
+		long startNanos = System.nanoTime();
+
 		String body = sendRequest(provider.getCompletionPath(), request);
-		//System.out.println("*****\n" + body + "\n*****");
-			
+
 		ModelProvider.DeserializeResult result = provider.deserializeResponse(body);
 		OpenAI.Response response = result.Response;
 
@@ -270,13 +294,16 @@ public class Conversation implements Closeable
 		OpenAI.Choice choice = response.choices[0];
 		messageHistory.add(choice.message);
 
+		maybeVerboseLog(verboseLogPath, turnIndex, request, body, choice.finish_reason);
+
 		// stats
 		String content = choice.message.getContentText();
 		int contentLength = (content == null ? -1 : content.length());
-		int reasoningLength = (choice.message.reasoning_content == null ? -1 : choice.message.reasoning_content.length());
+		int reasoningLength = (choice.message.getReasoning() == null ? -1 : choice.message.getReasoning().length());
 
-		log.info(String.format("Stats (%s): prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
+		log.info(String.format("Stats (%s): ms: %d, prompt: %d, completion: %d, total: %d, PPS: %f [cl=%d, rcl=%d]",
 							   choice.finish_reason,
+							   (System.nanoTime() - startNanos) / 1000000,
 							   response.usage.prompt_tokens,
 							   response.usage.completion_tokens,
 							   response.usage.total_tokens,
@@ -285,21 +312,15 @@ public class Conversation implements Closeable
 
 		if (result.UsageDetails != null) log.info("Stats Detail: " + result.UsageDetails.toString());
 
-		// debug
-		if ("1".equals(System.getenv("COLOSSUS_SHOW_CONVERSATIONS"))) {
-			System.out.println("TURN:\n" + utils.getGson().toJson(choice.message));
-		}
-		
-		lastReasoning = choice.message.reasoning_content;
-		choice.message.reasoning_content = null;
-
 		String tag = "";
 		
 		switch (choice.finish_reason) {
 
 			case OpenAI.FINISH_REASON_TOOLS:
-				callTools(choice.message.tool_calls);
-				return(null);
+				// if any tools return a ToolResponse with Stop == true, that
+				// content will come through here, and the message will be interpreted
+				// as a STOP message by design.
+				return(callTools(choice.message.tool_calls));
 				
 			case OpenAI.FINISH_REASON_TRUNC:
 				log.info(String.format("Hit generation max: %d", maxTokensEffective));
@@ -321,14 +342,6 @@ public class Conversation implements Closeable
 				String text = choice.message.getContentText();
 				return(text == null ? "" : text);
 		}
-	}
-
-	// +------------------+
-	// | getLastReasoning |
-	// +------------------+
-
-	public String getLastReasoning() {
-		return(lastReasoning);
 	}
 
 	// +------------+
@@ -483,26 +496,42 @@ public class Conversation implements Closeable
 	// | callTools |
 	// +-----------+
 
-	private void callTools(List<OpenAI.ToolCall> toolCalls) throws Exception {
+	private String callTools(List<OpenAI.ToolCall> toolCalls) throws Exception {
 
 		// start the calls going
-		List<CompletableFuture<String>> futures = new ArrayList<CompletableFuture<String>>();
+		List<CompletableFuture<ToolCalling.ToolResponse>> futures =
+			new ArrayList<CompletableFuture<ToolCalling.ToolResponse>>();
+		
 		for (int i = 0; i < toolCalls.size(); ++i) {
 			OpenAI.ToolCall call = toolCalls.get(i);
 			futures.add(toolCalling.callAsync(call.function.name, call.function.arguments));
 		}
 
-		// add the results to message history --- walking in order so the results are presented
-		// in request order (important for ollama even if it is pretending to be openai)
+		// collect the results --- walking in order so the results are presented
+		// in request order (important for ollama even if it is pretending to be openai).
+		//
+		// regular content -> message history
+		// stop content -> string to return from this method
+
+		StringBuilder sb = new StringBuilder();
 		
 		for (int i = 0; i < toolCalls.size(); ++i) {
 			
 			OpenAI.ToolCall call = toolCalls.get(i);
-			String content = futures.get(i).get(cfg.ToolTimeoutMillis, TimeUnit.MILLISECONDS);
-			
-			OpenAI.Message msg = makeToolMessage(content, call.id, call.function.name);
-			messageHistory.add(msg);
+			ToolCalling.ToolResponse toolResponse =
+				futures.get(i).get(cfg.ToolTimeoutMillis, TimeUnit.MILLISECONDS);
+
+			if (toolResponse.Stop) {
+				if (sb.length() > 0) sb.append("\n");
+				sb.append(toolResponse.Content);
+			}
+			else {
+				OpenAI.Message msg = makeToolMessage(toolResponse.Content, call.id, call.function.name);
+				messageHistory.add(msg);
+			}
 		}
+
+		return(sb.length() == 0 ? null : sb.toString());
 	}
 
 	// +-----------------+
@@ -632,6 +661,15 @@ public class Conversation implements Closeable
 		if (prunedSome) requestTokens = provider.countTokens(req);
 		if (requestTokens <= tokenBudget) return(true);
 
+		// 3. try to prune in-flight reasoning content. This can have negative impacts but
+		// can net significant reductions, even for in-flight turns
+
+		log.info(String.format("Request too large 3: %d, limit %d)", requestTokens, tokenBudget));
+		prunedSome = pruneReasoning();
+
+		if (prunedSome) requestTokens = provider.countTokens(req);
+		if (requestTokens <= tokenBudget) return(true);
+		
 		// Sad, nothing more to do.....
 		
 		log.warning(String.format("Unable to prune history below context limit: %d,%d",
@@ -700,6 +738,30 @@ public class Conversation implements Closeable
 
 		return(prunedSome);
 		
+	}
+
+	// remove reasoning_effort from all messages. This is done on purpose on "stop"
+	// content and as-needed in pruneRequest. Acts directly on the messages array,
+	// which again is weird. Simple prune forward nuking it all. ;)
+	
+	private boolean pruneReasoning() {
+
+		long cchPruned = 0;
+		
+		for (int i = 0; i < messageHistory.size(); ++i) {
+			
+			OpenAI.Message thisMsg = messageHistory.get(i);
+			String reasoning = thisMsg.getReasoning();
+			if (!Easy.nullOrEmpty(reasoning)) {
+				cchPruned += reasoning.length();
+				thisMsg.reasoning_content = null;
+				thisMsg.reasoning = null;
+				thisMsg.reasoning_details = null;
+			}
+		}
+
+		log.info(String.format("Pruned %d characters of reasoning content", cchPruned));
+		return(cchPruned > 0);
 	}
 
 	// +----------------------+
@@ -836,6 +898,54 @@ public class Conversation implements Closeable
 
 		return(sb.toString());
 	}
+
+	private Path getVerboseLogPath() {
+		
+		if (cfg.VerboseLogPath == null) return(null);
+
+		try {
+			Path basePath = Paths.get(cfg.VerboseLogPath);
+			Files.createDirectories(basePath);
+
+			DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMdd_HHmmss");
+			String timestamp = LocalDateTime.now().format(formatter);
+
+			Path logPath = basePath.resolve(timestamp);
+			int i = 0;
+			while (Files.exists(logPath)) {
+				logPath = basePath.resolve(String.format("%s_%d", timestamp, ++i));
+			}
+
+			Files.createDirectories(logPath);
+			return(logPath);
+		}
+		catch (Exception e) {
+			log.severe(Easy.exMsg(e, "getVerboseLogPath", true));
+			return(null);
+		}
+	}
+	
+	private void maybeVerboseLog(Path verboseLogPath, int turnIndex,
+								 String requestJson, String responseJson,
+								 String stopReason) {
+		
+		if (cfg.VerboseLogPath == null || verboseLogPath == null) return;
+		
+		try {
+			String fileName = String.format("%03d-%s.json", turnIndex, stopReason);
+			Path path = verboseLogPath.resolve(fileName);
+
+			String fullJson =
+				"{\n\t\"request\": " + requestJson +
+				",\n\t\"response\": " + responseJson +
+				"\n}";
+				
+			Easy.stringToFile(path.toString(), fullJson);
+		}
+		catch (Exception e) {
+			log.warning(Easy.exMsg(e, "maybeVerboseLog", false));
+		}
+	}
 	
 	// +---------+
 	// | Members |
@@ -846,11 +956,12 @@ public class Conversation implements Closeable
 	private Utility utils;
 	private ToolCalling toolCalling;
 	private List<OpenAI.Message> messageHistory;
-	private String lastReasoning;
 	private long maxTokensEffective;
 
 	private ModelProvider provider;
 	private ModelLimits limits;
+
+	private Path verboseLogPath;
 
 	private static final String CONTENT_TRUNCATED = "[TRUNCATED] ";
 	private static final String CONTENT_FILTERED = "[FILTERED] ";

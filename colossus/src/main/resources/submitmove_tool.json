@@ -1,0 +1,21 @@
+{
+  "type": "function",
+
+  "function": {
+    "name": "submit_move",
+
+    "description": "Submits a command to the game. Commands MUST be 1 or 2 whitespace-separated strings composed of printable characters. Empty commands are not allowed. Only the first 5 characters of each word are significant.",
+	
+    "parameters": {
+      "type": "object",
+      "properties": {
+		
+        "command": {
+		  "type": "string",
+		  "description": "The command to submit."
+		}
+      },
+      "required": [ "command" ]
+    }
+  }
+}

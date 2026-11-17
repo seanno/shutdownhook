@@ -8,6 +8,7 @@ package com.shutdownhook.colossus;
 import java.util.List;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 public class OpenAI
@@ -68,9 +69,15 @@ public class OpenAI
 		public String tool_call_id; // when role == "tool"
 		public String name; // when role == "tool"
 		public Object content; // String OR List<ContentPart>
-		public String reasoning_content;
+		public String reasoning;
+		public String reasoning_content; // legacy version of reasoning;
+		public JsonArray reasoning_details;
 		public List<ToolCall> tool_calls;
 
+		public String getReasoning() {
+			return(reasoning == null ? reasoning_content : reasoning);
+		}
+		
 		public String getContentText() {
 			
 			if (content instanceof String s)  return(s);

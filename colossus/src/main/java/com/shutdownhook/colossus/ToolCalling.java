@@ -91,18 +91,18 @@ public class ToolCalling
 	// | call(Async) |
 	// +-------------+
 	
-	public CompletableFuture<String> callAsync(String name, String arguments) {
+	public CompletableFuture<ToolResponse> callAsync(String name, String arguments) {
 		return(conversation.getUtils().getExec().runAsyncEx("ToolCalling.callAsync", new Exec.AsyncOperationEx() {
-			public String execute() throws Exception {
+			public ToolResponse execute() throws Exception {
 				return(call(name, arguments));
 			}
-			public String exceptionResult(Exception e) {
-				return("An error occurred: " + e.getClass().getName());
+			public ToolResponse exceptionResult(Exception e) {
+				return(ToolResponse.content("An error occurred: " + e.getClass().getName()));
 			}
 		}));
 	}
 
-	public String call(String name, String arguments) throws Exception {
+	public ToolResponse call(String name, String arguments) throws Exception {
 		JsonObject jsonArgs = JsonParser.parseString(arguments).getAsJsonObject();
 		return(tools.get(name).execute(jsonArgs, conversation));
 	}
@@ -119,9 +119,25 @@ public class ToolCalling
 	// | Tool Interface |
 	// +----------------+
 
+	public static class ToolResponse
+	{
+		public String Content;
+		public boolean Stop; // if true, content will be sent as an assistent message a la STOP
+
+		public static ToolResponse content(String content) { return(contentHelper(content, false)); }
+		public static ToolResponse stopContent(String content) { return(contentHelper(content, true)); }
+
+		private static ToolResponse contentHelper(String content, boolean stop) {
+			ToolResponse response = new ToolResponse();
+			response.Content = content;
+			response.Stop = stop;
+			return(response);
+		}
+	}
+	
 	interface Tool {
 		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception; // return tool description
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception;
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception;
 	}
 
 	// +----------------+
@@ -147,22 +163,22 @@ public class ToolCalling
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@websearch_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String query = getStringField(arguments, "query");
 			int max = getIntegerField(arguments, "max_results", cfg.MaxResults);
-			
+
 			String url = cfg.UrlPrefix + Easy.urlEncode(query);
 
 			WebRequests.Params params = new WebRequests.Params();
 			params.addHeader(cfg.ApiKeyHeader, Easy.smartyGetProperty(cfg.ApiKey_S));
 			params.addHeader("Accept", "application/json");
 			params.addHeader("Cache-Control", "no-cache");
-			
-			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url, params);
-			if (!response.successful()) return(ToolCalling.makeWebErrorJson(response));
 
-			return(makeResults(response, max));
+			WebRequests.Response response = conversation.getUtils().getRequests().fetch(url, params);
+			if (!response.successful()) return(ToolResponse.content(ToolCalling.makeWebErrorJson(response)));
+
+			return(ToolResponse.content(makeResults(response, max)));
 		}
 
 		private String makeResults(WebRequests.Response response, int max) {
@@ -224,20 +240,20 @@ public class ToolCalling
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@webrequest_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String url = getStringField(arguments, "url");
 
 			if (getBooleanField(arguments, "summarize", false)) {
 				boolean compact = getBooleanField(arguments, "compact", false);
-				return(conversation.summarize(url, compact));
+				return(ToolResponse.content(conversation.summarize(url, compact)));
 			}
-			
+
 			String body = conversation.getUtils().simpleFetchUrlText(url);
 
 			boolean truncated = false;
 			int originalLength = body.length();
-			
+
 			if (cfg.MaxLength != null && originalLength > cfg.MaxLength) {
 				body = body.substring(0, cfg.MaxLength);
 				truncated = true;
@@ -248,7 +264,7 @@ public class ToolCalling
 			json.addProperty("truncated", truncated);
 			json.addProperty("original_length", originalLength);
 
-			return(json.toString());
+			return(ToolResponse.content(json.toString()));
 		}
 
 		private Config cfg;
@@ -264,8 +280,8 @@ public class ToolCalling
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@environment_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			return(conversation.getEnv().getJson().toString());
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
+			return(ToolResponse.content(conversation.getEnv().getJson().toString()));
 		}
 
 		private DateTimeFormatter dtf;
@@ -296,17 +312,17 @@ public class ToolCalling
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@super_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
 
 			String op = getStringField(arguments, "operation", "").toLowerCase();
 			String path = getStringField(arguments, "path");
 
-			if (Easy.nullOrEmpty(op)) return("Error: cmd must be present");
-			
+			if (Easy.nullOrEmpty(op)) return(ToolResponse.content("Error: cmd must be present"));
+
 			if (Easy.nullOrEmpty(path)) {
 				if ("list".equals(op)) path = ".";
 				if (!"run".equals(op) && Easy.nullOrEmpty(path)) {
-					return("Error: path must be present");
+					return(ToolResponse.content("Error: path must be present"));
 				}
 			}
 
@@ -314,55 +330,55 @@ public class ToolCalling
 				case "list":
 					int max = getIntegerField(arguments, "max_files", 0);
 					List<TextFiles.FileInfo> infos = txt.listFileInfos(path, max);
-					return(conversation.getUtils().getCompactGson().toJson(infos));
+					return(ToolResponse.content(conversation.getUtils().getCompactGson().toJson(infos)));
 
 				case "summarize":
 					boolean compact = getBooleanField(arguments, "compact", false);
-					return(conversation.summarize("file://" + path, compact));
-					
+					return(ToolResponse.content(conversation.summarize("file://" + path, compact)));
+
 				case "read":
 					int ichStart = getIntegerField(arguments, "start_index", 0);
 					int cch = getIntegerField(arguments, "read_length", 0);
 					TextFiles.ReadInfo info = txt.read(path, ichStart, cch);
-					return(conversation.getUtils().getCompactGson().toJson(info));
+					return(ToolResponse.content(conversation.getUtils().getCompactGson().toJson(info)));
 
 				case "grep":
 					String regex = getStringField(arguments, "regex");
 					boolean caseInsensitive = getBooleanField(arguments, "case_insensitive", false);
-					return(txt.grep(path, regex, caseInsensitive));
+					return(ToolResponse.content(txt.grep(path, regex, caseInsensitive)));
 
 				case "write":
 					String contentsWrite = getStringField(arguments, "contents");
 					TextFiles.WriteInfo infoWrite = txt.put(path, contentsWrite);
-					return(conversation.getUtils().getCompactGson().toJson(infoWrite));
+					return(ToolResponse.content(conversation.getUtils().getCompactGson().toJson(infoWrite)));
 
 				case "append":
 					String contentsAppend = getStringField(arguments, "contents");
 					TextFiles.WriteInfo infoAppend = txt.append(path, contentsAppend);
-					return(conversation.getUtils().getCompactGson().toJson(infoAppend));
+					return(ToolResponse.content(conversation.getUtils().getCompactGson().toJson(infoAppend)));
 
 				case "download":
 					String url = getStringField(arguments, "url");
-					if (Easy.nullOrEmpty(url)) return("Error: url must be present");
+					if (Easy.nullOrEmpty(url)) return(ToolResponse.content("Error: url must be present"));
 
 					boolean extractText = getBooleanField(arguments, "extract_text", true);
 					long cchDownloaded = txt.download(path, url, extractText, conversation.getUtils().getRequests());
-					return(String.format("{ \"Length\": %d }", cchDownloaded));
+					return(ToolResponse.content(String.format("{ \"Length\": %d }", cchDownloaded)));
 
 				case "run":
 					String cmd = getStringField(arguments, "cmd");
-					if (Easy.nullOrEmpty(cmd)) return("Error: cmd must be present");
-					return(code.run(cmd));
+					if (Easy.nullOrEmpty(cmd)) return(ToolResponse.content("Error: cmd must be present"));
+					return(ToolResponse.content(code.run(cmd)));
 
 				case "qr":
 					String input = getStringField(arguments, "input");
-					if (Easy.nullOrEmpty(input)) return("Error: input must be present");
+					if (Easy.nullOrEmpty(input)) return(ToolResponse.content("Error: input must be present"));
 					String svg = BarCodes.qrSvgForString(input);
 					TextFiles.WriteInfo infoQR = txt.put(path, svg);
-					return(conversation.getUtils().getCompactGson().toJson(infoQR));
-					
+					return(ToolResponse.content(conversation.getUtils().getCompactGson().toJson(infoQR)));
+
 				default:
-					return("Error: Unknown super_tool operation " + op);
+					return(ToolResponse.content("Error: Unknown super_tool operation " + op));
 			}
 		}
 
@@ -382,11 +398,11 @@ public class ToolCalling
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@subagent_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
 			Conversation subConvo = null;
 			try {
 				subConvo = new Conversation(cfg);
-				return(subConvo.prompt(getStringField(arguments, "prompt")));
+				return(ToolResponse.content(subConvo.prompt(getStringField(arguments, "prompt"))));
 			}
 			finally {
 				Easy.safeClose(subConvo);

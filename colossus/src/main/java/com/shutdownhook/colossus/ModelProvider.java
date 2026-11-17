@@ -130,29 +130,53 @@ public abstract class ModelProvider
 			return(result);
 		}
 
-		
 		private Config cfg;
 		private ModelLimits.Simple limits;
 	}
 	
-	// +-----------------+
-	// | Provider_OpenAI |
-	// +-----------------+
+	// +---------------------+
+	// | Provider_OpenRouter |
+	// +---------------------+
 
 	public static class Provider_OpenRouter extends Provider_OpenAI
 	{
+		public static class Config extends Provider_OpenAI.Config
+		{
+			public String SessionId;
+		}
+
 		public Provider_OpenRouter(Conversation conversation, ModelInfo info) throws Exception {
 			super(conversation, info);
+			
+			JsonObject cfgJson = conversation.getConfig().ModelProviderConfig;
+			this.cfg = (cfgJson == null ? new Config() : utils.getGson().fromJson(cfgJson, Config.class));
 		}
 
 		public String serializeRequest(OpenAI.Request request) throws Exception {
+			
 			JsonObject req = utils.getGson().toJsonTree(request).getAsJsonObject();
-			if (this.info.ExtraConfig != null) {
-				JsonObject provider = JsonParser.parseString(this.info.ExtraConfig).getAsJsonObject();
-				req.add("provider", provider);
+			
+			String reasoningEffort = conversation.getConfig().ReasoningEffort;
+			if (reasoningEffort != null) {
+				JsonObject reasoning = new JsonObject();
+				reasoning.addProperty("effort", reasoningEffort);
+				req.add("reasoning", reasoning);
 			}
+
+			if (cfg.SessionId != null) {
+				req.addProperty("session_id", cfg.SessionId);
+			}
+
+			// note this allows you to override any root level request element
+			if (this.info.ExtraConfig != null) {
+				JsonObject extras = JsonParser.parseString(this.info.ExtraConfig).getAsJsonObject();
+				for (String key : extras.keySet()) req.add(key, extras.get(key));
+			}
+			
 			return(utils.getCompactGson().toJson(req));
 		}
+
+		private Config cfg;
 	}
 
 	// +----------------+

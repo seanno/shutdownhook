@@ -28,6 +28,7 @@ import com.shutdownhook.toolbox.LineTransformer;
 
 import com.shutdownhook.colossus.ToolCalling.Tool;
 import com.shutdownhook.colossus.ToolCalling.ToolClass;
+import com.shutdownhook.colossus.ToolCalling.ToolResponse;
 
 public class Adventure implements Closeable
 {
@@ -44,6 +45,8 @@ public class Adventure implements Closeable
 		public Conversation.Config Conversation = new Conversation.Config();
 
 		public String AdventureToolName = "adventure_tool";
+
+		public String ModelMessagePrefix = "Your last command: ";
 		
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
@@ -53,7 +56,7 @@ public class Adventure implements Closeable
 	public Adventure(Config cfg) throws Exception {
 		
 		this.cfg = cfg;
-		setupAdventureTool();
+		setupTools();
 		this.process = new PromptedProcess(cfg.Process);
 	}
 
@@ -70,6 +73,7 @@ public class Adventure implements Closeable
 		int runExceptions = 0;
 		StringBuilder sb = new StringBuilder();
 		String processMessage = process.turn(null);
+		String modelMessage = null;
 
 		while (processMessage != null) {
 
@@ -79,8 +83,13 @@ public class Adventure implements Closeable
 			try {
 				conversation = new Conversation(cfg.Conversation);
 				adventureTool = (Adventure_Tool) conversation.findTool(cfg.AdventureToolName);
+
+				// add notepads and last issued command
 				adventureTool.addNotepadMessages(conversation);
-									
+				if (modelMessage != null) {
+					conversation.addAssistantMessage(cfg.ModelMessagePrefix + modelMessage);
+				}
+				
 				sb.setLength(0);
 				sb.append("===== ADVENTURE\n")
 					.append(processMessage.trim())
@@ -89,7 +98,7 @@ public class Adventure implements Closeable
 				System.out.println(sb.toString());
 				adventureTool.appendToHistory(sb.toString());
 
-				String modelMessage = conversation.prompt(processMessage);
+				modelMessage = conversation.prompt(processMessage);
 
 				if (modelMessage == null) {
 					log.info("Model terminated conversation");
@@ -105,7 +114,7 @@ public class Adventure implements Closeable
 				System.out.println(sb.toString());
 				adventureTool.appendToHistory(sb.toString());
 
-				processMessage = process.turn(modelMessage);
+				processMessage = process.turn(modelMessage.replaceAll("\\R", " "));
 			}
 			catch (Exception e) {
 				++runExceptions;
@@ -243,6 +252,41 @@ public class Adventure implements Closeable
 		private OutputStreamWriter writer = null;
 	}
 
+	// +----------------+
+	// | SubmitMoveTool |
+	// +----------------+
+
+	public static class SubmitMove_Tool implements Tool
+	{
+		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
+			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@submitmove_tool.json"));
+		}
+		
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
+
+			String command = ToolCalling.getStringField(arguments, "command", "").trim();
+			if (command.length() == 0) return(ToolResponse.content("Not submitted: Command cannot be empty."));
+			if (!isOneOrTwoWords(command)) return(ToolResponse.content("Not submitted: Command must be 1 or 2 words."));
+
+			return(ToolResponse.stopContent(command));
+		}
+
+		private boolean isOneOrTwoWords(String input) {
+			
+			int cch = input.length();
+			int ich = 0;
+
+			// find whitespace or end of string
+			while (ich < cch && ich != ' ' && ich != '\t') ++ich;
+			if (ich == cch) return(true); // one word
+
+			// skip whitespace, then find next whitespace or end of string
+			while (ich < cch && (ich == ' ' || ich == '\t')) ++ich;
+			while (ich < cch && ich != ' ' && ich != '\t') ++ich;
+			return(ich == cch);
+		}
+	}
+
 	// +---------------+
 	// | AdventureTool |
 	// +---------------+
@@ -282,8 +326,8 @@ public class Adventure implements Closeable
 			return(ToolCalling.getToolDescriptionFromSmartyPath(toolClass, "@adventure_tool.json"));
 		}
 		
-		public String execute(JsonObject arguments, Conversation conversation) throws Exception {
-			
+		public ToolResponse execute(JsonObject arguments, Conversation conversation) throws Exception {
+
 			Notepad notepad = Notepad.valueOf(ToolCalling.getStringField(arguments, "notepad"));
 			Action action = Action.valueOf(ToolCalling.getStringField(arguments, "action"));
 			boolean readOnlyAction = (action.equals(Action.READ) || action.equals(Action.SEARCH));
@@ -295,7 +339,7 @@ public class Adventure implements Closeable
 			synchronized (notepadMessages.get(notepad)) {
 				String result = executeLocked(notepad, action, arguments, conversation);
 				if (!readOnlyAction) updateNotepadMessage(conversation, notepad);
-				return(result);
+				return(ToolResponse.content(result));
 			}
 		}
 		
@@ -348,9 +392,9 @@ public class Adventure implements Closeable
 		}
 
 		public void addNotepadMessages(Conversation conversation) throws Exception {
+			addNotepadMessage(conversation, Notepad.LOG);
 			addNotepadMessage(conversation, Notepad.STATE);
 			addNotepadMessage(conversation, Notepad.MAP);
-			addNotepadMessage(conversation, Notepad.LOG);
 			notepadMessages.put(Notepad.HISTORY, new OpenAI.Message());
 		}
 
@@ -374,7 +418,7 @@ public class Adventure implements Closeable
 
 		private String getNotepadContents(Notepad notepad) throws Exception {
 			Path notepadPath = getNotepadPath(notepad);
-			return("## " + notepad.toString() + "\n" + LineTransformer.readAll(notepadPath));
+			return("## Notepad: " + notepad.toString() + "\n" + LineTransformer.readAll(notepadPath));
 		}
 
 		private Path getNotepadPath(Notepad notepad) {
@@ -386,8 +430,13 @@ public class Adventure implements Closeable
 		private Map<Notepad,OpenAI.Message> notepadMessages;
  	}
 
-	private void setupAdventureTool() throws IOException {
+	// +------------+
+	// | setupTools |
+	// +------------+
+	
+	private void setupTools() throws IOException {
 
+		// adventure
 		Path statePath = Paths.get(cfg.StatePath);
 		Files.createDirectories(statePath);
 		log.info("Saving Adventure_Tool files to " + statePath.toString());
@@ -398,11 +447,17 @@ public class Adventure implements Closeable
 		adventureTool.Config = new JsonObject();
 		adventureTool.Config.addProperty("StatePath", cfg.StatePath);
 
-		cfg.Conversation.ToolClasses = (cfg.Conversation.ToolClasses == null
-			? new ToolCalling.ToolClass[1]
-			: Arrays.copyOf(cfg.Conversation.ToolClasses, cfg.Conversation.ToolClasses.length + 1));
+		// submit move
+		ToolCalling.ToolClass moveTool = new ToolCalling.ToolClass();
+		moveTool.ClassName = SubmitMove_Tool.class.getName();
 
-		cfg.Conversation.ToolClasses[cfg.Conversation.ToolClasses.length - 1] = adventureTool;
+		// add them in 
+		cfg.Conversation.ToolClasses = (cfg.Conversation.ToolClasses == null
+			? new ToolCalling.ToolClass[2]
+			: Arrays.copyOf(cfg.Conversation.ToolClasses, cfg.Conversation.ToolClasses.length + 2));
+
+		cfg.Conversation.ToolClasses[cfg.Conversation.ToolClasses.length - 2] = adventureTool;
+		cfg.Conversation.ToolClasses[cfg.Conversation.ToolClasses.length - 1] = moveTool;
 	}
 
 
