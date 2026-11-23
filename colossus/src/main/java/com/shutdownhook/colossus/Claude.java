@@ -168,8 +168,17 @@ public class Claude
 
 		String text = msg.getContentText();
 
-		if (msg.tool_calls != null && msg.tool_calls.size() > 0) {
+		if ((msg.tool_calls != null && msg.tool_calls.size() > 0) ||
+			msg.reasoning_details != null) {
+
 			JsonArray content = new JsonArray();
+
+			// thinking blocks must come first
+			if (msg.reasoning_details != null) {
+				for (JsonElement el : msg.reasoning_details) {
+					content.add(el);
+				}
+			}
 
 			if (text != null && text.length() > 0) {
 				JsonObject textBlock = new JsonObject();
@@ -178,13 +187,15 @@ public class Claude
 				content.add(textBlock);
 			}
 
-			for (OpenAI.ToolCall tc : msg.tool_calls) {
-				JsonObject toolUse = new JsonObject();
-				toolUse.addProperty("type", "tool_use");
-				toolUse.addProperty("id", tc.id);
-				toolUse.addProperty("name", tc.function.name);
-				toolUse.add("input", JsonParser.parseString(tc.function.arguments));
-				content.add(toolUse);
+			if (msg.tool_calls != null) {
+				for (OpenAI.ToolCall tc : msg.tool_calls) {
+					JsonObject toolUse = new JsonObject();
+					toolUse.addProperty("type", "tool_use");
+					toolUse.addProperty("id", tc.id);
+					toolUse.addProperty("name", tc.function.name);
+					toolUse.add("input", JsonParser.parseString(tc.function.arguments));
+					content.add(toolUse);
+				}
 			}
 
 			obj.add("content", content);
@@ -257,6 +268,7 @@ public class Claude
 
 		StringBuilder textContent = new StringBuilder();
 		StringBuilder thinkingContent = new StringBuilder();
+		JsonArray rawThinkingBlocks = null;
 		List<OpenAI.ToolCall> toolCalls = new ArrayList<OpenAI.ToolCall>();
 
 		if (json.has("content")) {
@@ -272,8 +284,14 @@ public class Claude
 						break;
 
 					case "thinking":
-						if (thinkingContent.length() > 0) thinkingContent.append("\n");
-						thinkingContent.append(block.get("thinking").getAsString());
+						String thinking = block.has("thinking") ? block.get("thinking").getAsString() : "";
+						if (!thinking.isEmpty()) {
+							if (thinkingContent.length() > 0) thinkingContent.append("\n");
+							thinkingContent.append(thinking);
+						}
+						// preserve raw block (including signature) for round-tripping
+						if (rawThinkingBlocks == null) rawThinkingBlocks = new JsonArray();
+						rawThinkingBlocks.add(block);
 						break;
 
 					case "tool_use":
@@ -291,6 +309,7 @@ public class Claude
 
 		message.content = textContent.length() > 0 ? textContent.toString() : null;
 		message.reasoning_content = thinkingContent.length() > 0 ? thinkingContent.toString() : null;
+		message.reasoning_details = rawThinkingBlocks;
 		message.tool_calls = toolCalls.size() > 0 ? toolCalls : null;
 
 		// build choice

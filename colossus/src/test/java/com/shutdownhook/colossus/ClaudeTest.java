@@ -274,4 +274,127 @@ public class ClaudeTest
 		assertEquals("The answer is 42.", resp.choices[0].message.content);
 		assertEquals("Let me think...", resp.choices[0].message.reasoning_content);
 	}
+
+	@Test
+	public void testDeserialize_ThinkingPreservesRawBlocks() {
+		String json = "{\"id\":\"msg_1\",\"model\":\"m\",\"stop_reason\":\"end_turn\"," +
+			"\"content\":[{\"type\":\"thinking\",\"thinking\":\"Let me think...\",\"signature\":\"sig123\"}," +
+			"{\"type\":\"text\",\"text\":\"Answer.\"}]," +
+			"\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}";
+
+		OpenAI.Message msg = Claude.deserializeResponse(json, gson).Response.choices[0].message;
+
+		assertNotNull(msg.reasoning_details);
+		assertEquals(1, msg.reasoning_details.size());
+		JsonObject block = msg.reasoning_details.get(0).getAsJsonObject();
+		assertEquals("thinking", block.get("type").getAsString());
+		assertEquals("Let me think...", block.get("thinking").getAsString());
+		assertEquals("sig123", block.get("signature").getAsString());
+	}
+
+	@Test
+	public void testDeserialize_SignatureOnlyThinking() {
+		String json = "{\"id\":\"msg_1\",\"model\":\"m\",\"stop_reason\":\"end_turn\"," +
+			"\"content\":[{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"encrypted123\"}," +
+			"{\"type\":\"text\",\"text\":\"Answer.\"}]," +
+			"\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}";
+
+		OpenAI.Message msg = Claude.deserializeResponse(json, gson).Response.choices[0].message;
+
+		// empty thinking text should not populate reasoning_content
+		assertNull(msg.reasoning_content);
+		// but the raw block should be preserved for round-tripping
+		assertNotNull(msg.reasoning_details);
+		assertEquals(1, msg.reasoning_details.size());
+		assertEquals("encrypted123", msg.reasoning_details.get(0).getAsJsonObject().get("signature").getAsString());
+	}
+
+	// +----------------------------------------------+
+	// | round-trip: thinking blocks through serialize |
+	// +----------------------------------------------+
+
+	@Test
+	public void testRoundtrip_ThinkingBlocksSentBack() {
+		// Simulate a Claude response with thinking + tool_use
+		String responseJson = "{\"id\":\"msg_1\",\"model\":\"m\",\"stop_reason\":\"tool_use\"," +
+			"\"content\":[{\"type\":\"thinking\",\"thinking\":\"I should search.\",\"signature\":\"sig_abc\"}," +
+			"{\"type\":\"text\",\"text\":\"Let me search.\"}," +
+			"{\"type\":\"tool_use\",\"id\":\"toolu_1\",\"name\":\"search\",\"input\":{\"q\":\"test\"}}]," +
+			"\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}";
+
+		OpenAI.Message asstMsg = Claude.deserializeResponse(responseJson, gson).Response.choices[0].message;
+
+		// Build a request that includes this assistant message followed by tool result
+		OpenAI.Request req = makeRequest("claude-sonnet",
+			makeMsg(OpenAI.ROLE_USER, "Find something"));
+		req.messages.add(asstMsg);
+		req.messages.add(makeToolMsg("found it", "toolu_1", "search"));
+
+		JsonObject serialized = JsonParser.parseString(Claude.serializeRequest(req, false, gson)).getAsJsonObject();
+		JsonArray messages = serialized.getAsJsonArray("messages");
+
+		// messages: user, assistant, user(tool_result)
+		assertEquals(3, messages.size());
+
+		JsonArray asstContent = messages.get(1).getAsJsonObject().getAsJsonArray("content");
+		// thinking, text, tool_use
+		assertEquals(3, asstContent.size());
+
+		// first block should be the thinking block with signature preserved
+		JsonObject thinkingBlock = asstContent.get(0).getAsJsonObject();
+		assertEquals("thinking", thinkingBlock.get("type").getAsString());
+		assertEquals("I should search.", thinkingBlock.get("thinking").getAsString());
+		assertEquals("sig_abc", thinkingBlock.get("signature").getAsString());
+
+		// then text
+		assertEquals("text", asstContent.get(1).getAsJsonObject().get("type").getAsString());
+		// then tool_use
+		assertEquals("tool_use", asstContent.get(2).getAsJsonObject().get("type").getAsString());
+	}
+
+	@Test
+	public void testRoundtrip_SignatureOnlyBlocksSentBack() {
+		// Simulate encrypted/redacted thinking (empty thinking, only signature)
+		String responseJson = "{\"id\":\"msg_1\",\"model\":\"m\",\"stop_reason\":\"end_turn\"," +
+			"\"content\":[{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"encrypted_xyz\"}," +
+			"{\"type\":\"text\",\"text\":\"Here you go.\"}]," +
+			"\"usage\":{\"input_tokens\":5,\"output_tokens\":10}}";
+
+		OpenAI.Message asstMsg = Claude.deserializeResponse(responseJson, gson).Response.choices[0].message;
+
+		OpenAI.Request req = makeRequest("claude-sonnet",
+			makeMsg(OpenAI.ROLE_USER, "Hello"));
+		req.messages.add(asstMsg);
+		req.messages.add(makeMsg(OpenAI.ROLE_USER, "Follow up"));
+
+		JsonObject serialized = JsonParser.parseString(Claude.serializeRequest(req, false, gson)).getAsJsonObject();
+		JsonArray messages = serialized.getAsJsonArray("messages");
+
+		// user, assistant, user
+		assertEquals(3, messages.size());
+
+		JsonArray asstContent = messages.get(1).getAsJsonObject().getAsJsonArray("content");
+		// thinking, text
+		assertEquals(2, asstContent.size());
+
+		JsonObject thinkingBlock = asstContent.get(0).getAsJsonObject();
+		assertEquals("thinking", thinkingBlock.get("type").getAsString());
+		assertEquals("", thinkingBlock.get("thinking").getAsString());
+		assertEquals("encrypted_xyz", thinkingBlock.get("signature").getAsString());
+	}
+
+	@Test
+	public void testSerialize_NoThinkingBlocksWithoutReasoningDetails() {
+		// An assistant message with no reasoning_details should serialize as before
+		OpenAI.Request req = makeRequest("claude-sonnet",
+			makeMsg(OpenAI.ROLE_USER, "Hi"),
+			makeMsg(OpenAI.ROLE_ASST, "Hello!"));
+
+		JsonObject serialized = JsonParser.parseString(Claude.serializeRequest(req, false, gson)).getAsJsonObject();
+		JsonObject asstMsg = serialized.getAsJsonArray("messages").get(1).getAsJsonObject();
+
+		// should be simple string content, not array
+		assertTrue(asstMsg.get("content").isJsonPrimitive());
+		assertEquals("Hello!", asstMsg.get("content").getAsString());
+	}
 }

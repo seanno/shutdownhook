@@ -4,7 +4,7 @@
   "function": {
     "name": "adventure_tool",
 
-    "description": "Provides read/write access to named notepads that can be used to keep track of game state and history. The notepads are STATE, MAP, LOG and HISTORY. STATE, MAP and LOG will be provided as context on each request. HISTORY is read-only; it is be updated automatically with each turn. All operations are line-based; all line indices are 0-based. Actions are: (1) READ to read a contiguous range of lines; (2) SEARCH to find lines matching a search string; (3) APPEND to add lines to the end; (4) INSERT to insert new lines at a line index; (5) DELETE to delete a contiguous range of lines; (6) REPLACE to replace a continuous range of lines.",
+    "description": "Provides read/write access to named notepads that can be used to keep track of game state and history. The notepads are STATE, MAP, LOG and HISTORY. STATE, MAP and LOG will be provided as context on each request. HISTORY is read-only; it is be updated automatically with each turn. All operations are line-based; all line indices are 0-based. Actions are: (1) READ to read a contiguous range of lines; (2) SEARCH to find lines matching a search string; (3) APPEND to add lines to the end; (4) INSERT to insert new lines at a line index; (5) DELETE to delete a contiguous range of lines; (6) REPLACE to replace a continuous range of lines. The special action PREVIOUS fetches final notepad content from a previous run of the game.",
 	
     "parameters": {
       "type": "object",
@@ -18,7 +18,7 @@
 
 		"action": {
 		  "type": "string",
-		  "enum": [ "READ", "SEARCH", "APPEND", "INSERT", "DELETE", "REPLACE" ],
+		  "enum": [ "READ", "SEARCH", "APPEND", "INSERT", "DELETE", "REPLACE", "PREVIOUS" ],
 		  "description": "The action to perform. See tool description for details."
 		},
 		
@@ -37,6 +37,10 @@
 		"search": {
 		  "type": "string",
 		  "description": "For SEARCH only; the search string, matched case-insensitive."
+		},
+		"run": {
+		  "type": "string",
+		  "description": "For PREVIOUS only; the name of the previous run to read."
 		}
       },
       "required": [ "notepad", "action" ]

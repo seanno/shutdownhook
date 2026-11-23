@@ -5,6 +5,7 @@
 package com.shutdownhook.colossus;
 
 import java.io.Closeable;
+import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.IOException;
@@ -25,6 +26,7 @@ import com.google.gson.JsonObject;
 
 import com.shutdownhook.toolbox.Easy;
 import com.shutdownhook.toolbox.LineTransformer;
+import com.shutdownhook.toolbox.Template;
 
 import com.shutdownhook.colossus.ToolCalling.Tool;
 import com.shutdownhook.colossus.ToolCalling.ToolClass;
@@ -44,10 +46,14 @@ public class Adventure implements Closeable
 		public PromptedProcess.Config Process = new PromptedProcess.Config();
 		public Conversation.Config Conversation = new Conversation.Config();
 
+		public String SystemPromptTemplatePath;
+			
 		public String AdventureToolName = "adventure_tool";
 
 		public String ModelMessagePrefix = "Your last command: ";
-		
+
+		public String PrevPath = "previous";
+
 		public static Config fromJson(String json) {
 			return(new Gson().fromJson(json, Config.class));
 		}
@@ -57,6 +63,7 @@ public class Adventure implements Closeable
 		
 		this.cfg = cfg;
 		setupTools();
+		setupSystemPrompt();
 		this.process = new PromptedProcess(cfg.Process);
 	}
 
@@ -311,12 +318,14 @@ public class Adventure implements Closeable
 			APPEND,
 			INSERT,
 			DELETE,
-			REPLACE
+			REPLACE,
+			PREVIOUS
 		}
 		
 		public static class Config
 		{
 			public String StatePath;
+			public String PrevPath;
 		}
 
 		public JsonObject initialize(ToolClass toolClass, Conversation conversation) throws Exception {
@@ -334,6 +343,14 @@ public class Adventure implements Closeable
 
 			if (notepad.equals(Notepad.HISTORY) && !readOnlyAction) {
 				throw new Exception("HISTORY is a read-only notepad");
+			}
+
+			if (Action.PREVIOUS.equals(action)) {
+				String run = ToolCalling.getStringField(arguments, "run", null);
+				if (Easy.nullOrEmpty(run)) throw new Exception("run parameter required");
+				int runNumber = Integer.parseInt(run); // this just verifies it's all digits
+				log.info(String.format("ADVENTURE_TOOL: %s %s %s", notepad, action, run));
+				return(ToolResponse.content(getPreviousNotepadContents(notepad, run)));
 			}
 
 			synchronized (notepadMessages.get(notepad)) {
@@ -425,14 +442,36 @@ public class Adventure implements Closeable
 			return(path.resolve(notepad.toString() + ".txt"));
 		}
 
+		public static String getPreviousRuns(String statePath, String prevPath) throws Exception {
+			Path prevRuns = Paths.get(statePath).resolve(prevPath);
+			if (!Files.exists(prevRuns)) return(null);
+
+			StringBuilder sb = new StringBuilder();
+			for (File child : prevRuns.toFile().listFiles()) {
+				if (child.isDirectory()) {
+					if (sb.length() > 0) sb.append(", ");
+					sb.append(child.getName());
+				}
+			}
+
+			return(sb.length() == 0 ? null : sb.toString());
+		}
+		
+		private String getPreviousNotepadContents(Notepad notepad, String run) throws Exception {
+			Path prevPath = path.resolve(cfg.PrevPath).resolve(run).resolve(notepad.toString() + ".txt");
+			String msg = String.format("## Notepad: %s (Previous run %s)\n", notepad, run);
+			return(msg + LineTransformer.readAll(prevPath));
+		}
+
 		private Config cfg;
 		private Path path;
 		private Map<Notepad,OpenAI.Message> notepadMessages;
  	}
 
-	// +------------+
-	// | setupTools |
-	// +------------+
+	// +-------------------+
+	// | setupTools        |
+	// | setupSystemPrompt |
+	// +-------------------+
 	
 	private void setupTools() throws IOException {
 
@@ -446,6 +485,7 @@ public class Adventure implements Closeable
 		adventureTool.Name = cfg.AdventureToolName;
 		adventureTool.Config = new JsonObject();
 		adventureTool.Config.addProperty("StatePath", cfg.StatePath);
+		adventureTool.Config.addProperty("PrevPath", cfg.PrevPath);
 
 		// submit move
 		ToolCalling.ToolClass moveTool = new ToolCalling.ToolClass();
@@ -460,6 +500,20 @@ public class Adventure implements Closeable
 		cfg.Conversation.ToolClasses[cfg.Conversation.ToolClasses.length - 1] = moveTool;
 	}
 
+	private void setupSystemPrompt() throws Exception {
+
+		String tmplText = Easy.stringFromSmartyPath(cfg.SystemPromptTemplatePath);
+		Template tmpl = new Template(tmplText);
+
+		String prevRuns = Adventure_Tool.getPreviousRuns(cfg.StatePath, cfg.PrevPath);
+
+		Map<String,String> tokens = new HashMap<String,String>();
+
+		tokens.put("HAVE_PREV_RUNS", prevRuns == null ? "FALSE" : "TRUE");
+		tokens.put("PREV_RUNS", prevRuns);
+		
+		cfg.Conversation.setSystemPrompt(tmpl.render(tokens));
+	}
 
 	// +------------+
 	// | Entrypoint |
